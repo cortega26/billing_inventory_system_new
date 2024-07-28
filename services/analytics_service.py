@@ -1,10 +1,11 @@
-from database import fetch_all
-from config import LOYALTY_THRESHOLD
+from typing import List, Dict, Any
 from datetime import datetime, timedelta
+from database import DatabaseManager
+from config import LOYALTY_THRESHOLD
 
 class AnalyticsService:
     @staticmethod
-    def get_loyal_customers():
+    def get_loyal_customers() -> List[Dict[str, Any]]:
         query = '''
             SELECT c.id, c.identifier_9, c.identifier_4, COUNT(DISTINCT s.id) as purchase_count
             FROM customers c
@@ -12,10 +13,10 @@ class AnalyticsService:
             GROUP BY c.id
             HAVING purchase_count >= ?
         '''
-        return fetch_all(query, (LOYALTY_THRESHOLD,))
+        return DatabaseManager.fetch_all(query, (LOYALTY_THRESHOLD,))
 
     @staticmethod
-    def get_sales_by_weekday():
+    def get_sales_by_weekday() -> List[Dict[str, Any]]:
         query = '''
             SELECT 
                 CASE CAST(strftime('%w', date) AS INTEGER)
@@ -32,10 +33,10 @@ class AnalyticsService:
             GROUP BY weekday
             ORDER BY CAST(strftime('%w', date) AS INTEGER)
         '''
-        return fetch_all(query)
+        return DatabaseManager.fetch_all(query)
 
     @staticmethod
-    def get_top_selling_products(start_date, end_date):
+    def get_top_selling_products(start_date: str, end_date: str) -> List[Dict[str, Any]]:
         query = '''
             SELECT p.id, p.name, SUM(si.quantity) as total_quantity
             FROM products p
@@ -46,10 +47,10 @@ class AnalyticsService:
             ORDER BY total_quantity DESC
             LIMIT 10
         '''
-        return fetch_all(query, (start_date, end_date))
+        return DatabaseManager.fetch_all(query, (start_date, end_date))
 
     @staticmethod
-    def get_sales_trend(days=30):
+    def get_sales_trend(days: int = 30) -> List[Dict[str, Any]]:
         end_date = datetime.now().date()
         start_date = end_date - timedelta(days=days)
         query = '''
@@ -59,4 +60,4 @@ class AnalyticsService:
             GROUP BY date
             ORDER BY date
         '''
-        return fetch_all(query, (start_date.isoformat(), end_date.isoformat()))
+        return DatabaseManager.fetch_all(query, (start_date.isoformat(), end_date.isoformat()))

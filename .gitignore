@@ -41,3 +41,8 @@ ENV/
 # Database files
 *.db
 *.sqlite3
+
+# Other
+backup/
+*.old
+.bak

@@ -1,11 +1,11 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
                                QTableWidget, QTableWidgetItem, QDateEdit)
-from PySide6.QtCore import Qt, QDate, QDateTime
+from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QPainter
-from PySide6.QtCharts import QChart, QChartView, QBarSeries, QBarSet, QValueAxis, QBarCategoryAxis, QLineSeries, QDateTimeAxis
+from PySide6.QtCharts import QChart, QChartView, QBarSeries, QBarSet, QValueAxis, QBarCategoryAxis, QLineSeries
 from services.analytics_service import AnalyticsService
 from utils.utils import create_table
-
+from typing import List, Dict, Any
 
 class AnalyticsView(QWidget):
     def __init__(self):
@@ -67,37 +67,7 @@ class AnalyticsView(QWidget):
 
     def show_sales_by_weekday(self):
         sales_by_weekday = self.analytics_service.get_sales_by_weekday()
-        self.result_table.setColumnCount(2)
-        self.result_table.setHorizontalHeaderLabels(["Weekday", "Total Sales"])
-        self.result_table.setRowCount(len(sales_by_weekday))
-        for row, data in enumerate(sales_by_weekday):
-            self.result_table.setItem(row, 0, QTableWidgetItem(data['weekday']))
-            self.result_table.setItem(row, 1, QTableWidgetItem(f"{data['total_sales']:.2f}"))
-
-        # Create chart
-        chart = QChart()
-        series = QBarSeries()
-        bar_set = QBarSet("Sales")
-        
-        categories = []
-        for data in sales_by_weekday:
-            bar_set.append(data['total_sales'])
-            categories.append(data['weekday'])
-        
-        series.append(bar_set)
-        chart.addSeries(series)
-        
-        axis_x = QBarCategoryAxis()
-        axis_x.append(categories)
-        chart.addAxis(axis_x, Qt.AlignmentFlag.AlignBottom)
-        series.attachAxis(axis_x)
-        
-        axis_y = QValueAxis()
-        chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
-        series.attachAxis(axis_y)
-        
-        chart.setTitle("Sales by Weekday")
-        self.chart_view.setChart(chart)
+        self._populate_table_and_chart(sales_by_weekday, ["Weekday", "Total Sales"], 'weekday', 'total_sales', "Sales by Weekday")
 
     def show_top_selling_products(self):
         start_date = self.start_date.date().toString("yyyy-MM-dd")
@@ -113,30 +83,45 @@ class AnalyticsView(QWidget):
 
     def show_sales_trend(self):
         sales_trend = self.analytics_service.get_sales_trend()
-        self.result_table.setColumnCount(2)
-        self.result_table.setHorizontalHeaderLabels(["Date", "Daily Sales"])
-        self.result_table.setRowCount(len(sales_trend))
-        for row, data in enumerate(sales_trend):
-            self.result_table.setItem(row, 0, QTableWidgetItem(data['date']))
-            self.result_table.setItem(row, 1, QTableWidgetItem(f"{data['daily_sales']:.2f}"))
+        self._populate_table_and_chart(sales_trend, ["Date", "Daily Sales"], 'date', 'daily_sales', "Sales Trend", chart_type='line')
+
+    def _populate_table_and_chart(self, data: List[Dict[str, Any]], headers: List[str], 
+                                  x_key: str, y_key: str, title: str, chart_type: str = 'bar'):
+        # Populate table
+        self.result_table.setColumnCount(len(headers))
+        self.result_table.setHorizontalHeaderLabels(headers)
+        self.result_table.setRowCount(len(data))
+        for row, item in enumerate(data):
+            self.result_table.setItem(row, 0, QTableWidgetItem(str(item[x_key])))
+            self.result_table.setItem(row, 1, QTableWidgetItem(f"{item[y_key]:,}"))  # Format as integer with thousands separator
 
         # Create chart
         chart = QChart()
-        series = QLineSeries()
-        
-        for data in sales_trend:
-            series.append(QDateTime.fromString(data['date'], "yyyy-MM-dd").toMSecsSinceEpoch(), data['daily_sales'])
-        
-        chart.addSeries(series)
-        
-        axis_x = QDateTimeAxis()
-        axis_x.setFormat("dd-MM-yyyy")
-        chart.addAxis(axis_x, Qt.AlignmentFlag.AlignBottom)
-        series.attachAxis(axis_x)
-        
+        if chart_type == 'bar':
+            series = QBarSeries()
+            bar_set = QBarSet("")
+            categories = []
+            for item in data:
+                bar_set.append(item[y_key])
+                categories.append(str(item[x_key]))
+            series.append(bar_set)
+            chart.addSeries(series)
+            axis_x = QBarCategoryAxis()
+            axis_x.append(categories)
+            chart.addAxis(axis_x, Qt.AlignmentFlag.AlignBottom)
+            series.attachAxis(axis_x)
+        elif chart_type == 'line':
+            series = QLineSeries()
+            for item in data:
+                series.append(QDate.fromString(item[x_key], "yyyy-MM-dd").startOfDay().toMSecsSinceEpoch(), item[y_key])
+            chart.addSeries(series)
+            axis_x = QValueAxis()
+            chart.addAxis(axis_x, Qt.AlignmentFlag.AlignBottom)
+            series.attachAxis(axis_x)
+
         axis_y = QValueAxis()
         chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
         series.attachAxis(axis_y)
         
-        chart.setTitle("Sales Trend")
+        chart.setTitle(title)
         self.chart_view.setChart(chart)

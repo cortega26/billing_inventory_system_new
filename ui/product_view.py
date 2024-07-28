@@ -1,31 +1,31 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
-                               QPushButton, QTableWidget, QTableWidgetItem, QMessageBox,
+                               QPushButton, QTableWidgetItem, QMessageBox,
                                QDialog, QDialogButtonBox)
 from PySide6.QtCore import Qt
 from services.product_service import ProductService
 from utils.utils import create_table, show_error_message
 from utils.event_system import event_system
+from typing import Optional
 
 class EditProductDialog(QDialog):
     def __init__(self, product, parent=None):
         super().__init__(parent)
         self.product = product
         self.setWindowTitle("Edit Product")
-        layout = QVBoxLayout()
-        self.setLayout(layout)
+        layout = QVBoxLayout(self)
         
         self.name_input = QLineEdit(product.name)
         self.description_input = QLineEdit(product.description)
         
-        self.layout.addWidget(QLabel("Name:"))
-        self.layout.addWidget(self.name_input)
-        self.layout.addWidget(QLabel("Description:"))
-        self.layout.addWidget(self.description_input)
+        layout.addWidget(QLabel("Name:"))
+        layout.addWidget(self.name_input)
+        layout.addWidget(QLabel("Description:"))
+        layout.addWidget(self.description_input)
         
         self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
-        self.layout.addWidget(self.button_box)
+        layout.addWidget(self.button_box)
 
 class ProductView(QWidget):
     def __init__(self):
@@ -59,22 +59,25 @@ class ProductView(QWidget):
         self.load_products()
 
     def load_products(self):
-        products = self.product_service.get_all_products()
-        self.product_table.setRowCount(len(products))
-        for row, product in enumerate(products):
-            avg_price = self.product_service.get_average_purchase_price(product.id)
-            self.product_table.setItem(row, 0, QTableWidgetItem(str(product.id)))
-            self.product_table.setItem(row, 1, QTableWidgetItem(product.name))
-            self.product_table.setItem(row, 2, QTableWidgetItem(product.description))
-            self.product_table.setItem(row, 3, QTableWidgetItem(f"{avg_price:.2f}"))
-            
-            edit_button = QPushButton("Edit")
-            edit_button.clicked.connect(lambda _, p=product: self.edit_product(p))
-            self.product_table.setCellWidget(row, 4, edit_button)
-            
-            delete_button = QPushButton("Delete")
-            delete_button.clicked.connect(lambda _, p=product: self.delete_product(p))
-            self.product_table.setCellWidget(row, 5, delete_button)
+        try:
+            products = self.product_service.get_all_products()
+            self.product_table.setRowCount(len(products))
+            for row, product in enumerate(products):
+                avg_price = self.product_service.get_average_purchase_price(product.id)
+                self.product_table.setItem(row, 0, QTableWidgetItem(str(product.id)))
+                self.product_table.setItem(row, 1, QTableWidgetItem(product.name))
+                self.product_table.setItem(row, 2, QTableWidgetItem(product.description or ""))
+                self.product_table.setItem(row, 3, QTableWidgetItem(f"{avg_price:,}"))
+                
+                edit_button = QPushButton("Edit")
+                edit_button.clicked.connect(lambda _, p=product: self.edit_product(p))
+                self.product_table.setCellWidget(row, 4, edit_button)
+                
+                delete_button = QPushButton("Delete")
+                delete_button.clicked.connect(lambda _, p=product: self.delete_product(p))
+                self.product_table.setCellWidget(row, 5, delete_button)
+        except Exception as e:
+            show_error_message("Error", f"Failed to load products: {str(e)}")
 
     def add_product(self):
         name = self.name_input.text().strip()
@@ -85,12 +88,15 @@ class ProductView(QWidget):
             return
 
         try:
-            self.product_service.create_product(name, description)
-            self.load_products()
-            self.name_input.clear()
-            self.description_input.clear()
-            QMessageBox.information(self, "Success", "Product added successfully.")
-            event_system.product_added.emit()  # Emit the event
+            product_id = self.product_service.create_product(name, description)
+            if product_id is not None:
+                self.load_products()
+                self.name_input.clear()
+                self.description_input.clear()
+                QMessageBox.information(self, "Success", "Product added successfully.")
+                event_system.product_added.emit()  # Emit the event
+            else:
+                show_error_message("Error", "Failed to add product.")
         except Exception as e:
             show_error_message("Error", str(e))
 

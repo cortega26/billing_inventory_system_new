@@ -6,6 +6,7 @@ from services.purchase_service import PurchaseService
 from services.product_service import ProductService
 from utils.utils import create_table, show_error_message
 from utils.event_system import event_system
+from typing import List, Dict, Any
 
 class PurchaseView(QWidget):
     def __init__(self):
@@ -54,24 +55,33 @@ class PurchaseView(QWidget):
         self.load_purchases()
 
     def load_suppliers(self):
-        suppliers = self.purchase_service.get_suppliers()
-        self.supplier_combo.clear()
-        self.supplier_combo.addItems(suppliers)
+        try:
+            suppliers = self.purchase_service.get_suppliers()
+            self.supplier_combo.clear()
+            self.supplier_combo.addItems(suppliers)
+        except Exception as e:
+            show_error_message("Error", f"Failed to load suppliers: {str(e)}")
 
     def load_products(self):
-        products = self.product_service.get_all_products()
-        self.product_combo.clear()
-        for product in products:
-            self.product_combo.addItem(product.name, product.id)
+        try:
+            products = self.product_service.get_all_products()
+            self.product_combo.clear()
+            for product in products:
+                self.product_combo.addItem(product.name, product.id)
+        except Exception as e:
+            show_error_message("Error", f"Failed to load products: {str(e)}")
 
     def load_purchases(self):
-        purchases = self.purchase_service.get_all_purchases()
-        self.purchase_table.setRowCount(len(purchases))
-        for row, purchase in enumerate(purchases):
-            self.purchase_table.setItem(row, 0, QTableWidgetItem(str(purchase.id)))
-            self.purchase_table.setItem(row, 1, QTableWidgetItem(purchase.supplier))
-            self.purchase_table.setItem(row, 2, QTableWidgetItem(purchase.date))
-            self.purchase_table.setItem(row, 3, QTableWidgetItem(f"{purchase.total_amount:.2f}"))
+        try:
+            purchases = self.purchase_service.get_all_purchases()
+            self.purchase_table.setRowCount(len(purchases))
+            for row, purchase in enumerate(purchases):
+                self.purchase_table.setItem(row, 0, QTableWidgetItem(str(purchase.id)))
+                self.purchase_table.setItem(row, 1, QTableWidgetItem(purchase.supplier))
+                self.purchase_table.setItem(row, 2, QTableWidgetItem(purchase.date))
+                self.purchase_table.setItem(row, 3, QTableWidgetItem(f"{purchase.total_amount:,}"))
+        except Exception as e:
+            show_error_message("Error", f"Failed to load purchases: {str(e)}")
 
     def add_purchase(self):
         supplier = self.supplier_combo.currentText().strip()
@@ -86,7 +96,7 @@ class PurchaseView(QWidget):
 
         try:
             quantity = int(quantity)
-            price = float(price)
+            price = int(price)
             
             purchase_data = {
                 "supplier": supplier,
@@ -94,13 +104,16 @@ class PurchaseView(QWidget):
                 "items": [{"product_id": product_id, "quantity": quantity, "price": price}]
             }
             
-            self.purchase_service.create_purchase(supplier, date, purchase_data["items"])
-            self.load_purchases()
-            self.load_suppliers()
-            self.quantity_input.clear()
-            self.price_input.clear()
-            QMessageBox.information(self, "Success", "Purchase added successfully.")
+            purchase_id = self.purchase_service.create_purchase(supplier, date, purchase_data["items"])
+            if purchase_id is not None:
+                self.load_purchases()
+                self.load_suppliers()
+                self.quantity_input.clear()
+                self.price_input.clear()
+                QMessageBox.information(self, "Success", "Purchase added successfully.")
+            else:
+                show_error_message("Error", "Failed to add purchase.")
         except ValueError:
-            show_error_message("Error", "Invalid quantity or price.")
+            show_error_message("Error", "Invalid quantity or price. Please enter valid integers.")
         except Exception as e:
             show_error_message("Error", str(e))

@@ -1,8 +1,30 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
-                               QPushButton, QTableWidget, QTableWidgetItem, QMessageBox)
+                               QPushButton, QTableWidget, QTableWidgetItem, QMessageBox,
+                               QDialog, QDialogButtonBox)
 from PySide6.QtCore import Qt
 from services.customer_service import CustomerService
 from utils.utils import create_table, show_error_message
+
+class EditCustomerDialog(QDialog):
+    def __init__(self, customer, parent=None):
+        super().__init__(parent)
+        self.customer = customer
+        self.setWindowTitle("Edit Customer")
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+        
+        self.identifier_9_input = QLineEdit(customer.identifier_9)
+        self.identifier_4_input = QLineEdit(customer.identifier_4 or "")
+        
+        self.layout.addWidget(QLabel("9-digit Identifier:"))
+        self.layout.addWidget(self.identifier_9_input)
+        self.layout.addWidget(QLabel("4-digit Identifier:"))
+        self.layout.addWidget(self.identifier_4_input)
+        
+        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        self.layout.addWidget(self.button_box)
 
 class CustomerView(QWidget):
     def __init__(self):
@@ -29,7 +51,8 @@ class CustomerView(QWidget):
         layout.addLayout(input_layout)
 
         # Customer table
-        self.customer_table = create_table(["ID", "9-digit Identifier", "4-digit Identifier"])
+        self.customer_table = create_table(["ID", "9-digit Identifier", "4-digit Identifier", "Total Purchases", "Total Amount", "Edit", "Delete"])
+        self.customer_table.setSortingEnabled(True)  # Enable sorting
         layout.addWidget(self.customer_table)
 
         # Update 4-digit identifier button
@@ -43,9 +66,20 @@ class CustomerView(QWidget):
         customers = self.customer_service.get_all_customers()
         self.customer_table.setRowCount(len(customers))
         for row, customer in enumerate(customers):
+            total_purchases, total_amount = self.customer_service.get_customer_stats(customer.id)
             self.customer_table.setItem(row, 0, QTableWidgetItem(str(customer.id)))
             self.customer_table.setItem(row, 1, QTableWidgetItem(customer.identifier_9))
             self.customer_table.setItem(row, 2, QTableWidgetItem(customer.identifier_4 or ""))
+            self.customer_table.setItem(row, 3, QTableWidgetItem(str(total_purchases)))
+            self.customer_table.setItem(row, 4, QTableWidgetItem(f"{total_amount:.2f}"))
+            
+            edit_button = QPushButton("Edit")
+            edit_button.clicked.connect(lambda _, c=customer: self.edit_customer(c))
+            self.customer_table.setCellWidget(row, 5, edit_button)
+            
+            delete_button = QPushButton("Delete")
+            delete_button.clicked.connect(lambda _, c=customer: self.delete_customer(c))
+            self.customer_table.setCellWidget(row, 6, delete_button)
 
     def add_customer(self):
         identifier_9 = self.identifier_9_input.text().strip()
@@ -63,6 +97,30 @@ class CustomerView(QWidget):
             QMessageBox.information(self, "Success", "Customer added successfully.")
         except Exception as e:
             show_error_message("Error", str(e))
+
+    def edit_customer(self, customer):
+        dialog = EditCustomerDialog(customer, self)
+        if dialog.exec():
+            new_identifier_9 = dialog.identifier_9_input.text().strip()
+            new_identifier_4 = dialog.identifier_4_input.text().strip() or None
+            try:
+                self.customer_service.update_customer(customer.id, new_identifier_9, new_identifier_4)
+                self.load_customers()
+                QMessageBox.information(self, "Success", "Customer updated successfully.")
+            except Exception as e:
+                show_error_message("Error", str(e))
+
+    def delete_customer(self, customer):
+        reply = QMessageBox.question(self, 'Delete Customer', 
+                                     f'Are you sure you want to delete customer {customer.identifier_9}?',
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                self.customer_service.delete_customer(customer.id)
+                self.load_customers()
+                QMessageBox.information(self, "Success", "Customer deleted successfully.")
+            except Exception as e:
+                show_error_message("Error", str(e))
 
     def update_identifier_4(self):
         identifier_4 = self.identifier_4_input.text().strip()

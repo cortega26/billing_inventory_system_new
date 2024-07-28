@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QPushButton, QHBoxLayout, QLineEdit, QMessageBox
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QTableWidget, QTableWidgetItem, QPushButton, QHBoxLayout, QLineEdit, QMessageBox, QLabel
 from services.inventory_service import InventoryService
 from utils.utils import create_table
 from utils.event_system import event_system
@@ -21,7 +21,9 @@ class InventoryView(QWidget):
         edit_layout = QHBoxLayout()
         self.product_id_input = QLineEdit()
         self.quantity_input = QLineEdit()
+        edit_layout.addWidget(QLabel("Product ID:"))
         edit_layout.addWidget(self.product_id_input)
+        edit_layout.addWidget(QLabel("Quantity:"))
         edit_layout.addWidget(self.quantity_input)
         update_button = QPushButton("Update Quantity")
         update_button.clicked.connect(self.update_quantity)

@@ -40,3 +40,19 @@ class CustomerService:
         query = 'SELECT * FROM customers WHERE identifier_9 = ?'
         row = fetch_one(query, (identifier_9,))
         return Customer.from_row(row) if row else None
+
+    @staticmethod
+    def get_customers_by_identifier_4(identifier_4):
+        query = 'SELECT * FROM customers WHERE identifier_4 = ?'
+        rows = fetch_all(query, (identifier_4,))
+        return [Customer.from_row(row) for row in rows]
+
+    @staticmethod
+    def get_customer_stats(customer_id):
+        query = '''
+            SELECT COUNT(*) as total_purchases, COALESCE(SUM(total_amount), 0) as total_amount
+            FROM sales
+            WHERE customer_id = ?
+        '''
+        row = fetch_one(query, (customer_id,))
+        return row['total_purchases'], row['total_amount']

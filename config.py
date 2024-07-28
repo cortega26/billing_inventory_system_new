@@ -1,8 +1,9 @@
-import os
+"""Configuration settings for the Inventory and Billing System."""
+from pathlib import Path
 
 # Database
 DATABASE_NAME = 'billing_inventory.db'
-DATABASE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), DATABASE_NAME)
+DATABASE_PATH = Path(__file__).parent / DATABASE_NAME
 
 # Application settings
 APP_NAME = "Inventory and Billing System"

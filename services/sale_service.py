@@ -95,3 +95,44 @@ class SaleService:
         '''
         rows = fetch_all(query, (start_date, end_date))
         return rows
+
+    @staticmethod
+    def update_sale(sale_id, updated_sale_data):
+        # First, get the original sale
+        original_sale = SaleService.get_sale(sale_id)
+        if not original_sale:
+            raise ValueError(f"Sale with id {sale_id} not found")
+
+        # Update the sale record
+        query = '''
+            UPDATE sales 
+            SET customer_id = ?, date = ?, total_amount = ?
+            WHERE id = ?
+        '''
+        execute_query(query, (
+            updated_sale_data['customer_id'],
+            updated_sale_data['date'],
+            sum(item['price'] * item['quantity'] for item in updated_sale_data['items']),
+            sale_id
+        ))
+
+        # Get the original sale items
+        original_items = SaleService.get_sale_items(sale_id)
+
+        # Delete the original sale items
+        execute_query('DELETE FROM sale_items WHERE sale_id = ?', (sale_id,))
+
+        # Insert the updated sale items
+        for item in updated_sale_data['items']:
+            query = '''
+                INSERT INTO sale_items (sale_id, product_id, quantity, price)
+                VALUES (?, ?, ?, ?)
+            '''
+            execute_query(query, (sale_id, item['product_id'], item['quantity'], item['price']))
+
+        # Update inventory
+        inventory_service = InventoryService()
+        for original_item in original_items:
+            inventory_service.update_quantity(original_item.product_id, original_item.quantity)
+        for new_item in updated_sale_data['items']:
+            inventory_service.update_quantity(new_item['product_id'], -new_item['quantity'])

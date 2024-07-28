@@ -6,7 +6,6 @@ from services.purchase_service import PurchaseService
 from services.product_service import ProductService
 from utils.utils import create_table, show_error_message
 from utils.event_system import event_system
-from typing import List, Dict, Any
 
 class PurchaseView(QWidget):
     def __init__(self):

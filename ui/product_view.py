@@ -5,7 +5,8 @@ from PySide6.QtCore import Qt
 from services.product_service import ProductService
 from utils.utils import create_table, show_error_message
 from utils.event_system import event_system
-from typing import Optional
+
+from utils.logger import logger
 
 class EditProductDialog(QDialog):
     def __init__(self, product, parent=None):
@@ -59,10 +60,12 @@ class ProductView(QWidget):
         self.load_products()
 
     def load_products(self):
+        logger.debug("Loading products")
         try:
             products = self.product_service.get_all_products()
             self.product_table.setRowCount(len(products))
             for row, product in enumerate(products):
+                logger.debug(f"Loading product: {product}")
                 avg_price = self.product_service.get_average_purchase_price(product.id)
                 self.product_table.setItem(row, 0, QTableWidgetItem(str(product.id)))
                 self.product_table.setItem(row, 1, QTableWidgetItem(product.name))
@@ -76,28 +79,36 @@ class ProductView(QWidget):
                 delete_button = QPushButton("Delete")
                 delete_button.clicked.connect(lambda _, p=product: self.delete_product(p))
                 self.product_table.setCellWidget(row, 5, delete_button)
+
+                logger.debug(f"Loaded {len(products)} products")
         except Exception as e:
+            logger.error(f"Failed to load products: {str(e)}")
             show_error_message("Error", f"Failed to load products: {str(e)}")
 
     def add_product(self):
         name = self.name_input.text().strip()
         description = self.description_input.text().strip()
+        logger.debug(f"Adding product with name: {name}, description: {description}")
 
         if not name:
+            logger.error("Product name is required")
             show_error_message("Error", "Product name is required.")
             return
 
         try:
             product_id = self.product_service.create_product(name, description)
             if product_id is not None:
+                logger.debug(f"Product added successfully with ID: {product_id}")
                 self.load_products()
                 self.name_input.clear()
                 self.description_input.clear()
                 QMessageBox.information(self, "Success", "Product added successfully.")
                 event_system.product_added.emit()  # Emit the event
             else:
+                logger.error("Failed to add product")
                 show_error_message("Error", "Failed to add product.")
         except Exception as e:
+            logger.error(f"Error adding product: {str(e)}")
             show_error_message("Error", str(e))
 
     def edit_product(self, product):

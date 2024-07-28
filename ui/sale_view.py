@@ -7,10 +7,12 @@ from services.customer_service import CustomerService
 from services.product_service import ProductService
 from utils.utils import create_table, show_error_message
 from utils.event_system import event_system
+from utils.logger import logger
 from typing import List, Dict, Any, Optional
+from models.customer import Customer
 
 class CustomerSelectionDialog(QDialog):
-    def __init__(self, customers: List[Any], parent=None):
+    def __init__(self, customers: List[Customer], parent=None):
         super().__init__(parent)
         self.customers = customers
         self.setWindowTitle("Select Customer")
@@ -18,7 +20,8 @@ class CustomerSelectionDialog(QDialog):
         
         self.customer_combo = QComboBox()
         for customer in customers:
-            self.customer_combo.addItem(f"{customer.identifier_9} ({customer.identifier_4 or 'N/A'})", customer.id)
+            identifiers_3or4 = ', '.join([i.identifier_3or4 for i in customer.identifiers_3or4]) or 'N/A'
+            self.customer_combo.addItem(f"{customer.identifier_9} ({identifiers_3or4})", customer.id)
         
         layout.addWidget(QLabel("Select a customer:"))
         layout.addWidget(self.customer_combo)
@@ -83,15 +86,19 @@ class SaleView(QWidget):
         self.load_sales()
 
     def load_products(self):
+        logger.debug("Loading products")
         try:
             products = self.product_service.get_all_products()
             self.product_combo.clear()
             for product in products:
                 self.product_combo.addItem(product.name, product.id)
+            logger.debug(f"Loaded {len(products)} products")
         except Exception as e:
+            logger.error(f"Failed to load products: {str(e)}")
             show_error_message("Error", f"Failed to load products: {str(e)}")
 
     def load_sales(self):
+        logger.debug("Loading sales")
         try:
             sales = self.sale_service.get_all_sales()
             self.sale_table.setRowCount(len(sales))
@@ -105,7 +112,7 @@ class SaleView(QWidget):
                     
                     self.sale_table.setItem(row, 0, QTableWidgetItem(str(sale.id)))
                     
-                    customer_text = f"{customer.identifier_9} ({customer.identifier_4 or 'N/A'})" if customer else "Unknown Customer"
+                    customer_text = f"{customer.identifier_9} ({', '.join([i.identifier_3or4 for i in customer.identifiers_3or4]) or 'N/A'})" if customer else "Unknown Customer"
                     self.sale_table.setItem(row, 1, QTableWidgetItem(customer_text))
                     
                     product_name = product.name if product else "Unknown Product"
@@ -115,36 +122,45 @@ class SaleView(QWidget):
                     self.sale_table.setItem(row, 4, QTableWidgetItem(f"{sale_item.price:,}"))
                     self.sale_table.setItem(row, 5, QTableWidgetItem(sale.date))
                     self.sale_table.setItem(row, 6, QTableWidgetItem(f"{sale.total_amount:,}"))
+            logger.debug(f"Loaded {len(sales)} sales")
         except Exception as e:
+            logger.error(f"Failed to load sales: {str(e)}")
             show_error_message("Error", f"Failed to load sales: {str(e)}")
 
     def select_customer(self):
         identifier = self.customer_id_input.text().strip()
-        if len(identifier) == 4:
-            customers = self.customer_service.get_customers_by_identifier_4(identifier)
+        logger.debug(f"Selecting customer with identifier: {identifier}")
+        if len(identifier) == 3 or len(identifier) == 4:
+            customers = self.customer_service.get_customers_by_identifier_3or4(identifier)
         elif len(identifier) == 9:
             customer = self.customer_service.get_customer_by_identifier_9(identifier)
             customers = [customer] if customer else []
         else:
+            logger.error("Invalid identifier length")
             show_error_message("Error", "Please enter a valid 4-digit or 9-digit identifier.")
             return
 
         if not customers:
+            logger.warning("No customers found with the given identifier")
             show_error_message("Error", "No customers found with the given identifier.")
             return
 
         if len(customers) == 1:
             self.selected_customer_id = customers[0].id
-            self.customer_id_input.setText(f"{customers[0].identifier_9} ({customers[0].identifier_4 or 'N/A'})")
+            identifiers_3or4 = ', '.join([i.identifier_3or4 for i in customers[0].identifiers_3or4]) or 'N/A'
+            self.customer_id_input.setText(f"{customers[0].identifier_9} ({identifiers_3or4})")
         else:
             dialog = CustomerSelectionDialog(customers, self)
             if dialog.exec():
                 self.selected_customer_id = dialog.get_selected_customer()
                 selected_customer = next(c for c in customers if c.id == self.selected_customer_id)
-                self.customer_id_input.setText(f"{selected_customer.identifier_9} ({selected_customer.identifier_4 or 'N/A'})")
+                identifiers_3or4 = ', '.join([i.identifier_3or4 for i in selected_customer.identifiers_3or4]) or 'N/A'
+                self.customer_id_input.setText(f"{selected_customer.identifier_9} ({identifiers_3or4})")
+        logger.debug(f"Selected customer ID: {self.selected_customer_id}")
 
     def add_sale(self):
         if not hasattr(self, 'selected_customer_id'):
+            logger.error("No customer selected")
             show_error_message("Error", "Please select a customer first.")
             return
 
@@ -154,6 +170,7 @@ class SaleView(QWidget):
         date = self.date_input.date().toString("yyyy-MM-dd")
 
         if not all([product_id, quantity, price]):
+            logger.error("Missing required fields")
             show_error_message("Error", "All fields are required.")
             return
 
@@ -169,6 +186,7 @@ class SaleView(QWidget):
             
             sale_id = self.sale_service.create_sale(self.selected_customer_id, date, sale_data["items"])
             if sale_id is not None:
+                logger.info(f"Sale added successfully with ID: {sale_id}")
                 self.load_sales()
                 self.customer_id_input.clear()
                 self.quantity_input.clear()
@@ -176,8 +194,11 @@ class SaleView(QWidget):
                 del self.selected_customer_id
                 QMessageBox.information(self, "Success", "Sale added successfully.")
             else:
+                logger.error("Failed to add sale")
                 show_error_message("Error", "Failed to add sale.")
         except ValueError:
+            logger.error("Invalid quantity or price")
             show_error_message("Error", "Invalid quantity or price. Please enter valid integers.")
         except Exception as e:
+            logger.error(f"Error adding sale: {str(e)}")
             show_error_message("Error", str(e))

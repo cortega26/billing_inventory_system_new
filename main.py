@@ -2,18 +2,23 @@ import sys
 from PySide6.QtWidgets import QApplication
 from ui.main_window import MainWindow
 from database import init_db
+from utils.logger import logger
 
-def main():
+def initialize_application():
+    logger.info("Initializing the application")
     init_db()
-    
+
+def execute_application():
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
+    logger.info("Application started")
     sys.exit(app.exec())
 
 if __name__ == "__main__":
     try:
-        main()
+        initialize_application()
+        execute_application()
     except Exception as e:
-        print(f"An error occurred: {e}")
+        logger.critical(f"An unhandled error occurred: {e}")
         sys.exit(1)

@@ -11,7 +11,7 @@ class Product:
         return cls(
             id=row['id'],
             name=row['name'],
-            description=row['description'] if 'description' in row else None
+            description=row['description'] if row['description'] is not None else None
         )
 
     def __repr__(self) -> str:

@@ -1,9 +1,8 @@
-# database.py
-
 import sqlite3
 from contextlib import contextmanager
 from typing import List, Dict, Any, Union, Optional
 from config import DATABASE_PATH
+from utils.logger import logger
 
 class DatabaseManager:
     @staticmethod
@@ -13,16 +12,20 @@ class DatabaseManager:
         try:
             conn = sqlite3.connect(DATABASE_PATH, timeout=20)
             conn.row_factory = sqlite3.Row
+            logger.debug("Database connection established")
             yield conn
         except sqlite3.Error as e:
-            print(f"Database connection error: {e}")
+            logger.error(f"Database connection error: {e}")
             raise
         finally:
             if conn:
                 conn.close()
+                logger.debug("Database connection closed")
 
     @classmethod
     def execute_query(cls, query: str, params: Optional[Union[tuple, List, Dict]] = None) -> sqlite3.Cursor:
+        logger.debug(f"Executing query: {query}")
+        logger.debug(f"Query parameters: {params}")
         with cls.get_db_connection() as conn:
             cursor = conn.cursor()
             try:
@@ -31,31 +34,40 @@ class DatabaseManager:
                 else:
                     cursor.execute(query)
                 conn.commit()
+                logger.debug("Query executed successfully")
             except sqlite3.Error as e:
                 conn.rollback()
-                print(f"Query execution error: {e}")
+                logger.error(f"Query execution error: {e}")
                 raise
             return cursor
 
     @classmethod
     def fetch_one(cls, query: str, params: Optional[Union[tuple, List, Dict]] = None) -> Dict[str, Any]:
+        logger.debug(f"Fetching one row with query: {query}")
+        logger.debug(f"Query parameters: {params}")
         with cls.get_db_connection() as conn:
             cursor = conn.cursor()
             if params:
                 cursor.execute(query, params)
             else:
                 cursor.execute(query)
-            return cursor.fetchone()
+            row = cursor.fetchone()
+            logger.debug(f"Fetched row: {row}")
+            return row
 
     @classmethod
     def fetch_all(cls, query: str, params: Optional[Union[tuple, List, Dict]] = None) -> List[Dict[str, Any]]:
+        logger.debug(f"Fetching all rows with query: {query}")
+        logger.debug(f"Query parameters: {params}")
         with cls.get_db_connection() as conn:
             cursor = conn.cursor()
             if params:
                 cursor.execute(query, params)
             else:
                 cursor.execute(query)
-            return cursor.fetchall()
+            rows = cursor.fetchall()
+            logger.debug(f"Fetched {len(rows)} rows")
+            return rows
 
 def init_db():
     with DatabaseManager.get_db_connection() as conn:
@@ -64,8 +76,16 @@ def init_db():
             cursor.execute('''
             CREATE TABLE IF NOT EXISTS customers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                identifier_9 TEXT UNIQUE NOT NULL,
-                identifier_4 TEXT
+                identifier_9 TEXT NOT NULL UNIQUE
+            )
+            ''')
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS customer_identifiers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                customer_id INTEGER,
+                identifier_3or4 TEXT NOT NULL,
+                FOREIGN KEY (customer_id) REFERENCES customers (id),
+                UNIQUE (customer_id, identifier_3or4)
             )
             ''')
             cursor.execute('''
@@ -123,7 +143,8 @@ def init_db():
             )
             ''')
             conn.commit()
+            logger.info("Database initialized successfully")
         except sqlite3.Error as e:
             conn.rollback()
-            print(f"Database initialization error: {e}")
+            logger.error(f"Database initialization error: {e}")
             raise

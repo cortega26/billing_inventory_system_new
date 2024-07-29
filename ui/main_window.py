@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QMainWindow, QTabWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QMainWindow, QTabWidget, QVBoxLayout, QWidget, QMessageBox
 from ui.customer_view import CustomerView
 from ui.product_view import ProductView
 from ui.sale_view import SaleView
@@ -6,6 +6,7 @@ from ui.purchase_view import PurchaseView
 from ui.inventory_view import InventoryView
 from ui.analytics_view import AnalyticsView
 from typing import Dict, Type
+from utils.logger import logger
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -39,10 +40,18 @@ class MainWindow(QMainWindow):
             try:
                 view = view_class()
                 self.tab_widget.addTab(view, tab_name)
+                logger.info(f"Added {tab_name} tab successfully")
             except Exception as e:
-                print(f"Error initializing {tab_name} view: {str(e)}")
+                logger.error(f"Error initializing {tab_name} view: {str(e)}")
+                QMessageBox.critical(self, "Initialization Error", 
+                                     f"Failed to initialize {tab_name} view. The application may not function correctly.")
 
     def closeEvent(self, event):
-        # Perform any cleanup or saving operations here
-        # For example, you might want to save application state or close database connections
-        event.accept()
+        reply = QMessageBox.question(self, 'Exit', 'Are you sure you want to exit?',
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+
+        if reply == QMessageBox.StandardButton.Yes:
+            logger.info("Application closed by user")
+            event.accept()
+        else:
+            event.ignore()

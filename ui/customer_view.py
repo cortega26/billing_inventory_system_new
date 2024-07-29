@@ -2,7 +2,6 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineE
                                QPushButton, QTableWidget, QTableWidgetItem, QMessageBox,
                                QDialog, QDialogButtonBox)
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon
 from services.customer_service import CustomerService
 from utils.utils import create_table, show_error_message
 from utils.validators import validate_9digit_identifier, validate_3or4digit_identifier
@@ -17,11 +16,11 @@ class EditCustomerDialog(QDialog):
         layout = QVBoxLayout(self)
         
         self.identifier_9_input = QLineEdit(customer.identifier_9)
-        self.identifier_3or4_input = QLineEdit()
+        self.identifier_3or4_input = QLineEdit(customer.identifier_3or4 or "")
         
         layout.addWidget(QLabel("9-digit Identifier:"))
         layout.addWidget(self.identifier_9_input)
-        layout.addWidget(QLabel("Add 3 or 4-digit Identifier:"))
+        layout.addWidget(QLabel("3 or 4-digit Identifier:"))
         layout.addWidget(self.identifier_3or4_input)
         
         self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -62,8 +61,18 @@ class CustomerView(QWidget):
 
         layout.addLayout(input_layout)
 
+        # Search field
+        search_layout = QHBoxLayout()
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Search customers...")
+        search_button = QPushButton("Search")
+        search_button.clicked.connect(self.search_customers)
+        search_layout.addWidget(self.search_input)
+        search_layout.addWidget(search_button)
+        layout.addLayout(search_layout)
+
         # Customer table
-        self.customer_table = create_table(["ID", "9-digit Identifier", "3 or 4-digit Identifiers", "Total Purchases", "Total Amount", "Actions"])
+        self.customer_table = create_table(["ID", "9-digit Identifier", "3 or 4-digit Identifier", "Total Purchases", "Total Amount", "Actions"])
         self.customer_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.customer_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         layout.addWidget(self.customer_table)
@@ -74,35 +83,38 @@ class CustomerView(QWidget):
         logger.debug("Loading customers")
         try:
             customers = self.customer_service.get_all_customers()
-            self.customer_table.setRowCount(len(customers))
-            for row, customer in enumerate(customers):
-                logger.debug(f"Loading customer: {customer}")
-                total_purchases, total_amount = self.customer_service.get_customer_stats(customer.id)
-                self.customer_table.setItem(row, 0, QTableWidgetItem(str(customer.id)))
-                self.customer_table.setItem(row, 1, QTableWidgetItem(customer.identifier_9))
-                self.customer_table.setItem(row, 2, QTableWidgetItem(', '.join([i.identifier_3or4 for i in customer.identifiers_3or4]) or "N/A"))
-                self.customer_table.setItem(row, 3, QTableWidgetItem(str(total_purchases)))
-                self.customer_table.setItem(row, 4, QTableWidgetItem(f"{total_amount:,}"))
-                
-                actions_widget = QWidget()
-                actions_layout = QHBoxLayout(actions_widget)
-                actions_layout.setContentsMargins(0, 0, 0, 0)
-                
-                edit_button = QPushButton("Edit")
-                edit_button.setFixedWidth(50)
-                edit_button.clicked.connect(lambda _, c=customer: self.edit_customer(c))
-                
-                delete_button = QPushButton("Delete")
-                delete_button.setFixedWidth(50)
-                delete_button.clicked.connect(lambda _, c=customer: self.delete_customer(c))
-                
-                actions_layout.addWidget(edit_button)
-                actions_layout.addWidget(delete_button)
-                self.customer_table.setCellWidget(row, 5, actions_widget)
-            logger.debug(f"Loaded {len(customers)} customers")
+            self.populate_customer_table(customers)
         except Exception as e:
             logger.error(f"Failed to load customers: {str(e)}")
             show_error_message("Error", f"Failed to load customers: {str(e)}")
+
+    def populate_customer_table(self, customers):
+        self.customer_table.setRowCount(len(customers))
+        for row, customer in enumerate(customers):
+            logger.debug(f"Loading customer: {customer}")
+            total_purchases, total_amount = self.customer_service.get_customer_stats(customer.id)
+            self.customer_table.setItem(row, 0, QTableWidgetItem(str(customer.id)))
+            self.customer_table.setItem(row, 1, QTableWidgetItem(customer.identifier_9))
+            self.customer_table.setItem(row, 2, QTableWidgetItem(customer.identifier_3or4 or "N/A"))
+            self.customer_table.setItem(row, 3, QTableWidgetItem(str(total_purchases)))
+            self.customer_table.setItem(row, 4, QTableWidgetItem(f"{total_amount:,}"))
+            
+            actions_widget = QWidget()
+            actions_layout = QHBoxLayout(actions_widget)
+            actions_layout.setContentsMargins(0, 0, 0, 0)
+            
+            edit_button = QPushButton("Edit")
+            edit_button.setFixedWidth(50)
+            edit_button.clicked.connect(lambda _, c=customer: self.edit_customer(c))
+            
+            delete_button = QPushButton("Delete")
+            delete_button.setFixedWidth(50)
+            delete_button.clicked.connect(lambda _, c=customer: self.delete_customer(c))
+            
+            actions_layout.addWidget(edit_button)
+            actions_layout.addWidget(delete_button)
+            self.customer_table.setCellWidget(row, 5, actions_widget)
+        logger.debug(f"Loaded {len(customers)} customers")
 
     def add_customer(self):
         identifier_9 = self.identifier_9_input.text().strip()
@@ -157,3 +169,15 @@ class CustomerView(QWidget):
             except Exception as e:
                 logger.error(f"Error deleting customer: {str(e)}")
                 show_error_message("Error", str(e))
+
+    def search_customers(self):
+        search_term = self.search_input.text().strip()
+        if search_term:
+            try:
+                customers = self.customer_service.search_customers(search_term)
+                self.populate_customer_table(customers)
+            except Exception as e:
+                logger.error(f"Error searching customers: {str(e)}")
+                show_error_message("Error", f"Failed to search customers: {str(e)}")
+        else:
+            self.load_customers()

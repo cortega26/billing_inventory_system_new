@@ -6,7 +6,11 @@ from utils.logger import logger
 
 def initialize_application():
     logger.info("Initializing the application")
-    init_db()
+    try:
+        init_db()
+    except Exception as e:
+        logger.critical(f"Failed to initialize database: {e}")
+        sys.exit(1)
 
 def execute_application():
     app = QApplication(sys.argv)

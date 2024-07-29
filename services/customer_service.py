@@ -1,6 +1,6 @@
 from typing import List, Optional, Tuple
 from database import DatabaseManager
-from models.customer import Customer, CustomerIdentifier
+from models.customer import Customer
 from utils.validators import validate_9digit_identifier, validate_3or4digit_identifier
 from utils.logger import logger
 
@@ -15,46 +15,56 @@ class CustomerService:
         customer_id = cursor.lastrowid
 
         if customer_id is not None and identifier_3or4:
-            CustomerService.add_identifier_3or4(customer_id, identifier_3or4)
+            CustomerService.update_identifier_3or4(customer_id, identifier_3or4)
 
         logger.debug(f"Created customer with ID: {customer_id}")
         return customer_id
 
     @staticmethod
-    def add_identifier_3or4(customer_id: int, identifier_3or4: str) -> None:
-        logger.debug(f"Adding identifier_3or4: {identifier_3or4} to customer ID: {customer_id}")
+    def update_identifier_3or4(customer_id: int, identifier_3or4: str) -> None:
+        logger.debug(f"Updating identifier_3or4: {identifier_3or4} for customer ID: {customer_id}")
         validate_3or4digit_identifier(identifier_3or4)
-        query = 'INSERT INTO customer_identifiers (customer_id, identifier_3or4) VALUES (?, ?)'
-        DatabaseManager.execute_query(query, (customer_id, identifier_3or4))
+        
+        # First, delete any existing identifiers for this customer
+        delete_query = 'DELETE FROM customer_identifiers WHERE customer_id = ?'
+        DatabaseManager.execute_query(delete_query, (customer_id,))
+        
+        # Then, insert the new identifier
+        insert_query = 'INSERT INTO customer_identifiers (customer_id, identifier_3or4) VALUES (?, ?)'
+        DatabaseManager.execute_query(insert_query, (customer_id, identifier_3or4))
+        
+        logger.debug(f"Updated identifier_3or4 for customer ID: {customer_id}")
 
     @staticmethod
     def get_customer(customer_id: int) -> Optional[Customer]:
         logger.debug(f"Getting customer with ID: {customer_id}")
-        query = 'SELECT * FROM customers WHERE id = ?'
+        query = '''
+        SELECT c.*, ci.identifier_3or4
+        FROM customers c
+        LEFT JOIN customer_identifiers ci ON c.id = ci.customer_id
+        WHERE c.id = ?
+        '''
         row = DatabaseManager.fetch_one(query, (customer_id,))
         if row:
-            customer = Customer.from_row(row)
-            customer.identifiers_3or4 = CustomerService.get_identifiers_3or4(customer_id)
+            customer = Customer.from_db_row(row)
+            customer.identifier_3or4 = row['identifier_3or4']
             logger.debug(f"Retrieved customer: {customer}")
             return customer
         logger.debug(f"No customer found with ID: {customer_id}")
         return None
 
     @staticmethod
-    def get_identifiers_3or4(customer_id: int) -> List[CustomerIdentifier]:
-        logger.debug(f"Getting identifiers_3or4 for customer ID: {customer_id}")
-        query = 'SELECT * FROM customer_identifiers WHERE customer_id = ?'
-        rows = DatabaseManager.fetch_all(query, (customer_id,))
-        return [CustomerIdentifier(row['id'], row['customer_id'], row['identifier_3or4']) for row in rows]
-
-    @staticmethod
     def get_all_customers() -> List[Customer]:
         logger.debug("Getting all customers")
-        query = 'SELECT * FROM customers'
+        query = '''
+        SELECT c.*, ci.identifier_3or4
+        FROM customers c
+        LEFT JOIN customer_identifiers ci ON c.id = ci.customer_id
+        '''
         rows = DatabaseManager.fetch_all(query)
-        customers = [Customer.from_row(row) for row in rows]
-        for customer in customers:
-            customer.identifiers_3or4 = CustomerService.get_identifiers_3or4(customer.id)
+        customers = [Customer.from_db_row(row) for row in rows]
+        for customer, row in zip(customers, rows):
+            customer.identifier_3or4 = row['identifier_3or4']
         logger.debug(f"Retrieved {len(customers)} customers")
         return customers
 
@@ -66,8 +76,8 @@ class CustomerService:
         query = 'UPDATE customers SET identifier_9 = ? WHERE id = ?'
         DatabaseManager.execute_query(query, (identifier_9, customer_id))
         
-        if identifier_3or4:
-            CustomerService.add_identifier_3or4(customer_id, identifier_3or4)
+        if identifier_3or4 is not None:
+            CustomerService.update_identifier_3or4(customer_id, identifier_3or4)
         logger.debug(f"Customer updated successfully")
 
     @staticmethod
@@ -82,11 +92,16 @@ class CustomerService:
     @staticmethod
     def get_customer_by_identifier_9(identifier_9: str) -> Optional[Customer]:
         logger.debug(f"Getting customer by identifier_9: {identifier_9}")
-        query = 'SELECT * FROM customers WHERE identifier_9 = ?'
+        query = '''
+        SELECT c.*, ci.identifier_3or4
+        FROM customers c
+        LEFT JOIN customer_identifiers ci ON c.id = ci.customer_id
+        WHERE c.identifier_9 = ?
+        '''
         row = DatabaseManager.fetch_one(query, (identifier_9,))
         if row:
-            customer = Customer.from_row(row)
-            customer.identifiers_3or4 = CustomerService.get_identifiers_3or4(customer.id)
+            customer = Customer.from_db_row(row)
+            customer.identifier_3or4 = row['identifier_3or4']
             return customer
         return None
 
@@ -94,14 +109,15 @@ class CustomerService:
     def get_customers_by_identifier_3or4(identifier_3or4: str) -> List[Customer]:
         logger.debug(f"Getting customers by identifier_3or4: {identifier_3or4}")
         query = '''
-        SELECT c.* FROM customers c
+        SELECT c.*, ci.identifier_3or4
+        FROM customers c
         JOIN customer_identifiers ci ON c.id = ci.customer_id
         WHERE ci.identifier_3or4 = ?
         '''
         rows = DatabaseManager.fetch_all(query, (identifier_3or4,))
-        customers = [Customer.from_row(row) for row in rows]
-        for customer in customers:
-            customer.identifiers_3or4 = CustomerService.get_identifiers_3or4(customer.id)
+        customers = [Customer.from_db_row(row) for row in rows]
+        for customer, row in zip(customers, rows):
+            customer.identifier_3or4 = row['identifier_3or4']
         return customers
 
     @staticmethod
@@ -112,5 +128,23 @@ class CustomerService:
             FROM sales
             WHERE customer_id = ?
         '''
-        row = DatabaseManager.fetch_one(query, (customer_id,))
-        return row['total_purchases'], row['total_amount']
+        result = DatabaseManager.fetch_one(query, (customer_id,))
+        if result:
+            return result['total_purchases'], result['total_amount']
+        return 0, 0
+
+    @staticmethod
+    def search_customers(search_term: str) -> List[Customer]:
+        logger.debug(f"Searching customers with term: {search_term}")
+        query = '''
+        SELECT DISTINCT c.*, ci.identifier_3or4
+        FROM customers c
+        LEFT JOIN customer_identifiers ci ON c.id = ci.customer_id
+        WHERE c.identifier_9 LIKE ? OR ci.identifier_3or4 LIKE ?
+        '''
+        search_pattern = f"%{search_term}%"
+        rows = DatabaseManager.fetch_all(query, (search_pattern, search_pattern))
+        customers = [Customer.from_db_row(row) for row in rows]
+        for customer, row in zip(customers, rows):
+            customer.identifier_3or4 = row['identifier_3or4']
+        return customers

@@ -1,41 +1,83 @@
-from typing import Dict, Any
+from dataclasses import dataclass, field
+from typing import List, Dict, Any
+from datetime import datetime
 
-class Sale:
-    def __init__(self, id: int, customer_id: int, date: str, total_amount: int):
-        self.id = id
-        self.customer_id = customer_id
-        self.date = date
-        self.total_amount = total_amount
-
-    @classmethod
-    def from_row(cls, row: Dict[str, Any]) -> 'Sale':
-        return cls(
-            id=row['id'],
-            customer_id=row['customer_id'],
-            date=row['date'],
-            total_amount=row['total_amount']
-        )
-
-    def __repr__(self) -> str:
-        return f"Sale(id={self.id}, customer_id={self.customer_id}, date='{self.date}', total_amount={self.total_amount})"
-
+@dataclass
 class SaleItem:
-    def __init__(self, id: int, sale_id: int, product_id: int, quantity: int, price: int):
-        self.id = id
-        self.sale_id = sale_id
-        self.product_id = product_id
-        self.quantity = quantity
-        self.price = price
+    id: int
+    sale_id: int
+    product_id: int
+    quantity: int
+    price: float
 
     @classmethod
-    def from_row(cls, row: Dict[str, Any]) -> 'SaleItem':
+    def from_db_row(cls, row: Dict[str, Any]) -> 'SaleItem':
         return cls(
             id=row['id'],
             sale_id=row['sale_id'],
             product_id=row['product_id'],
             quantity=row['quantity'],
-            price=row['price']
+            price=float(row['price'])
         )
 
-    def __repr__(self) -> str:
-        return f"SaleItem(id={self.id}, sale_id={self.sale_id}, product_id={self.product_id}, quantity={self.quantity}, price={self.price})"
+    def total_price(self) -> float:
+        return self.quantity * self.price
+
+@dataclass
+class Sale:
+    id: int
+    customer_id: int
+    date: datetime
+    total_amount: float
+    items: List[SaleItem] = field(default_factory=list)
+
+    @classmethod
+    def from_db_row(cls, row: Dict[str, Any]) -> 'Sale':
+        return cls(
+            id=row['id'],
+            customer_id=row['customer_id'],
+            date=datetime.fromisoformat(row['date']),
+            total_amount=float(row['total_amount'])
+        )
+
+    def add_item(self, item: SaleItem) -> None:
+        self.items.append(item)
+        self.recalculate_total()
+
+    def remove_item(self, item_id: int) -> None:
+        self.items = [item for item in self.items if item.id != item_id]
+        self.recalculate_total()
+
+    def recalculate_total(self) -> None:
+        self.total_amount = sum(item.total_price() for item in self.items)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'id': self.id,
+            'customer_id': self.customer_id,
+            'date': self.date.isoformat(),
+            'total_amount': self.total_amount,
+            'items': [item.__dict__ for item in self.items]
+        }
+
+    def __str__(self) -> str:
+        return (f"Sale(id={self.id}, customer_id={self.customer_id}, "
+                f"date='{self.date.isoformat()}', total_amount={self.total_amount:.2f})")
+
+    @staticmethod
+    def validate_customer_id(customer_id: int) -> None:
+        if not isinstance(customer_id, int) or customer_id <= 0:
+            raise ValueError("Invalid customer ID")
+
+    @staticmethod
+    def validate_date(date: datetime) -> None:
+        if date > datetime.now():
+            raise ValueError("Sale date cannot be in the future")
+
+    def update_date(self, new_date: datetime) -> None:
+        self.validate_date(new_date)
+        self.date = new_date
+
+    def update_customer(self, new_customer_id: int) -> None:
+        self.validate_customer_id(new_customer_id)
+        self.customer_id = new_customer_id

@@ -1,8 +1,22 @@
 import sqlite3
 from contextlib import contextmanager
-from typing import List, Dict, Any, Union, Optional
+from typing import List, Dict, Any, Union, Optional, Tuple
 from config import DATABASE_PATH
 from utils.logger import logger
+
+def validate_query_params(params: Any) -> None:
+    if params is None:
+        return
+    if isinstance(params, (tuple, list)):
+        for param in params:
+            if not isinstance(param, (str, int, float, type(None))):
+                raise ValueError(f"Invalid parameter type: {type(param)}")
+    elif isinstance(params, dict):
+        for value in params.values():
+            if not isinstance(value, (str, int, float, type(None))):
+                raise ValueError(f"Invalid parameter type: {type(value)}")
+    else:
+        raise ValueError(f"Invalid params type: {type(params)}")
 
 class DatabaseManager:
     @staticmethod
@@ -23,9 +37,10 @@ class DatabaseManager:
                 logger.debug("Database connection closed")
 
     @classmethod
-    def execute_query(cls, query: str, params: Optional[Union[tuple, List, Dict]] = None) -> sqlite3.Cursor:
+    def execute_query(cls, query: str, params: Optional[Union[Tuple, List, Dict]] = None) -> sqlite3.Cursor:
         logger.debug(f"Executing query: {query}")
         logger.debug(f"Query parameters: {params}")
+        validate_query_params(params)
         with cls.get_db_connection() as conn:
             cursor = conn.cursor()
             try:
@@ -35,14 +50,14 @@ class DatabaseManager:
                     cursor.execute(query)
                 conn.commit()
                 logger.debug("Query executed successfully")
+                return cursor
             except sqlite3.Error as e:
                 conn.rollback()
                 logger.error(f"Query execution error: {e}")
                 raise
-            return cursor
 
     @classmethod
-    def fetch_one(cls, query: str, params: Optional[Union[tuple, List, Dict]] = None) -> Dict[str, Any]:
+    def fetch_one(cls, query: str, params: Optional[Union[Tuple, List, Dict]] = None) -> Optional[Dict[str, Any]]:
         logger.debug(f"Fetching one row with query: {query}")
         logger.debug(f"Query parameters: {params}")
         with cls.get_db_connection() as conn:
@@ -53,10 +68,10 @@ class DatabaseManager:
                 cursor.execute(query)
             row = cursor.fetchone()
             logger.debug(f"Fetched row: {row}")
-            return row
+            return dict(row) if row else None
 
     @classmethod
-    def fetch_all(cls, query: str, params: Optional[Union[tuple, List, Dict]] = None) -> List[Dict[str, Any]]:
+    def fetch_all(cls, query: str, params: Optional[Union[Tuple, List, Dict]] = None) -> List[Dict[str, Any]]:
         logger.debug(f"Fetching all rows with query: {query}")
         logger.debug(f"Query parameters: {params}")
         with cls.get_db_connection() as conn:
@@ -67,7 +82,7 @@ class DatabaseManager:
                 cursor.execute(query)
             rows = cursor.fetchall()
             logger.debug(f"Fetched {len(rows)} rows")
-            return rows
+            return [dict(row) for row in rows]
 
 def init_db():
     with DatabaseManager.get_db_connection() as conn:
@@ -142,6 +157,16 @@ def init_db():
                 FOREIGN KEY (product_id) REFERENCES products (id)
             )
             ''')
+
+            # Add indexes
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_customers_identifier_9 ON customers (identifier_9)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_sales_customer_id ON sales (customer_id)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items (sale_id)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_sale_items_product_id ON sale_items (product_id)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_purchase_items_purchase_id ON purchase_items (purchase_id)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_purchase_items_product_id ON purchase_items (product_id)')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_inventory_product_id ON inventory (product_id)')
+
             conn.commit()
             logger.info("Database initialized successfully")
         except sqlite3.Error as e:

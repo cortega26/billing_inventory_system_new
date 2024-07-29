@@ -1,0 +1,43 @@
+version: 1
+disable_existing_loggers: false
+
+formatters:
+    standard:
+        format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    error:
+        format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+handlers:
+    console:
+        class: logging.StreamHandler
+        level: DEBUG
+        formatter: standard
+        stream: ext://sys.stdout
+
+    file_handler:
+        class: logging.handlers.RotatingFileHandler
+        level: DEBUG
+        formatter: standard
+        filename: inventory_system.log
+        maxBytes: 10485760 # 10MB
+        backupCount: 5
+        encoding: utf8
+
+    error_file_handler:
+        class: logging.handlers.RotatingFileHandler
+        level: ERROR
+        formatter: error
+        filename: inventory_system_error.log
+        maxBytes: 10485760 # 10MB
+        backupCount: 5
+        encoding: utf8
+
+root:
+    level: DEBUG
+    handlers: [console, file_handler, error_file_handler]
+
+loggers:
+    inventory_system:
+        level: DEBUG
+        handlers: [console, file_handler, error_file_handler]
+        propagate: no

@@ -1,5 +1,6 @@
 from PySide6.QtWidgets import QMainWindow, QTabWidget, QVBoxLayout, QWidget, QMessageBox
 from ui.customer_view import CustomerView
+from ui.dashboard_view import DashboardView
 from ui.product_view import ProductView
 from ui.sale_view import SaleView
 from ui.purchase_view import PurchaseView
@@ -28,6 +29,7 @@ class MainWindow(QMainWindow):
 
     def create_tabs(self):
         tabs: Dict[str, Type[QWidget]] = {
+            "Dashboard": DashboardView,
             "Customers": CustomerView,
             "Products": ProductView,
             "Sales": SaleView,

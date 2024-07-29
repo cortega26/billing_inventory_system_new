@@ -101,17 +101,19 @@ class SaleService:
         return sales
 
     @staticmethod
-    def get_top_selling_products(limit: int = 10) -> List[Dict[str, Any]]:
-        logger.debug(f"Fetching top {limit} selling products")
+    def get_top_selling_products(start_date: str, end_date: str, limit: int = 10) -> List[Dict[str, Any]]:
+        logger.debug(f"Fetching top {limit} selling products from {start_date} to {end_date}")
         query = '''
             SELECT p.id, p.name, SUM(si.quantity) as total_quantity, SUM(si.quantity * si.price) as total_revenue
             FROM products p
             JOIN sale_items si ON p.id = si.product_id
+            JOIN sales s ON si.sale_id = s.id
+            WHERE s.date BETWEEN ? AND ?
             GROUP BY p.id
             ORDER BY total_quantity DESC
             LIMIT ?
         '''
-        return DatabaseManager.fetch_all(query, (limit,))
+        return DatabaseManager.fetch_all(query, (start_date, end_date, limit))
 
     @staticmethod
     def get_daily_sales(start_date: str, end_date: str) -> List[Dict[str, Any]]:
@@ -174,3 +176,12 @@ class SaleService:
         }
         logger.debug(f"Sales stats: {stats}")
         return stats
+
+    def get_total_sales_by_customer(self, customer_id: int) -> float:
+        query = '''
+            SELECT COALESCE(SUM(total_amount), 0) as total
+            FROM sales
+            WHERE customer_id = ?
+        '''
+        result = DatabaseManager.fetch_one(query, (customer_id,))
+        return float(result['total']) if result else 0

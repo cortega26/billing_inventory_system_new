@@ -88,6 +88,25 @@ def init_db():
     with DatabaseManager.get_db_connection() as conn:
         cursor = conn.cursor()
         try:
+            # Create categories table
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE
+            )
+            ''')
+
+            # Modify products table to include category_id
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS products (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT,
+                category_id INTEGER,
+                FOREIGN KEY (category_id) REFERENCES categories (id)
+            )
+            ''')
+
             cursor.execute('''
             CREATE TABLE IF NOT EXISTS customers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -104,18 +123,11 @@ def init_db():
             )
             ''')
             cursor.execute('''
-            CREATE TABLE IF NOT EXISTS products (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                description TEXT
-            )
-            ''')
-            cursor.execute('''
             CREATE TABLE IF NOT EXISTS sales (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 customer_id INTEGER,
                 date TEXT NOT NULL,
-                total_amount INTEGER NOT NULL,
+                total_amount REAL NOT NULL,
                 FOREIGN KEY (customer_id) REFERENCES customers (id)
             )
             ''')
@@ -125,7 +137,7 @@ def init_db():
                 sale_id INTEGER,
                 product_id INTEGER,
                 quantity INTEGER NOT NULL,
-                price INTEGER NOT NULL,
+                price REAL NOT NULL,
                 FOREIGN KEY (sale_id) REFERENCES sales (id),
                 FOREIGN KEY (product_id) REFERENCES products (id)
             )
@@ -135,7 +147,7 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 supplier TEXT NOT NULL,
                 date TEXT NOT NULL,
-                total_amount INTEGER NOT NULL
+                total_amount REAL NOT NULL
             )
             ''')
             cursor.execute('''
@@ -144,7 +156,7 @@ def init_db():
                 purchase_id INTEGER,
                 product_id INTEGER,
                 quantity INTEGER NOT NULL,
-                price INTEGER NOT NULL,
+                price REAL NOT NULL,
                 FOREIGN KEY (purchase_id) REFERENCES purchases (id),
                 FOREIGN KEY (product_id) REFERENCES products (id)
             )
@@ -159,6 +171,7 @@ def init_db():
             ''')
 
             # Add indexes
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_products_category_id ON products (category_id)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_customers_identifier_9 ON customers (identifier_9)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_sales_customer_id ON sales (customer_id)')
             cursor.execute('CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items (sale_id)')

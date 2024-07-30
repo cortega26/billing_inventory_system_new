@@ -6,14 +6,14 @@ from utils.logger import logger
 
 class ProductService:
     @staticmethod
-    def create_product(name: str, description: Optional[str] = None) -> Optional[int]:
-        logger.debug(f"Creating product with name: {name}, description: {description}")
+    def create_product(name: str, description: Optional[str] = None, category_id: Optional[int] = None) -> Optional[int]:
+        logger.debug(f"Creating product with name: {name}, description: {description}, category_id: {category_id}")
         name = validate_string(name, "Product name", max_length=100)
         if description:
             description = validate_string(description, "Product description", max_length=500)
         
-        query = 'INSERT INTO products (name, description) VALUES (?, ?)'
-        cursor = DatabaseManager.execute_query(query, (name, description))
+        query = 'INSERT INTO products (name, description, category_id) VALUES (?, ?, ?)'
+        cursor = DatabaseManager.execute_query(query, (name, description, category_id))
         product_id = cursor.lastrowid
         logger.debug(f"Created product with ID: {product_id}")
         return product_id if product_id is not None else None
@@ -21,7 +21,12 @@ class ProductService:
     @staticmethod
     def get_product(product_id: int) -> Optional[Product]:
         logger.debug(f"Getting product with ID: {product_id}")
-        query = 'SELECT * FROM products WHERE id = ?'
+        query = '''
+        SELECT p.*, c.name as category_name 
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.id = ?
+        '''
         row = DatabaseManager.fetch_one(query, (product_id,))
         if row:
             product = Product.from_db_row(row)
@@ -33,20 +38,25 @@ class ProductService:
     @staticmethod
     def get_all_products() -> List[Product]:
         logger.debug("Getting all products")
-        query = 'SELECT * FROM products'
+        query = '''
+        SELECT p.*, c.name as category_name 
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        ORDER BY p.name
+        '''
         rows = DatabaseManager.fetch_all(query)
         products = [Product.from_db_row(row) for row in rows]
         logger.debug(f"Retrieved {len(products)} products")
         return products
 
     @staticmethod
-    def update_product(product_id: int, name: str, description: Optional[str]) -> None:
-        logger.debug(f"Updating product with ID: {product_id}, name: {name}, description: {description}")
+    def update_product(product_id: int, name: str, description: Optional[str], category_id: Optional[int]) -> None:
+        logger.debug(f"Updating product with ID: {product_id}, name: {name}, description: {description}, category_id: {category_id}")
         name = validate_string(name, "Product name", max_length=100)
         if description is not None:
             description = validate_string(description, "Product description", max_length=500)
-        query = 'UPDATE products SET name = ?, description = ? WHERE id = ?'
-        DatabaseManager.execute_query(query, (name, description, product_id))
+        query = 'UPDATE products SET name = ?, description = ?, category_id = ? WHERE id = ?'
+        DatabaseManager.execute_query(query, (name, description, category_id, product_id))
         logger.debug(f"Product updated successfully")
 
     @staticmethod
@@ -73,11 +83,14 @@ class ProductService:
     def search_products(search_term: str) -> List[Product]:
         logger.debug(f"Searching products with term: {search_term}")
         query = '''
-        SELECT * FROM products
-        WHERE name LIKE ? OR description LIKE ?
+        SELECT p.*, c.name as category_name 
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.name LIKE ? OR p.description LIKE ? OR c.name LIKE ?
+        ORDER BY p.name
         '''
         search_pattern = f"%{search_term}%"
-        rows = DatabaseManager.fetch_all(query, (search_pattern, search_pattern))
+        rows = DatabaseManager.fetch_all(query, (search_pattern, search_pattern, search_pattern))
         products = [Product.from_db_row(row) for row in rows]
         logger.debug(f"Found {len(products)} products matching search term: {search_term}")
         return products
@@ -101,3 +114,18 @@ class ProductService:
         }
         logger.debug(f"Sales stats for product ID {product_id}: {stats}")
         return stats
+
+    @staticmethod
+    def get_products_by_category(category_id: int) -> List[Product]:
+        logger.debug(f"Getting products for category ID: {category_id}")
+        query = '''
+        SELECT p.*, c.name as category_name 
+        FROM products p
+        LEFT JOIN categories c ON p.category_id = c.id
+        WHERE p.category_id = ?
+        ORDER BY p.name
+        '''
+        rows = DatabaseManager.fetch_all(query, (category_id,))
+        products = [Product.from_db_row(row) for row in rows]
+        logger.debug(f"Retrieved {len(products)} products for category ID: {category_id}")
+        return products

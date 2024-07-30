@@ -1,6 +1,7 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-                               QTableWidget, QTableWidgetItem, QDateEdit, QComboBox)
-from PySide6.QtCore import Qt, QDate, QDateTime
+                               QTableWidget, QTableWidgetItem, QDateEdit, QComboBox,
+                               QFormLayout, QSpinBox)
+from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QPainter
 from PySide6.QtCharts import QChart, QChartView, QBarSeries, QBarSet, QValueAxis, QBarCategoryAxis, QLineSeries, QDateTimeAxis
 from services.analytics_service import AnalyticsService
@@ -18,21 +19,37 @@ class AnalyticsView(QWidget):
         layout = QVBoxLayout(self)
 
         # Date range selection
-        date_layout = QHBoxLayout()
+        date_layout = QFormLayout()
         self.start_date = QDateEdit()
         self.start_date.setDate(QDate.currentDate().addDays(-30))
+        self.start_date.setCalendarPopup(True)
         self.end_date = QDateEdit()
         self.end_date.setDate(QDate.currentDate())
-        date_layout.addWidget(QLabel("Start Date:"))
-        date_layout.addWidget(self.start_date)
-        date_layout.addWidget(QLabel("End Date:"))
-        date_layout.addWidget(self.end_date)
+        self.end_date.setCalendarPopup(True)
+        date_layout.addRow("Start Date:", self.start_date)
+        date_layout.addRow("End Date:", self.end_date)
         layout.addLayout(date_layout)
 
         # Analytics type selection
         self.analytics_type = QComboBox()
-        self.analytics_type.addItems(["Loyal Customers", "Sales by Weekday", "Top Selling Products", "Sales Trend"])
+        self.analytics_type.addItems([
+            "Loyal Customers", 
+            "Sales by Weekday", 
+            "Top Selling Products", 
+            "Sales Trend",
+            "Category Performance",
+            "Inventory Turnover"
+        ])
+        layout.addWidget(QLabel("Select Analysis:"))
         layout.addWidget(self.analytics_type)
+
+        # Additional parameters
+        self.params_layout = QFormLayout()
+        self.top_n_spinbox = QSpinBox()
+        self.top_n_spinbox.setRange(1, 100)
+        self.top_n_spinbox.setValue(10)
+        self.params_layout.addRow("Top N:", self.top_n_spinbox)
+        layout.addLayout(self.params_layout)
 
         # Generate button
         generate_btn = QPushButton("Generate Analytics")
@@ -52,15 +69,20 @@ class AnalyticsView(QWidget):
         analytics_type = self.analytics_type.currentText()
         start_date = self.start_date.date().toString("yyyy-MM-dd")
         end_date = self.end_date.date().toString("yyyy-MM-dd")
+        top_n = self.top_n_spinbox.value()
 
         if analytics_type == "Loyal Customers":
             self.show_loyal_customers()
         elif analytics_type == "Sales by Weekday":
-            self.show_sales_by_weekday()
+            self.show_sales_by_weekday(start_date, end_date)
         elif analytics_type == "Top Selling Products":
-            self.show_top_selling_products(start_date, end_date)
+            self.show_top_selling_products(start_date, end_date, top_n)
         elif analytics_type == "Sales Trend":
             self.show_sales_trend(start_date, end_date)
+        elif analytics_type == "Category Performance":
+            self.show_category_performance(start_date, end_date)
+        elif analytics_type == "Inventory Turnover":
+            self.show_inventory_turnover(start_date, end_date)
 
     def show_loyal_customers(self):
         loyal_customers = self.analytics_service.get_loyal_customers()
@@ -68,24 +90,36 @@ class AnalyticsView(QWidget):
                                        ["ID", "9-digit Identifier", "Purchase Count"], 
                                        'identifier_9', 'purchase_count', "Loyal Customers")
 
-    def show_sales_by_weekday(self):
-        sales_by_weekday = self.analytics_service.get_sales_by_weekday()
+    def show_sales_by_weekday(self, start_date: str, end_date: str):
+        sales_by_weekday = self.analytics_service.get_sales_by_weekday(start_date, end_date)
         self._populate_table_and_chart(sales_by_weekday, 
                                        ["Weekday", "Total Sales"], 
                                        'weekday', 'total_sales', "Sales by Weekday")
 
-    def show_top_selling_products(self, start_date: str, end_date: str):
-        top_products = self.analytics_service.get_top_selling_products(start_date, end_date)
+    def show_top_selling_products(self, start_date: str, end_date: str, top_n: int):
+        top_products = self.analytics_service.get_top_selling_products(start_date, end_date, top_n)
         self._populate_table_and_chart(top_products, 
-                                       ["Product ID", "Product Name", "Total Quantity"], 
+                                       ["Product ID", "Product Name", "Total Quantity", "Total Revenue"], 
                                        'name', 'total_quantity', "Top Selling Products")
 
     def show_sales_trend(self, start_date: str, end_date: str):
-        sales_trend = self.analytics_service.get_sales_trend()
+        sales_trend = self.analytics_service.get_sales_trend(start_date, end_date)
         self._populate_table_and_chart(sales_trend, 
                                        ["Date", "Daily Sales"], 
                                        'date', 'daily_sales', "Sales Trend", 
                                        chart_type='line')
+
+    def show_category_performance(self, start_date: str, end_date: str):
+        category_performance = self.analytics_service.get_category_performance(start_date, end_date)
+        self._populate_table_and_chart(category_performance,
+                                       ["Category", "Total Sales", "Number of Products Sold"],
+                                       'category', 'total_sales', "Category Performance")
+
+    def show_inventory_turnover(self, start_date: str, end_date: str):
+        inventory_turnover = self.analytics_service.get_inventory_turnover(start_date, end_date)
+        self._populate_table_and_chart(inventory_turnover,
+                                       ["Product ID", "Product Name", "Turnover Ratio"],
+                                       'name', 'turnover_ratio', "Inventory Turnover")
 
     def _populate_table_and_chart(self, data: List[Dict[str, Any]], headers: List[str], 
                                   x_key: str, y_key: str, title: str, chart_type: str = 'bar'):
@@ -114,22 +148,17 @@ class AnalyticsView(QWidget):
             series.attachAxis(axis_x)
         elif chart_type == 'line':
             series = QLineSeries()
-            min_date = QDateTime()
-            max_date = QDateTime()
             for item in data:
-                date = QDateTime.fromString(item[x_key], "yyyy-MM-dd")
-                series.append(date.toMSecsSinceEpoch(), item[y_key])
-                if min_date.isNull() or min_date.secsTo(date) < 0:
-                    min_date = date
-                if max_date.isNull() or max_date.secsTo(date) > 0:
-                    max_date = date
+                date = QDate.fromString(item[x_key], "yyyy-MM-dd")
+                series.append(date.startOfDay().toMSecsSinceEpoch(), item[y_key])
             chart.addSeries(series)
             
             axis_x = QDateTimeAxis()
             axis_x.setFormat("MMM dd")
             axis_x.setTickCount(5)
-            if not min_date.isNull() and not max_date.isNull():
-                axis_x.setRange(min_date, max_date)
+            min_date = QDate.fromString(data[0][x_key], "yyyy-MM-dd")
+            max_date = QDate.fromString(data[-1][x_key], "yyyy-MM-dd")
+            axis_x.setRange(min_date.startOfDay(), max_date.startOfDay())
             chart.addAxis(axis_x, Qt.AlignmentFlag.AlignBottom)
             series.attachAxis(axis_x)
 

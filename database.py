@@ -96,7 +96,7 @@ def init_db():
             )
             ''')
 
-            # Modify products table to include category_id
+            # Create products table with category_id
             cursor.execute('''
             CREATE TABLE IF NOT EXISTS products (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

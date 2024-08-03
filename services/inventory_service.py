@@ -34,9 +34,12 @@ class InventoryService:
     def get_all_inventory() -> List[Dict[str, Any]]:
         logger.debug("Fetching all inventory")
         query = '''
-            SELECT p.id as product_id, p.name as product_name, COALESCE(i.quantity, 0) as quantity
-            FROM products p
-            LEFT JOIN inventory i ON p.id = i.product_id
+            SELECT i.product_id, p.name as product_name, 
+                COALESCE(c.name, 'Uncategorized') as category_name, 
+                i.quantity
+            FROM inventory i
+            JOIN products p ON i.product_id = p.id
+            LEFT JOIN categories c ON p.category_id = c.id
         '''
         return DatabaseManager.fetch_all(query)
 

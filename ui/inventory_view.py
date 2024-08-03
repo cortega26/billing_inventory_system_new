@@ -89,9 +89,15 @@ class InventoryView(QWidget):
             self.inventory_table.setItem(row, 2, QTableWidgetItem(item['category_name']))
             self.inventory_table.setItem(row, 3, QTableWidgetItem(str(item['quantity'])))
             
+            actions_widget = QWidget()
+            actions_layout = QHBoxLayout(actions_widget)
+            actions_layout.setContentsMargins(0, 0, 0, 0)
+            
             edit_button = QPushButton("Edit")
             edit_button.clicked.connect(lambda _, i=item: self.edit_inventory(i))
-            self.inventory_table.setCellWidget(row, 4, edit_button)
+            
+            actions_layout.addWidget(edit_button)
+            self.inventory_table.setCellWidget(row, 4, actions_widget)
 
     def edit_inventory(self, item: Dict[str, Any]):
         dialog = EditInventoryDialog(item, self)

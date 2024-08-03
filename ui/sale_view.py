@@ -2,6 +2,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineE
                                QPushButton, QTableWidget, QTableWidgetItem, QMessageBox,
                                QComboBox, QDateEdit, QDialog, QDialogButtonBox)
 from PySide6.QtCore import Qt, QDate
+from services.category_service import CategoryService
 from services.sale_service import SaleService
 from services.customer_service import CustomerService
 from services.product_service import ProductService
@@ -9,7 +10,8 @@ from models.customer import Customer
 from models.sale import Sale
 from utils.utils import create_table, show_error_message
 from utils.logger import logger
-from typing import List, Optional
+from typing import List
+from services.product_service import ProductService
 
 class CustomerSelectionDialog(QDialog):
     def __init__(self, customers: List[Customer], parent=None):
@@ -34,18 +36,29 @@ class CustomerSelectionDialog(QDialog):
         return self.customer_combo.currentData()
 
 class SaleItemDialog(QDialog):
-    def __init__(self, products, parent=None):
+    def __init__(self, product_service, category_service, parent=None):
         super().__init__(parent)
-        self.products = products
+        self.product_service = product_service
+        self.category_service = category_service
+        self.products = []
         self.setWindowTitle("Add Sale Item")
         self.setup_ui()
+        self.resize(300, 300)  # Width: 300px, Height: 300px
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
         
+        self.category_combo = QComboBox()
+        self.category_combo.addItem("Select Category", None)
+        categories = self.category_service.get_all_categories()
+        for category in categories:
+            self.category_combo.addItem(category.name, category.id)
+        self.category_combo.currentIndexChanged.connect(self.on_category_changed)
+        layout.addWidget(QLabel("Category:"))
+        layout.addWidget(self.category_combo)
+        
         self.product_combo = QComboBox()
-        for product in self.products:
-            self.product_combo.addItem(product.name, product.id)
+        self.product_combo.setEnabled(False)
         layout.addWidget(QLabel("Product:"))
         layout.addWidget(self.product_combo)
         
@@ -62,6 +75,21 @@ class SaleItemDialog(QDialog):
         self.button_box.rejected.connect(self.reject)
         layout.addWidget(self.button_box)
 
+    def on_category_changed(self, index):
+        category_id = self.category_combo.itemData(index)
+        if category_id is not None:
+            self.load_products(category_id)
+        else:
+            self.product_combo.clear()
+            self.product_combo.setEnabled(False)
+
+    def load_products(self, category_id):
+        self.products = self.product_service.get_products_by_category(category_id)
+        self.product_combo.clear()
+        for product in self.products:
+            self.product_combo.addItem(product.name, product.id)
+        self.product_combo.setEnabled(True)
+
     def get_item_data(self):
         return {
             "product_id": self.product_combo.currentData(),
@@ -75,6 +103,7 @@ class SaleView(QWidget):
         self.sale_service = SaleService()
         self.customer_service = CustomerService()
         self.product_service = ProductService()
+        self.category_service = CategoryService()
         self.setup_ui()
 
     def setup_ui(self):
@@ -194,14 +223,13 @@ class SaleView(QWidget):
         date = self.date_input.date().toString("yyyy-MM-dd")
 
         try:
-            products = self.product_service.get_all_products()
             items = []
             while True:
-                dialog = SaleItemDialog(products, self)
+                dialog = SaleItemDialog(self.product_service, self.category_service, self)
                 if dialog.exec():
                     items.append(dialog.get_item_data())
                     reply = QMessageBox.question(self, "Add Another Item", "Do you want to add another item?",
-                                                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+                                                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
                     if reply == QMessageBox.StandardButton.No:
                         break
                 else:

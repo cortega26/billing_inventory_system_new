@@ -65,3 +65,12 @@ class CategoryService:
         categories = [Category.from_db_row(row) for row in rows]
         logger.debug(f"Found {len(categories)} categories matching search term: {search_term}")
         return categories
+
+    @staticmethod
+    def get_category_by_name(name: str) -> Optional[Category]:
+        logger.debug(f"Getting category with name: {name}")
+        query = 'SELECT * FROM categories WHERE name = ?'
+        row = DatabaseManager.fetch_one(query, (name,))
+        if row:
+            return Category.from_db_row(row)
+        return None

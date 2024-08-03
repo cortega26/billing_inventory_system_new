@@ -7,6 +7,7 @@ from services.category_service import CategoryService
 from utils.utils import create_table, show_error_message
 from utils.event_system import event_system
 from utils.logger import logger
+from ui.category_management_dialog import CategoryManagementDialog
 
 class EditProductDialog(QDialog):
     def __init__(self, product, categories, parent=None):
@@ -29,7 +30,10 @@ class EditProductDialog(QDialog):
         for category in self.categories:
             self.category_combo.addItem(category.name, category.id)
         if self.product.category:
-            index = self.category_combo.findData(self.product.category.id)
+            if isinstance(self.product.category, dict):
+                index = self.category_combo.findData(self.product.category.get('id'))
+            else:
+                index = self.category_combo.findData(getattr(self.product.category, 'id', None))
             if index >= 0:
                 self.category_combo.setCurrentIndex(index)
         layout.addRow("Category:", self.category_combo)
@@ -74,24 +78,25 @@ class ProductView(QWidget):
         add_button.clicked.connect(self.add_product)
         input_layout.addRow(add_button)
 
+        manage_categories_button = QPushButton("Manage Categories")
+        manage_categories_button.clicked.connect(self.manage_categories)
+        layout.addWidget(manage_categories_button)
+
         layout.addLayout(input_layout)
 
         # Product table
-        self.product_table = create_table(["ID", "Name", "Description", "Category", "Avg. Purchase Price", "Edit", "Delete"])
+        self.product_table = create_table(["ID", "Name", "Description", "Category", "Avg. Purchase Price", "Actions"])
         self.product_table.setSortingEnabled(True)  # Enable sorting
         layout.addWidget(self.product_table)
 
         self.load_products()
 
     def load_categories(self):
-        try:
-            categories = self.category_service.get_all_categories()
-            self.category_combo.clear()
-            for category in categories:
-                self.category_combo.addItem(category.name, category.id)
-        except Exception as e:
-            logger.error(f"Failed to load categories: {str(e)}")
-            show_error_message("Error", f"Failed to load categories: {str(e)}")
+        categories = self.category_service.get_all_categories()
+        self.category_combo.clear()
+        self.category_combo.addItem("Uncategorized", None)
+        for category in categories:
+            self.category_combo.addItem(category.name, category.id)
 
     def load_products(self):
         logger.debug("Loading products")
@@ -113,15 +118,26 @@ class ProductView(QWidget):
             self.product_table.setItem(row, 3, QTableWidgetItem(product.category.name if product.category else ""))
             self.product_table.setItem(row, 4, QTableWidgetItem(f"{avg_price:,.2f}"))
             
+            actions_widget = QWidget()
+            actions_layout = QHBoxLayout(actions_widget)
+            actions_layout.setContentsMargins(0, 0, 0, 0)
+            
             edit_button = QPushButton("Edit")
             edit_button.clicked.connect(lambda _, p=product: self.edit_product(p))
-            self.product_table.setCellWidget(row, 5, edit_button)
             
             delete_button = QPushButton("Delete")
             delete_button.clicked.connect(lambda _, p=product: self.delete_product(p))
-            self.product_table.setCellWidget(row, 6, delete_button)
+            
+            actions_layout.addWidget(edit_button)
+            actions_layout.addWidget(delete_button)
+            self.product_table.setCellWidget(row, 5, actions_widget)
 
         logger.debug(f"Loaded {len(products)} products")
+
+    def manage_categories(self):
+        dialog = CategoryManagementDialog(self)
+        if dialog.exec():
+            self.load_categories()
 
     def add_product(self):
         name = self.name_input.text().strip()

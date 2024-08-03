@@ -1,13 +1,14 @@
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTableWidget, QTableWidgetItem, 
-                               QPushButton, QLineEdit, QMessageBox, QLabel, QComboBox, QInputDialog,
-                               QDialog, QFormLayout, QDialogButtonBox)
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QInputDialog,
+                               QPushButton, QTableWidgetItem, QDoubleSpinBox, QComboBox, QDialog,
+                               QFormLayout, QDialogButtonBox)
 from PySide6.QtCore import Qt
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
 from services.category_service import CategoryService
-from utils.utils import create_table, show_error_message
+from utils.utils import create_table, show_error_message, show_info_message
 from utils.event_system import event_system
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+from utils.logger import logger
 
 class EditInventoryDialog(QDialog):
     def __init__(self, product: Dict[str, Any], parent=None):
@@ -19,22 +20,42 @@ class EditInventoryDialog(QDialog):
     def setup_ui(self):
         layout = QFormLayout(self)
 
-        self.quantity_input = QLineEdit(str(self.product['quantity']))
+        self.quantity_input = QDoubleSpinBox()
+        self.quantity_input.setMinimum(0)
+        self.quantity_input.setMaximum(1000000)
+        self.quantity_input.setDecimals(2)
+        self.quantity_input.setValue(self.product['quantity'])
         layout.addRow("Quantity:", self.quantity_input)
 
-        self.adjustment_input = QLineEdit("0")
+        self.adjustment_input = QDoubleSpinBox()
+        self.adjustment_input.setMinimum(-1000000)
+        self.adjustment_input.setMaximum(1000000)
+        self.adjustment_input.setDecimals(2)
+        self.adjustment_input.setValue(0)
         layout.addRow("Adjust Quantity (+ or -):", self.adjustment_input)
 
+        self.reason_input = QLineEdit()
+        layout.addRow("Reason for Adjustment:", self.reason_input)
+
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(self.accept)
+        buttons.accepted.connect(self.validate_and_accept)
         buttons.rejected.connect(self.reject)
         layout.addRow(buttons)
 
-    def get_new_quantity(self) -> int:
-        return int(self.quantity_input.text())
+    def validate_and_accept(self):
+        if self.adjustment_input.value() != 0 and not self.reason_input.text().strip():
+            show_error_message("Error", "Please provide a reason for the adjustment.")
+            return
+        self.accept()
 
-    def get_adjustment(self) -> int:
-        return int(self.adjustment_input.text())
+    def get_new_quantity(self) -> float:
+        return self.quantity_input.value()
+
+    def get_adjustment(self) -> float:
+        return self.adjustment_input.value()
+
+    def get_reason(self) -> str:
+        return self.reason_input.text().strip()
 
 class InventoryView(QWidget):
     def __init__(self):
@@ -43,20 +64,29 @@ class InventoryView(QWidget):
         self.product_service = ProductService()
         self.category_service = CategoryService()
         self.setup_ui()
-        event_system.product_added.connect(self.load_inventory)
         event_system.product_added.connect(self.on_product_added)
+        event_system.product_updated.connect(self.load_inventory)
+        event_system.product_deleted.connect(self.load_inventory)
+        event_system.sale_added.connect(self.load_inventory)
+        event_system.purchase_added.connect(self.load_inventory)
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
 
-        # Search bar
+        # Search and filter
         search_layout = QHBoxLayout()
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Search inventory...")
         search_button = QPushButton("Search")
         search_button.clicked.connect(self.search_inventory)
+        self.category_filter = QComboBox()
+        self.category_filter.addItem("All Categories", None)
+        self.load_categories()
+        self.category_filter.currentIndexChanged.connect(self.filter_inventory)
         search_layout.addWidget(self.search_input)
         search_layout.addWidget(search_button)
+        search_layout.addWidget(QLabel("Category:"))
+        search_layout.addWidget(self.category_filter)
         layout.addLayout(search_layout)
 
         # Inventory table
@@ -70,15 +100,29 @@ class InventoryView(QWidget):
 
         self.load_inventory()
 
+    def load_categories(self):
+        try:
+            categories = self.category_service.get_all_categories()
+            for category in categories:
+                self.category_filter.addItem(category.name, category.id)
+        except Exception as e:
+            logger.error(f"Failed to load categories: {str(e)}")
+            show_error_message("Error", f"Failed to load categories: {str(e)}")
+
     def on_product_added(self, product_id: int):
-        self.inventory_service.update_quantity(product_id, 0)  # Add new product with quantity 0
-        self.load_inventory()
+        try:
+            self.inventory_service.update_quantity(product_id, 0)  # Add new product with quantity 0
+            self.load_inventory()
+        except Exception as e:
+            logger.error(f"Error adding new product to inventory: {str(e)}")
+            show_error_message("Error", f"Failed to add new product to inventory: {str(e)}")
 
     def load_inventory(self):
         try:
             inventory_items = self.inventory_service.get_all_inventory()
             self.update_inventory_table(inventory_items)
         except Exception as e:
+            logger.error(f"Failed to load inventory: {str(e)}")
             show_error_message("Error", f"Failed to load inventory: {str(e)}")
 
     def update_inventory_table(self, inventory_items: List[Dict[str, Any]]):
@@ -87,7 +131,7 @@ class InventoryView(QWidget):
             self.inventory_table.setItem(row, 0, QTableWidgetItem(str(item['product_id'])))
             self.inventory_table.setItem(row, 1, QTableWidgetItem(item['product_name']))
             self.inventory_table.setItem(row, 2, QTableWidgetItem(item['category_name']))
-            self.inventory_table.setItem(row, 3, QTableWidgetItem(str(item['quantity'])))
+            self.inventory_table.setItem(row, 3, QTableWidgetItem(f"{item['quantity']:.2f}"))
             
             actions_widget = QWidget()
             actions_layout = QHBoxLayout(actions_widget)
@@ -104,39 +148,53 @@ class InventoryView(QWidget):
         if dialog.exec():
             new_quantity = dialog.get_new_quantity()
             adjustment = dialog.get_adjustment()
+            reason = dialog.get_reason()
             
             try:
                 if adjustment != 0:
-                    self.inventory_service.update_quantity(item['product_id'], adjustment)
+                    # Convert float to int for adjust_inventory
+                    self.inventory_service.adjust_inventory(item['product_id'], int(adjustment), reason)
                 else:
-                    self.inventory_service.set_quantity(item['product_id'], new_quantity)
+                    # Convert float to int for set_quantity
+                    self.inventory_service.set_quantity(item['product_id'], int(new_quantity))
                 self.load_inventory()
-                QMessageBox.information(self, "Success", "Inventory updated successfully.")
+                show_info_message("Success", "Inventory updated successfully.")
             except Exception as e:
+                logger.error(f"Failed to update inventory: {str(e)}")
                 show_error_message("Error", f"Failed to update inventory: {str(e)}")
 
-    def show_low_stock_alert(self, threshold: int = 10):
-        try:
-            low_stock_items = self.inventory_service.get_low_stock_products(threshold)
-            if low_stock_items:
-                message = "The following items are low in stock:\n\n"
-                for item in low_stock_items:
-                    message += f"{item['product_name']} ({item['category_name']}): {item['quantity']} left\n"
-                QMessageBox.warning(self, "Low Stock Alert", message)
-            else:
-                QMessageBox.information(self, "Stock Status", "No items are low in stock.")
-        except Exception as e:
-            show_error_message("Error", f"Failed to check low stock items: {str(e)}")
+    def show_low_stock_alert(self):
+        threshold, ok = QInputDialog.getInt(self, "Low Stock Threshold", "Enter the low stock threshold:", 10, 1, 1000)
+        if ok:
+            try:
+                low_stock_items = self.inventory_service.get_low_stock_products(threshold)
+                if low_stock_items:
+                    message = "The following items are low in stock:\n\n"
+                    for item in low_stock_items:
+                        message += f"{item['product_name']} ({item['category_name']}): {item['quantity']:.2f} left\n"
+                    show_info_message("Low Stock Alert", message)
+                else:
+                    show_info_message("Stock Status", "No items are low in stock.")
+            except Exception as e:
+                logger.error(f"Failed to check low stock items: {str(e)}")
+                show_error_message("Error", f"Failed to check low stock items: {str(e)}")
 
     def search_inventory(self):
         search_term = self.search_input.text().strip().lower()
-        if search_term:
+        category_id = self.category_filter.currentData()
+        self.filter_inventory(search_term, category_id)
+
+    def filter_inventory(self, search_term: str = "", category_id: Optional[int] = None):
+        try:
+            all_items = self.inventory_service.get_all_inventory()
             filtered_items = [
-                item for item in self.inventory_service.get_all_inventory()
-                if search_term in item['product_name'].lower() or 
-                search_term in str(item['product_id']) or
-                search_term in item['category_name'].lower()
+                item for item in all_items
+                if (search_term in item['product_name'].lower() or 
+                    search_term in str(item['product_id']) or
+                    search_term in item['category_name'].lower()) and
+                   (category_id is None or item['category_id'] == category_id)
             ]
             self.update_inventory_table(filtered_items)
-        else:
-            self.load_inventory()
+        except Exception as e:
+            logger.error(f"Error filtering inventory: {str(e)}")
+            show_error_message("Error", f"Failed to filter inventory: {str(e)}")

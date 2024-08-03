@@ -92,28 +92,31 @@ class CustomerView(QWidget):
         self.customer_table.setRowCount(len(customers))
         for row, customer in enumerate(customers):
             logger.debug(f"Loading customer: {customer}")
-            total_purchases, total_amount = self.customer_service.get_customer_stats(customer.id)
-            self.customer_table.setItem(row, 0, QTableWidgetItem(str(customer.id)))
-            self.customer_table.setItem(row, 1, QTableWidgetItem(customer.identifier_9))
-            self.customer_table.setItem(row, 2, QTableWidgetItem(customer.identifier_3or4 or "N/A"))
-            self.customer_table.setItem(row, 3, QTableWidgetItem(str(total_purchases)))
-            self.customer_table.setItem(row, 4, QTableWidgetItem(f"{total_amount:,}"))
-            
-            actions_widget = QWidget()
-            actions_layout = QHBoxLayout(actions_widget)
-            actions_layout.setContentsMargins(0, 0, 0, 0)
-            
-            edit_button = QPushButton("Edit")
-            edit_button.setFixedWidth(50)
-            edit_button.clicked.connect(lambda _, c=customer: self.edit_customer(c))
-            
-            delete_button = QPushButton("Delete")
-            delete_button.setFixedWidth(50)
-            delete_button.clicked.connect(lambda _, c=customer: self.delete_customer(c))
-            
-            actions_layout.addWidget(edit_button)
-            actions_layout.addWidget(delete_button)
-            self.customer_table.setCellWidget(row, 5, actions_widget)
+            try:
+                total_purchases, total_amount = self.customer_service.get_customer_stats(customer.id)
+                self.customer_table.setItem(row, 0, QTableWidgetItem(str(customer.id)))
+                self.customer_table.setItem(row, 1, QTableWidgetItem(customer.identifier_9))
+                self.customer_table.setItem(row, 2, QTableWidgetItem(customer.identifier_3or4 or "N/A"))
+                self.customer_table.setItem(row, 3, QTableWidgetItem(str(total_purchases)))
+                self.customer_table.setItem(row, 4, QTableWidgetItem(f"{total_amount:,.2f}"))
+                
+                actions_widget = QWidget()
+                actions_layout = QHBoxLayout(actions_widget)
+                actions_layout.setContentsMargins(0, 0, 0, 0)
+                
+                edit_button = QPushButton("Edit")
+                edit_button.setFixedWidth(50)
+                edit_button.clicked.connect(lambda _, c=customer: self.edit_customer(c))
+                
+                delete_button = QPushButton("Delete")
+                delete_button.setFixedWidth(50)
+                delete_button.clicked.connect(lambda _, c=customer: self.delete_customer(c))
+                
+                actions_layout.addWidget(edit_button)
+                actions_layout.addWidget(delete_button)
+                self.customer_table.setCellWidget(row, 5, actions_widget)
+            except Exception as e:
+                logger.error(f"Error populating customer row: {str(e)}")
         logger.debug(f"Loaded {len(customers)} customers")
 
     def add_customer(self):

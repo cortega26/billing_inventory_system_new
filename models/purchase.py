@@ -21,35 +21,53 @@ class PurchaseItem:
         )
 
     def total_price(self) -> float:
-        return self.quantity * self.price
+        return round(self.quantity * self.price, 2)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'id': self.id,
+            'purchase_id': self.purchase_id,
+            'product_id': self.product_id,
+            'quantity': self.quantity,
+            'price': self.price,
+            'total_price': self.total_price()
+        }
 
 @dataclass
 class Purchase:
     id: int
     supplier: str
     date: datetime
-    total_amount: float
     items: List[PurchaseItem] = field(default_factory=list)
+    _total_amount: float = field(init=False, default=0)
+
+    def __post_init__(self):
+        self.recalculate_total()
 
     @classmethod
     def from_db_row(cls, row: Dict[str, Any]) -> 'Purchase':
         return cls(
             id=row['id'],
             supplier=row['supplier'],
-            date=datetime.fromisoformat(row['date']),
-            total_amount=float(row['total_amount'])
+            date=datetime.fromisoformat(row['date'])
         )
 
     def add_item(self, item: PurchaseItem) -> None:
         self.items.append(item)
-        self.recalculate_total()
+        self._total_amount += item.total_price()
 
     def remove_item(self, item_id: int) -> None:
-        self.items = [item for item in self.items if item.id != item_id]
-        self.recalculate_total()
+        item = next((item for item in self.items if item.id == item_id), None)
+        if item:
+            self.items.remove(item)
+            self._total_amount -= item.total_price()
 
     def recalculate_total(self) -> None:
-        self.total_amount = sum(item.total_price() for item in self.items)
+        self._total_amount = sum(item.total_price() for item in self.items)
+
+    @property
+    def total_amount(self) -> float:
+        return round(self._total_amount, 2)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -57,12 +75,11 @@ class Purchase:
             'supplier': self.supplier,
             'date': self.date.isoformat(),
             'total_amount': self.total_amount,
-            'items': [item.__dict__ for item in self.items]
+            'items': [item.to_dict() for item in self.items]
         }
 
     def __str__(self) -> str:
-        return (f"Purchase(id={self.id}, supplier='{self.supplier}', "
-                f"date='{self.date.isoformat()}', total_amount={self.total_amount:.2f})")
+        return f"Purchase(id={self.id}, supplier='{self.supplier}', date='{self.date.isoformat()}', total_amount={self.total_amount:.2f})"
 
     @staticmethod
     def validate_supplier(supplier: str) -> None:

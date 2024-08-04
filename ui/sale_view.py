@@ -66,7 +66,7 @@ class SaleItemDialog(QDialog):
         self.price_input.setMaximum(1000000.00)
         self.price_input.setDecimals(2)
         self.price_input.valueChanged.connect(self.update_total)
-        layout.addRow("Price:", self.price_input)
+        layout.addRow("Sell Price:", self.price_input)
         
         self.total_label = QLabel("0.00")
         layout.addRow("Total:", self.total_label)
@@ -80,8 +80,8 @@ class SaleItemDialog(QDialog):
 
     def update_price(self):
         product = self.product_combo.currentData()
-        if product and product.price is not None:
-            self.price_input.setValue(product.price)
+        if product and product.sell_price is not None:
+            self.price_input.setValue(product.sell_price)
         else:
             self.price_input.setValue(0.00)
         self.update_total()
@@ -105,7 +105,7 @@ class SaleItemDialog(QDialog):
             "product_id": product.id,
             "product_name": product.name,
             "quantity": self.quantity_input.value(),
-            "price": self.price_input.value()
+            "sell_price": self.price_input.value()
         }
 
 class SaleView(QWidget):

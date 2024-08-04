@@ -142,17 +142,16 @@ class AnalyticsService:
                     p.id, 
                     p.name, 
                     SUM(si.quantity * si.price) as revenue,
-                    SUM(si.quantity * COALESCE(pi.price, 0)) as cost,
-                    (SUM(si.quantity * si.price) - SUM(si.quantity * COALESCE(pi.price, 0))) as profit,
+                    SUM(si.quantity * p.cost_price) as cost,
+                    (SUM(si.quantity * si.price) - SUM(si.quantity * p.cost_price)) as profit,
                     CASE 
                         WHEN SUM(si.quantity * si.price) > 0 
-                        THEN ((SUM(si.quantity * si.price) - SUM(si.quantity * COALESCE(pi.price, 0))) / SUM(si.quantity * si.price)) * 100
+                        THEN ((SUM(si.quantity * si.price) - SUM(si.quantity * p.cost_price)) / SUM(si.quantity * si.price)) * 100
                         ELSE 0 
                     END as profit_margin
                 FROM products p
                 LEFT JOIN sale_items si ON p.id = si.product_id
                 LEFT JOIN sales s ON si.sale_id = s.id
-                LEFT JOIN purchase_items pi ON p.id = pi.product_id
                 WHERE s.date BETWEEN ? AND ?
                 GROUP BY p.id
                 ORDER BY profit_margin DESC

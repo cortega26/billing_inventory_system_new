@@ -26,6 +26,7 @@ class PurchaseItemDialog(QDialog):
         self.product_combo = QComboBox()
         for product in self.products:
             self.product_combo.addItem(product.name, product.id)
+        self.product_combo.currentIndexChanged.connect(self.update_price)
         layout.addRow("Product:", self.product_combo)
 
         self.quantity_input = QDoubleSpinBox()
@@ -34,23 +35,31 @@ class PurchaseItemDialog(QDialog):
         self.quantity_input.setDecimals(2)
         layout.addRow("Quantity:", self.quantity_input)
 
-        self.price_input = QDoubleSpinBox()
-        self.price_input.setMinimum(0.01)
-        self.price_input.setMaximum(1000000.00)
-        self.price_input.setDecimals(2)
-        layout.addRow("Price:", self.price_input)
+        self.cost_price_input = QDoubleSpinBox()
+        self.cost_price_input.setMinimum(0.01)
+        self.cost_price_input.setMaximum(1000000.00)
+        self.cost_price_input.setDecimals(2)
+        layout.addRow("Cost Price:", self.cost_price_input)
 
         self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         self.buttons.accepted.connect(self.validate_and_accept)
         self.buttons.rejected.connect(self.reject)
         layout.addRow(self.buttons)
 
+    def update_price(self):
+        product_id = self.product_combo.currentData()
+        product = next((p for p in self.products if p.id == product_id), None)
+        if product and product.cost_price is not None:
+            self.cost_price_input.setValue(product.cost_price)
+        else:
+            self.cost_price_input.setValue(0.00)
+
     def validate_and_accept(self):
         if self.quantity_input.value() <= 0:
             show_error_message("Invalid Quantity", "Quantity must be greater than 0.")
             return
-        if self.price_input.value() <= 0:
-            show_error_message("Invalid Price", "Price must be greater than 0.")
+        if self.cost_price_input.value() <= 0:
+            show_error_message("Invalid Price", "Cost price must be greater than 0.")
             return
         self.accept()
 
@@ -59,7 +68,7 @@ class PurchaseItemDialog(QDialog):
             "product_id": self.product_combo.currentData(),
             "product_name": self.product_combo.currentText(),
             "quantity": self.quantity_input.value(),
-            "price": self.price_input.value()
+            "cost_price": self.cost_price_input.value()
         }
 
 class PurchaseView(QWidget):
@@ -169,8 +178,8 @@ class PurchaseView(QWidget):
                 if dialog.exec():
                     items.append(dialog.get_item_data())
                     reply = QMessageBox.question(self, "Add Another Item", "Do you want to add another item?",
-                                                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
-                                                 QMessageBox.StandardButton.No)
+                                                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
+                                                QMessageBox.StandardButton.No)
                     if reply == QMessageBox.StandardButton.No:
                         break
                 else:

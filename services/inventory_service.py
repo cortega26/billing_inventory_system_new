@@ -1,6 +1,7 @@
 from typing import List, Dict, Any, Optional
 from database import DatabaseManager
 from models.inventory import Inventory
+from utils.event_system import event_system
 from utils.logger import logger
 from functools import lru_cache
 
@@ -27,6 +28,7 @@ class InventoryService:
                 logger.info(f"Created new inventory entry for product ID {product_id} with quantity {quantity_change}")
             
             InventoryService.clear_cache()
+            event_system.inventory_changed.emit(product_id)
         except Exception as e:
             logger.error(f"Error updating inventory quantity: {str(e)}")
             raise
@@ -109,13 +111,9 @@ class InventoryService:
         try:
             logger.debug("Calculating total inventory value")
             query = '''
-                SELECT SUM(i.quantity * COALESCE(pi.price, 0)) as total_value
+                SELECT SUM(i.quantity * COALESCE(p.cost_price, 0)) as total_value
                 FROM inventory i
-                LEFT JOIN (
-                    SELECT product_id, AVG(price) as price
-                    FROM purchase_items
-                    GROUP BY product_id
-                ) pi ON i.product_id = pi.product_id
+                JOIN products p ON i.product_id = p.id
             '''
             result = DatabaseManager.fetch_one(query)
             total_value = result['total_value'] if result and result['total_value'] is not None else 0

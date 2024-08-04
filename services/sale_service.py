@@ -11,7 +11,7 @@ class SaleService:
     def create_sale(customer_id: int, date: str, items: List[Dict[str, Any]]) -> Optional[int]:
         try:
             logger.debug(f"Creating sale for customer ID: {customer_id} on {date} with {len(items)} items")
-            total_amount = sum(item['price'] * item['quantity'] for item in items)
+            total_amount = sum(item['quantity'] * item['sell_price'] for item in items)
             
             query = 'INSERT INTO sales (customer_id, date, total_amount) VALUES (?, ?, ?)'
             cursor = DatabaseManager.execute_query(query, (customer_id, date, total_amount))
@@ -25,7 +25,7 @@ class SaleService:
                     INSERT INTO sale_items (sale_id, product_id, quantity, price)
                     VALUES (?, ?, ?, ?)
                 '''
-                DatabaseManager.execute_query(query, (sale_id, item['product_id'], item['quantity'], item['price']))
+                DatabaseManager.execute_query(query, (sale_id, item['product_id'], item['quantity'], item['sell_price']))
                 
                 InventoryService.update_quantity(item['product_id'], -item['quantity'])
             

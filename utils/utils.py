@@ -16,7 +16,11 @@ def create_table(headers: List[str]) -> QTableWidget:
     table = QTableWidget()
     table.setColumnCount(len(headers))
     table.setHorizontalHeaderLabels(headers)
-    table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+    table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+    table.horizontalHeader().setStretchLastSection(True)
+    table.setSortingEnabled(True)
+    table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+    table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
     return table
 
 def show_error_message(title: str, message: str) -> None:

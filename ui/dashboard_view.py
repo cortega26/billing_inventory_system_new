@@ -7,6 +7,7 @@ from services.purchase_service import PurchaseService
 from services.inventory_service import InventoryService
 from services.customer_service import CustomerService
 from datetime import datetime, timedelta
+from utils.event_system import event_system
 from utils.logger import logger
 from typing import Callable, Union
 
@@ -28,6 +29,12 @@ class MetricWidget(QFrame):
         layout.addWidget(self.value_widget)
 
         self.update_value()
+        self.setup_event_connections()
+
+    def setup_event_connections(self):
+        event_system.sale_added.connect(self.update_value)
+        event_system.purchase_added.connect(self.update_value)
+        event_system.inventory_changed.connect(self.update_value)
 
     def update_value(self):
         try:
@@ -48,6 +55,12 @@ class DashboardView(QWidget):
         self.start_date = self.end_date - timedelta(days=30)
         self.setup_ui()
         self.setup_update_timer()
+        self.setup_event_connections()
+
+    def setup_event_connections(self):
+        event_system.sale_added.connect(self.update_dashboard)
+        event_system.purchase_added.connect(self.update_dashboard)
+        event_system.inventory_changed.connect(self.update_dashboard)
 
     def setup_ui(self):
         try:

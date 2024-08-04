@@ -6,39 +6,22 @@ def migrate_database():
     cursor = conn.cursor()
 
     try:
-        # Create categories table
+        # Add cost_price and sell_price columns to products table
+        cursor.execute('ALTER TABLE products ADD COLUMN cost_price REAL')
+        cursor.execute('ALTER TABLE products ADD COLUMN sell_price REAL')
+
+        # Initialize cost_price with the average purchase price
         cursor.execute('''
-        CREATE TABLE IF NOT EXISTS categories (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE
+        UPDATE products
+        SET cost_price = (
+            SELECT AVG(price)
+            FROM purchase_items
+            WHERE product_id = products.id
         )
         ''')
 
-        # Create a new products table with the category_id column
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS new_products (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            description TEXT,
-            category_id INTEGER,
-            FOREIGN KEY (category_id) REFERENCES categories (id)
-        )
-        ''')
-
-        # Copy data from the old products table to the new one
-        cursor.execute('''
-        INSERT INTO new_products (id, name, description)
-        SELECT id, name, description FROM products
-        ''')
-
-        # Drop the old products table
-        cursor.execute('DROP TABLE products')
-
-        # Rename the new products table to products
-        cursor.execute('ALTER TABLE new_products RENAME TO products')
-
-        # Create index on category_id
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_products_category_id ON products (category_id)')
+        # Initialize sell_price with a default markup (e.g., 20% above cost)
+        cursor.execute('UPDATE products SET sell_price = COALESCE(cost_price * 1.2, 0)')
 
         conn.commit()
         print("Database migration completed successfully.")

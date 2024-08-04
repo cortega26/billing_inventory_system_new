@@ -103,6 +103,8 @@ def init_db():
                 name TEXT NOT NULL,
                 description TEXT,
                 category_id INTEGER,
+                cost_price REAL,
+                sell_price REAL,
                 FOREIGN KEY (category_id) REFERENCES categories (id)
             )
             ''')

@@ -1,5 +1,6 @@
+from database import DatabaseManager
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
-                               QPushButton, QTableWidgetItem, QMessageBox,
+                               QPushButton, QTableWidgetItem, QMessageBox, QSpinBox,
                                QDialog, QDialogButtonBox, QComboBox, QFormLayout,
                                QTableWidget, QHeaderView, QAbstractItemView, QProgressBar)
 from PySide6.QtCore import Qt, QTimer
@@ -10,12 +11,12 @@ from utils.utils import create_table, show_error_message, show_info_message
 from utils.event_system import event_system
 from utils.logger import logger
 from ui.category_management_dialog import CategoryManagementDialog
-from typing import List, Optional, Dict, Any, Sequence
+from typing import List, Optional, Dict, Any
 from models.product import Product
 from models.category import Category  # Ensure we're using the correct Category class
 
 class EditProductDialog(QDialog):
-    def __init__(self, product: Optional[Dict[str, Any]], categories: Sequence[Category], parent=None):
+    def __init__(self, product: Optional[Dict[str, Any]], categories: List[Category], parent=None):
         super().__init__(parent)
         self.product = product
         self.categories = categories
@@ -41,6 +42,18 @@ class EditProductDialog(QDialog):
                 self.category_combo.setCurrentIndex(index)
         layout.addRow("Category:", self.category_combo)
         
+        self.cost_price_input = QSpinBox()
+        self.cost_price_input.setMaximum(1000000000)
+        if self.product and self.product.get('cost_price'):
+            self.cost_price_input.setValue(self.product['cost_price'])
+        layout.addRow("Cost Price:", self.cost_price_input)
+        
+        self.sell_price_input = QSpinBox()
+        self.sell_price_input.setMaximum(1000000000)
+        if self.product and self.product.get('sell_price'):
+            self.sell_price_input.setValue(self.product['sell_price'])
+        layout.addRow("Sell Price:", self.sell_price_input)
+        
         self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         self.button_box.accepted.connect(self.validate_and_accept)
         self.button_box.rejected.connect(self.reject)
@@ -50,6 +63,8 @@ class EditProductDialog(QDialog):
         name = self.name_input.text().strip()
         description = self.description_input.text().strip()
         category_id = self.category_combo.currentData()
+        cost_price = self.cost_price_input.value()
+        sell_price = self.sell_price_input.value()
 
         if not name:
             show_error_message("Validation Error", "Product name cannot be empty.")
@@ -60,11 +75,16 @@ class EditProductDialog(QDialog):
         if description and len(description) > 500:
             show_error_message("Validation Error", "Product description cannot exceed 500 characters.")
             return
+        if cost_price < 0 or sell_price < 0:
+            show_error_message("Validation Error", "Prices cannot be negative.")
+            return
 
         self.product = self.product or {}
         self.product['name'] = name
         self.product['description'] = description
         self.product['category_id'] = category_id
+        self.product['cost_price'] = cost_price
+        self.product['sell_price'] = sell_price
         self.accept()
 
 class ProductView(QWidget):
@@ -92,13 +112,16 @@ class ProductView(QWidget):
         self.category_filter = QComboBox()
         self.category_filter.addItem("All Categories", None)
         self.load_categories()
-        self.category_filter.currentIndexChanged.connect(self.filter_products)
+        #self.category_filter.currentIndexChanged.connect(self.filter_products)
+        self.category_filter.currentIndexChanged.connect(self.on_category_changed)
         filter_layout.addWidget(QLabel("Filter by Category:"))
         filter_layout.addWidget(self.category_filter)
         layout.addLayout(filter_layout)
 
         # Product table
-        self.product_table = create_table(["ID", "Name", "Description", "Category", "Avg. Purchase Price", "Actions"])
+        self.product_table = create_table(["ID", "Name", "Description", "Category", "Cost Price", "Sell Price", "Profit Margin", "Actions"])
+        self.product_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.product_table.horizontalHeader().setStretchLastSection(True)
         self.product_table.setSortingEnabled(True)
         self.product_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.product_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
@@ -128,6 +151,10 @@ class ProductView(QWidget):
         event_system.product_added.connect(self.load_products)
         event_system.product_updated.connect(self.load_products)
         event_system.product_deleted.connect(self.load_products)
+
+    def on_category_changed(self, index):
+        category_id = self.category_filter.itemData(index)
+        self.filter_products(category_id=category_id)
 
     def load_categories(self):
         try:
@@ -159,13 +186,27 @@ class ProductView(QWidget):
         for row, product in enumerate(products):
             logger.debug(f"Loading product: {product}")
             try:
-                avg_price = self.product_service.get_average_purchase_price(product.id)
+                profit_margin = self.product_service.get_product_profit_margin(product.id)
                 self.product_table.setItem(row, 0, QTableWidgetItem(str(product.id)))
                 self.product_table.setItem(row, 1, QTableWidgetItem(product.name))
                 self.product_table.setItem(row, 2, QTableWidgetItem(product.description or ""))
                 self.product_table.setItem(row, 3, QTableWidgetItem(product.category.name if product.category else ""))
-                self.product_table.setItem(row, 4, QTableWidgetItem(f"{avg_price:.2f}"))
                 
+                #self.product_table.setItem(row, 4, QTableWidgetItem(f"{int(product.cost_price):,}".replace(',', '.') if product.cost_price is not None else "N/A"))
+                cost_price_item = QTableWidgetItem(f"{int(product.cost_price):,}".replace(',', '.') if product.cost_price is not None else "N/A")
+                cost_price_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                self.product_table.setItem(row, 4, cost_price_item)
+
+                #self.product_table.setItem(row, 5, QTableWidgetItem(f"{int(product.sell_price):,}".replace(',', '.') if product.sell_price is not None else "N/A"))
+                sell_price_item = QTableWidgetItem(f"{int(product.sell_price):,}".replace(',', '.') if product.sell_price is not None else "N/A")
+                sell_price_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                self.product_table.setItem(row, 5, sell_price_item)
+
+                #self.product_table.setItem(row, 6, QTableWidgetItem(f"{profit_margin:.2f}%" if profit_margin is not None else "N/A"))
+                profit_margin_item = QTableWidgetItem(f"{profit_margin:.2f}%".replace('.', ',') if profit_margin is not None else "N/A")
+                profit_margin_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                self.product_table.setItem(row, 6, profit_margin_item)
+
                 actions_widget = QWidget()
                 actions_layout = QHBoxLayout(actions_widget)
                 actions_layout.setContentsMargins(0, 0, 0, 0)
@@ -180,7 +221,7 @@ class ProductView(QWidget):
                 
                 actions_layout.addWidget(edit_button)
                 actions_layout.addWidget(delete_button)
-                self.product_table.setCellWidget(row, 5, actions_widget)
+                self.product_table.setCellWidget(row, 7, actions_widget)
 
             except Exception as e:
                 logger.error(f"Error populating product row: {str(e)}")
@@ -230,7 +271,9 @@ class ProductView(QWidget):
                         product.id,
                         dialog.product['name'],
                         dialog.product['description'],
-                        dialog.product['category_id']
+                        dialog.product['category_id'],
+                        dialog.product['cost_price'],
+                        dialog.product['sell_price']
                     )
                     self.load_products()
                     show_info_message("Success", "Product updated successfully.")
@@ -258,21 +301,45 @@ class ProductView(QWidget):
                 show_error_message("Error", str(e))
 
     def search_products(self):
-        search_term = self.search_input.text().strip()
+        search_term = str(self.search_input.text().strip())
         category_id = self.category_filter.currentData()
         self.filter_products(search_term, category_id)
 
     def filter_products(self, search_term: Optional[str] = None, category_id: Optional[int] = None):
         if search_term is None:
-            search_term = self.search_input.text().strip()
+            search_term = str(self.search_input.text().strip())
+        else:
+            search_term = str(search_term)  # Ensure search_term is a string
+        
         if category_id is None:
             category_id = self.category_filter.currentData()
         
         try:
-            filtered_products = self.product_service.search_products(search_term)
-            if category_id is not None:
-                filtered_products = [p for p in filtered_products if p.category and p.category.id == category_id]
+            all_products = self.product_service.get_all_products()
+            filtered_products = []
+
+            for p in all_products:
+                logger.debug(f"Filtering product: id={p.id}, name={p.name}, description={p.description}, category={p.category}")
+                
+                matches_search = False
+                if not search_term:
+                    matches_search = True
+                else:
+                    name_match = search_term.lower() in str(p.name).lower() if p.name is not None else False
+                    desc_match = search_term.lower() in str(p.description).lower() if p.description is not None else False
+                    matches_search = name_match or desc_match
+
+                matches_category = (
+                    category_id is None or  # "All Categories" selected
+                    (p.category and p.category.id == category_id)  # Product has a category and it matches
+                )
+
+                if matches_search and matches_category:
+                    filtered_products.append(p)
+
+            logger.debug(f"Filtered products count: {len(filtered_products)}")
             self.update_product_table(filtered_products)
         except Exception as e:
             logger.error(f"Error filtering products: {str(e)}")
+            logger.exception("Stack trace:")
             show_error_message("Error", f"Failed to filter products: {str(e)}")

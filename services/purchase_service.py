@@ -11,7 +11,7 @@ class PurchaseService:
     def create_purchase(supplier: str, date: str, items: List[Dict[str, Any]]) -> Optional[int]:
         try:
             logger.debug(f"Creating purchase from {supplier} on {date} with {len(items)} items")
-            total_amount = sum(item['price'] * item['quantity'] for item in items)
+            total_amount = sum(item['quantity'] * item['cost_price'] for item in items)
             
             query = 'INSERT INTO purchases (supplier, date, total_amount) VALUES (?, ?, ?)'
             cursor = DatabaseManager.execute_query(query, (supplier, date, total_amount))
@@ -25,7 +25,11 @@ class PurchaseService:
                     INSERT INTO purchase_items (purchase_id, product_id, quantity, price)
                     VALUES (?, ?, ?, ?)
                 '''
-                DatabaseManager.execute_query(query, (purchase_id, item['product_id'], item['quantity'], item['price']))
+                DatabaseManager.execute_query(query, (purchase_id, item['product_id'], item['quantity'], item['cost_price']))
+                
+                # Update the product's cost_price
+                update_query = 'UPDATE products SET cost_price = ? WHERE id = ?'
+                DatabaseManager.execute_query(update_query, (item['cost_price'], item['product_id']))
                 
                 InventoryService.update_quantity(item['product_id'], item['quantity'])
             

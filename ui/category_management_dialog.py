@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QListWidget, 
-                               QPushButton, QInputDialog, QMessageBox, QLineEdit,
+                               QPushButton, QMessageBox, QLineEdit,
                                QFormLayout, QDialogButtonBox, QLabel)
 from PySide6.QtCore import Qt
 from services.category_service import CategoryService

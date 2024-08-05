@@ -8,7 +8,7 @@ class SaleItem:
     sale_id: int
     product_id: int
     quantity: int
-    price: float
+    unit_price: float
 
     @classmethod
     def from_db_row(cls, row: Dict[str, Any]) -> 'SaleItem':
@@ -17,11 +17,11 @@ class SaleItem:
             sale_id=row['sale_id'],
             product_id=row['product_id'],
             quantity=row['quantity'],
-            price=float(row['price'])
+            unit_price=float(row['price'])
         )
 
     def total_price(self) -> float:
-        return self.quantity * self.price
+        return self.quantity * self.unit_price
 
 @dataclass
 class Sale:

@@ -3,7 +3,8 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineE
                                QDialog, QDialogButtonBox)
 from PySide6.QtCore import Qt
 from services.customer_service import CustomerService
-from utils.utils import create_table, show_error_message
+from utils.utils import create_table, show_error_message, format_price
+from utils.table_items import NumericTableWidgetItem, PriceTableWidgetItem
 from utils.validators import validate_9digit_identifier, validate_3or4digit_identifier
 from utils.logger import logger
 
@@ -94,11 +95,17 @@ class CustomerView(QWidget):
             logger.debug(f"Loading customer: {customer}")
             try:
                 total_purchases, total_amount = self.customer_service.get_customer_stats(customer.id)
-                self.customer_table.setItem(row, 0, QTableWidgetItem(str(customer.id)))
+                #self.customer_table.setItem(row, 0, QTableWidgetItem(str(customer.id)))
+                self.customer_table.setItem(row, 0, NumericTableWidgetItem(customer.id))
                 self.customer_table.setItem(row, 1, QTableWidgetItem(customer.identifier_9))
                 self.customer_table.setItem(row, 2, QTableWidgetItem(customer.identifier_3or4 or "N/A"))
-                self.customer_table.setItem(row, 3, QTableWidgetItem(str(total_purchases)))
-                self.customer_table.setItem(row, 4, QTableWidgetItem(f"{total_amount:,.2f}"))
+                #self.customer_table.setItem(row, 3, QTableWidgetItem(str(total_purchases)))
+                self.customer_table.setItem(row, 3, NumericTableWidgetItem(total_purchases))
+                
+                # Create a QTableWidgetItem for the total amount and set its alignment
+                total_amount_item = QTableWidgetItem(format_price(total_amount))
+                #self.customer_table.setItem(row, 4, total_amount_item)
+                self.customer_table.setItem(row, 4, PriceTableWidgetItem(total_amount, format_price))
                 
                 actions_widget = QWidget()
                 actions_layout = QHBoxLayout(actions_widget)

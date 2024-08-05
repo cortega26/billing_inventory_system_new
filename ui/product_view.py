@@ -1,19 +1,18 @@
-from database import DatabaseManager
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
-                               QPushButton, QTableWidgetItem, QMessageBox, QSpinBox,
-                               QDialog, QDialogButtonBox, QComboBox, QFormLayout,
-                               QTableWidget, QHeaderView, QAbstractItemView, QProgressBar)
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTableWidgetItem, QMessageBox,
+    QSpinBox, QDialog, QDialogButtonBox, QComboBox, QFormLayout, QHeaderView, QAbstractItemView, QProgressBar
+    )
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QColor
 from services.product_service import ProductService
 from services.category_service import CategoryService
-from utils.utils import create_table, show_error_message, show_info_message
+from utils.utils import create_table, show_error_message, show_info_message, format_price
 from utils.event_system import event_system
 from utils.logger import logger
 from ui.category_management_dialog import CategoryManagementDialog
+from utils.table_items import NumericTableWidgetItem, PercentageTableWidgetItem, PriceTableWidgetItem
 from typing import List, Optional, Dict, Any
 from models.product import Product
-from models.category import Category  # Ensure we're using the correct Category class
+from models.category import Category
 
 class EditProductDialog(QDialog):
     def __init__(self, product: Optional[Dict[str, Any]], categories: List[Category], parent=None):
@@ -187,25 +186,26 @@ class ProductView(QWidget):
             logger.debug(f"Loading product: {product}")
             try:
                 profit_margin = self.product_service.get_product_profit_margin(product.id)
-                self.product_table.setItem(row, 0, QTableWidgetItem(str(product.id)))
+                #self.product_table.setItem(row, 0, QTableWidgetItem(str(product.id)))
+                self.product_table.setItem(row, 0, NumericTableWidgetItem(product.id))
                 self.product_table.setItem(row, 1, QTableWidgetItem(product.name))
                 self.product_table.setItem(row, 2, QTableWidgetItem(product.description or ""))
                 self.product_table.setItem(row, 3, QTableWidgetItem(product.category.name if product.category else ""))
                 
-                #self.product_table.setItem(row, 4, QTableWidgetItem(f"{int(product.cost_price):,}".replace(',', '.') if product.cost_price is not None else "N/A"))
-                cost_price_item = QTableWidgetItem(f"{int(product.cost_price):,}".replace(',', '.') if product.cost_price is not None else "N/A")
+                cost_price_item = QTableWidgetItem(format_price(product.cost_price) if product.cost_price is not None else "N/A")
                 cost_price_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                self.product_table.setItem(row, 4, cost_price_item)
+                #self.product_table.setItem(row, 4, cost_price_item)
+                self.product_table.setItem(row, 4, PriceTableWidgetItem(product.cost_price, format_price))
 
-                #self.product_table.setItem(row, 5, QTableWidgetItem(f"{int(product.sell_price):,}".replace(',', '.') if product.sell_price is not None else "N/A"))
-                sell_price_item = QTableWidgetItem(f"{int(product.sell_price):,}".replace(',', '.') if product.sell_price is not None else "N/A")
+                sell_price_item = QTableWidgetItem(format_price(product.sell_price) if product.sell_price is not None else "N/A")
                 sell_price_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                self.product_table.setItem(row, 5, sell_price_item)
+                #self.product_table.setItem(row, 5, sell_price_item)
+                self.product_table.setItem(row, 5, PriceTableWidgetItem(product.sell_price, format_price))
 
-                #self.product_table.setItem(row, 6, QTableWidgetItem(f"{profit_margin:.2f}%" if profit_margin is not None else "N/A"))
                 profit_margin_item = QTableWidgetItem(f"{profit_margin:.2f}%".replace('.', ',') if profit_margin is not None else "N/A")
                 profit_margin_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                self.product_table.setItem(row, 6, profit_margin_item)
+                #self.product_table.setItem(row, 6, profit_margin_item)
+                self.product_table.setItem(row, 6, PercentageTableWidgetItem(profit_margin))
 
                 actions_widget = QWidget()
                 actions_layout = QHBoxLayout(actions_widget)

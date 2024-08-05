@@ -51,18 +51,6 @@ def show_info_message(title: str, message: str) -> None:
     info_box.setText(message)
     info_box.exec()
 
-def format_currency(amount: Union[int, float, Decimal]) -> str:
-    """
-    Format a numeric amount as a string with thousands separators and two decimal places.
-
-    Args:
-        amount (Union[int, float, Decimal]): The amount to be formatted.
-
-    Returns:
-        str: The formatted amount as a string with thousands separators and two decimal places.
-    """
-    return f"{amount:,.2f}"
-
 def validate_integer_input(value: str, field_name: str, min_value: Optional[int] = None, max_value: Optional[int] = None) -> int:
     """
     Validate and convert a string input to an integer within an optional range.
@@ -134,3 +122,9 @@ def truncate_string(text: str, max_length: int, ellipsis: str = "...") -> str:
     if len(text) <= max_length:
         return text
     return text[:max_length - len(ellipsis)] + ellipsis
+
+def format_price(amount: Union[int, float, Decimal]) -> str:
+    """
+    Format a price with dot as thousand separator and no decimals.
+    """
+    return f"{int(amount):,}".replace(',', '.')

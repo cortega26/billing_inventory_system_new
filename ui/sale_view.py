@@ -3,16 +3,16 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineE
                                QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFormLayout,
                                QDoubleSpinBox, QProgressBar, QHeaderView)
 from PySide6.QtCore import Qt, QDate, QTimer
-from PySide6.QtGui import QColor
 from services.sale_service import SaleService
 from services.customer_service import CustomerService
 from services.product_service import ProductService
 from models.customer import Customer
 from models.sale import Sale
-from utils.utils import create_table, show_error_message, show_info_message
+from utils.utils import create_table, show_error_message, show_info_message, format_price
 from utils.logger import logger
 from utils.event_system import event_system
-from typing import List, Optional
+from utils.table_items import NumericTableWidgetItem, PriceTableWidgetItem
+from typing import List
 
 class CustomerSelectionDialog(QDialog):
     def __init__(self, customers: List[Customer], parent=None):
@@ -191,14 +191,19 @@ class SaleView(QWidget):
             try:
                 customer = self.customer_service.get_customer(sale.customer_id)
                 
-                self.sale_table.setItem(row, 0, QTableWidgetItem(str(sale.id)))
-                
+                #self.sale_table.setItem(row, 0, QTableWidgetItem(str(sale.id)))
+                self.sale_table.setItem(row, 0, NumericTableWidgetItem(sale.id))
+
                 customer_text = f"{customer.identifier_9} ({customer.identifier_3or4 or 'N/A'})" if customer else "Unknown Customer"
                 self.sale_table.setItem(row, 1, QTableWidgetItem(customer_text))
-                
+
                 self.sale_table.setItem(row, 2, QTableWidgetItem(sale.date.strftime("%Y-%m-%d")))
-                self.sale_table.setItem(row, 3, QTableWidgetItem(f"{sale.total_amount:.2f}"))
-                
+
+                total_amount_item = QTableWidgetItem(format_price(sale.total_amount))
+                total_amount_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                #self.sale_table.setItem(row, 3, total_amount_item)
+                self.sale_table.setItem(row, 3, PriceTableWidgetItem(sale.total_amount, format_price))
+
                 actions_widget = QWidget()
                 actions_layout = QHBoxLayout(actions_widget)
                 actions_layout.setContentsMargins(0, 0, 0, 0)
@@ -262,8 +267,10 @@ class SaleView(QWidget):
                 dialog = SaleItemDialog(products, self)
                 if dialog.exec():
                     items.append(dialog.get_item_data())
-                    reply = QMessageBox.question(self, "Add Another Item", "Do you want to add another item?",
-                                                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+                    reply = QMessageBox.question(
+                        self, "Add Another Item", "Do you want to add another item?",
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No
+                        )
                     if reply == QMessageBox.StandardButton.No:
                         break
                 else:
@@ -294,19 +301,19 @@ class SaleView(QWidget):
             customer = self.customer_service.get_customer(sale.customer_id)
             customer_text = f"{customer.identifier_9} ({customer.identifier_3or4 or 'N/A'})" if customer else "Unknown Customer"
             
-            message = f"<pre>"  # Use a monospace font for better alignment
-            message += f"{'Sale Details':=^50}\n\n"
+            message = f"<pre>"
+            message += f"{'Sale Details':=^60}\n\n"
             message += f"Customer: {customer_text}\n"
             message += f"Date: {sale.date.strftime('%Y-%m-%d')}\n"
-            message += f"{'':=^50}\n\n"
-            message += f"{'Item':<30}{'Quantity':>10}{'Price':>10}\n"
-            message += f"{'':-^50}\n"
+            message += f"{'':=^60}\n\n"
+            message += f"{'Item':<20}{'Quantity':>10}{'Unit Price':>15}{'Subtotal':>15}\n"
+            message += f"{'':-^60}\n"
             for item in items:
                 product = self.product_service.get_product(item.product_id)
                 product_name = product.name if product else "Unknown Product"
-                message += f"{product_name[:30]:<30}{item.quantity:>10.2f}{item.price:>10.2f}\n"
-            message += f"{'':-^50}\n"
-            message += f"{'Total Amount:':<40}{sale.total_amount:>10.2f}\n"
+                message += f"{product_name[:20]:<20}{item.quantity:>10.2f}{format_price(item.unit_price):>15}{format_price(item.total_price()):>15}\n"
+            message += f"{'':-^60}\n"
+            message += f"{'Total Amount:':<45}{format_price(sale.total_amount):>15}\n"
             message += "</pre>"
             
             show_info_message("Sale Details", message)
@@ -315,9 +322,11 @@ class SaleView(QWidget):
             show_error_message("Error", f"Failed to view sale details: {str(e)}")
 
     def delete_sale(self, sale: Sale):
-        reply = QMessageBox.question(self, 'Delete Sale', 
-                                     f'Are you sure you want to delete this sale?',
-                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        reply = QMessageBox.question(
+            self, 'Delete Sale', 
+            f'Are you sure you want to delete this sale?',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No
+            )
         if reply == QMessageBox.StandardButton.Yes:
             try:
                 self.sale_service.delete_sale(sale.id)

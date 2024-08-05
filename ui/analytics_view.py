@@ -1,14 +1,14 @@
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-                               QTableWidget, QTableWidgetItem, QDateEdit, QComboBox,
-                               QFormLayout, QSpinBox, QProgressBar, QLineEdit)
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QPushButton, QSpinBox, 
+                               QTableWidgetItem, QDateEdit, QComboBox, QLineEdit,
+                               QFormLayout, QProgressBar)
 from PySide6.QtCore import Qt, QDate, QTimer
-from PySide6.QtGui import QPainter, QPen, QColor
+from PySide6.QtGui import QPainter
 from PySide6.QtCharts import QChart, QChartView, QBarSeries, QBarSet, QValueAxis, QBarCategoryAxis, QLineSeries, QDateTimeAxis, QPieSeries
 from services.analytics_service import AnalyticsService
-from utils.utils import create_table, show_error_message, show_info_message
+from utils.utils import create_table, show_error_message, format_price
+from utils.table_items import NumericTableWidgetItem, PriceTableWidgetItem, PercentageTableWidgetItem
 from typing import List, Dict, Any
 from utils.logger import logger
-import datetime
 
 class AnalyticsView(QWidget):
     def __init__(self):
@@ -124,7 +124,8 @@ class AnalyticsView(QWidget):
                                            'identifier_9', 'purchase_count', "Loyal Customers")
             total_loyal = len(loyal_customers)
             avg_purchases = sum(c['purchase_count'] for c in loyal_customers) / total_loyal if total_loyal > 0 else 0
-            self.summary_text.setText(f"Total loyal customers: {total_loyal}, Average purchases: {avg_purchases:.2f}")
+            self.summary_text.setText(f"Total loyal customers: {total_loyal}, Average purchases: {format_price(avg_purchases)}")
+
         except Exception as e:
             logger.error(f"Error showing loyal customers: {str(e)}")
             show_error_message("Error", f"Failed to show loyal customers: {str(e)}")
@@ -137,7 +138,7 @@ class AnalyticsView(QWidget):
                                            'weekday', 'total_sales', "Sales by Weekday")
             total_sales = sum(day['total_sales'] for day in sales_by_weekday)
             avg_daily_sales = total_sales / 7 if len(sales_by_weekday) == 7 else 0
-            self.summary_text.setText(f"Total sales: ${total_sales:.2f}, Average daily sales: ${avg_daily_sales:.2f}")
+            self.summary_text.setText(f"Total sales: {format_price(total_sales)}, Average daily sales: {format_price(avg_daily_sales)}")
         except Exception as e:
             logger.error(f"Error showing sales by weekday: {str(e)}")
             show_error_message("Error", f"Failed to show sales by weekday: {str(e)}")
@@ -214,7 +215,17 @@ class AnalyticsView(QWidget):
         self.result_table.setRowCount(len(data))
         for row, item in enumerate(data):
             for col, header in enumerate(headers):
-                self.result_table.setItem(row, col, QTableWidgetItem(str(item.get(header.lower().replace(' ', '_'), ''))))
+                key = header.lower().replace(' ', '_')
+                value = item.get(key, '')
+                if isinstance(value, (int, float)):
+                    if header.lower().endswith('price') or header.lower().endswith('amount'):
+                        self.result_table.setItem(row, col, PriceTableWidgetItem(value, format_price))
+                    elif header.lower().endswith('percentage') or header.lower().endswith('rate'):
+                        self.result_table.setItem(row, col, PercentageTableWidgetItem(value))
+                    else:
+                        self.result_table.setItem(row, col, NumericTableWidgetItem(value))
+                else:
+                    self.result_table.setItem(row, col, QTableWidgetItem(str(value)))
 
         # Create chart
         chart = QChart()

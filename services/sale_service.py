@@ -1,5 +1,4 @@
-from typing import List, Dict, Any, Optional, Tuple
-from datetime import datetime
+from typing import List, Dict, Any, Optional
 from database import DatabaseManager
 from models.sale import Sale, SaleItem
 from services.inventory_service import InventoryService

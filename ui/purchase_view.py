@@ -4,13 +4,13 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox, QProgressBar
     )
 from PySide6.QtCore import Qt, QDate, QTimer
-from PySide6.QtGui import QColor
 from services.purchase_service import PurchaseService
 from services.product_service import ProductService
 from models.purchase import Purchase
-from utils.utils import create_table, show_error_message, show_info_message
+from utils.utils import create_table, show_error_message, show_info_message, format_price
 from utils.logger import logger
 from utils.event_system import event_system
+from utils.table_items import NumericTableWidgetItem, PriceTableWidgetItem
 from typing import List
 
 class PurchaseItemDialog(QDialog):
@@ -98,12 +98,12 @@ class PurchaseView(QWidget):
         self.date_input = QDateEdit()
         self.date_input.setDate(QDate.currentDate())
         self.date_input.setCalendarPopup(True)
-        
+
         input_layout.addWidget(QLabel("Supplier:"))
         input_layout.addWidget(self.supplier_input)
         input_layout.addWidget(QLabel("Date:"))
         input_layout.addWidget(self.date_input)
-        
+
         add_button = QPushButton("Add Purchase")
         add_button.clicked.connect(self.add_purchase)
         input_layout.addWidget(add_button)
@@ -138,29 +138,29 @@ class PurchaseView(QWidget):
     def update_purchase_table(self, purchases: List[Purchase]):
         self.purchase_table.setRowCount(len(purchases))
         for row, purchase in enumerate(purchases):
-            self.purchase_table.setItem(row, 0, QTableWidgetItem(str(purchase.id)))
+            #self.purchase_table.setItem(row, 0, QTableWidgetItem(str(purchase.id)))
+            self.purchase_table.setItem(row, 0, NumericTableWidgetItem(purchase.id))
             self.purchase_table.setItem(row, 1, QTableWidgetItem(purchase.supplier))
             self.purchase_table.setItem(row, 2, QTableWidgetItem(purchase.date.strftime("%Y-%m-%d")))
-            self.purchase_table.setItem(row, 3, QTableWidgetItem(f"{purchase.total_amount:.2f}"))
+
+            total_amount_item = QTableWidgetItem(format_price(purchase.total_amount))
+            total_amount_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            #self.purchase_table.setItem(row, 3, total_amount_item)
+            self.purchase_table.setItem(row, 3, PriceTableWidgetItem(purchase.total_amount, format_price))
 
             actions_widget = QWidget()
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(0, 0, 0, 0)
-            
+
             view_button = QPushButton("View")
             view_button.clicked.connect(lambda _, p=purchase: self.view_purchase(p))
             actions_layout.addWidget(view_button)
-            
+
             delete_button = QPushButton("Delete")
             delete_button.clicked.connect(lambda _, p=purchase: self.delete_purchase(p))
             actions_layout.addWidget(delete_button)
-            
-            self.purchase_table.setCellWidget(row, 4, actions_widget)
 
-            # Alternate row colors
-            if row % 2 == 0:
-                for col in range(self.purchase_table.columnCount()):
-                    self.purchase_table.item(row, col).setBackground(QColor(240, 240, 240))
+            self.purchase_table.setCellWidget(row, 4, actions_widget)
 
     def add_purchase(self):
         supplier = self.supplier_input.text().strip()
@@ -177,9 +177,11 @@ class PurchaseView(QWidget):
                 dialog = PurchaseItemDialog(products, self)
                 if dialog.exec():
                     items.append(dialog.get_item_data())
-                    reply = QMessageBox.question(self, "Add Another Item", "Do you want to add another item?",
-                                                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
-                                                QMessageBox.StandardButton.No)
+                    reply = QMessageBox.question(
+                        self, "Add Another Item", "Do you want to add another item?",
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
+                        QMessageBox.StandardButton.No
+                        )
                     if reply == QMessageBox.StandardButton.No:
                         break
                 else:
@@ -207,18 +209,20 @@ class PurchaseView(QWidget):
             for item in items:
                 product = self.product_service.get_product(item.product_id)
                 product_name = product.name if product else "Unknown Product"
-                message += f"- {product_name}: {item.quantity:.2f} @ {item.price:.2f}\n"
-            message += f"\nTotal Amount: {purchase.total_amount:.2f}"
+                message += f"- {product_name}: {item.quantity:.2f} @ {format_price(item.price)}\n"
+            message += f"\nTotal Amount: {format_price(purchase.total_amount)}"
             show_info_message("Purchase Details", message)
         except Exception as e:
             logger.error(f"Error viewing purchase details: {str(e)}")
             show_error_message("Error", f"Failed to view purchase details: {str(e)}")
 
     def delete_purchase(self, purchase):
-        reply = QMessageBox.question(self, 'Delete Purchase', 
-                                     f'Are you sure you want to delete this purchase from {purchase.supplier}?',
-                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
-                                     QMessageBox.StandardButton.No)
+        reply = QMessageBox.question(
+            self, 'Delete Purchase', 
+            f'Are you sure you want to delete this purchase from {purchase.supplier}?',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
+            QMessageBox.StandardButton.No
+            )
         if reply == QMessageBox.StandardButton.Yes:
             try:
                 self.purchase_service.delete_purchase(purchase.id)

@@ -5,8 +5,9 @@ from PySide6.QtCore import Qt
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
 from services.category_service import CategoryService
-from utils.utils import create_table, show_error_message, show_info_message
+from utils.utils import create_table, show_error_message, show_info_message, format_price
 from utils.event_system import event_system
+from utils.table_items import NumericTableWidgetItem, PriceTableWidgetItem
 from typing import List, Dict, Any, Optional
 from utils.logger import logger
 
@@ -128,10 +129,12 @@ class InventoryView(QWidget):
     def update_inventory_table(self, inventory_items: List[Dict[str, Any]]):
         self.inventory_table.setRowCount(len(inventory_items))
         for row, item in enumerate(inventory_items):
-            self.inventory_table.setItem(row, 0, QTableWidgetItem(str(item['product_id'])))
+            #self.inventory_table.setItem(row, 0, QTableWidgetItem(str(item['product_id'])))
+            self.inventory_table.setItem(row, 0, NumericTableWidgetItem(item['product_id']))
             self.inventory_table.setItem(row, 1, QTableWidgetItem(item['product_name']))
             self.inventory_table.setItem(row, 2, QTableWidgetItem(item['category_name']))
-            self.inventory_table.setItem(row, 3, QTableWidgetItem(f"{item['quantity']:.2f}"))
+            #self.inventory_table.setItem(row, 3, QTableWidgetItem(f"{item['quantity']:.2f}"))
+            self.inventory_table.setItem(row, 3, PriceTableWidgetItem(item['quantity'], format_price))
             
             actions_widget = QWidget()
             actions_layout = QHBoxLayout(actions_widget)
@@ -171,7 +174,7 @@ class InventoryView(QWidget):
                 if low_stock_items:
                     message = "The following items are low in stock:\n\n"
                     for item in low_stock_items:
-                        message += f"{item['product_name']} ({item['category_name']}): {item['quantity']:.2f} left\n"
+                        message += f"{item['product_name']} ({item['category_name']}): {format_price(item['quantity'])} left\n"
                     show_info_message("Low Stock Alert", message)
                 else:
                     show_info_message("Stock Status", "No items are low in stock.")

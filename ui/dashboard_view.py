@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QPainter
+from PySide6.QtGui import QPainter, QColor
 from PySide6.QtCharts import QChart, QChartView, QPieSeries, QBarSeries, QBarSet, QBarCategoryAxis, QValueAxis
 from services.sale_service import SaleService
 from services.purchase_service import PurchaseService
@@ -160,8 +160,12 @@ class DashboardView(QWidget):
                 limit=5
             )
             
-            for product in top_products:
-                series.append(product['name'], product['total_revenue'])
+            # Define a diverse color palette
+            colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F06292', '#AED581', '#7986CB', '#FFD54F', '#4DB6AC']
+            
+            for i, product in enumerate(top_products):
+                slice = series.append(product['name'], product['total_revenue'])
+                slice.setBrush(QColor(colors[i % len(colors)]))  # Use modulo to cycle through colors if more than 10 categories
             
             chart.addSeries(series)
         except Exception as e:
@@ -175,20 +179,31 @@ class DashboardView(QWidget):
 
     def create_top_customers_chart(self):
         chart = QChart()
-        chart.setTitle("Top 5 Customers")
+        chart.setTitle("Top 5 Customer Groups")
         
         try:
             series = QBarSeries()
-            bar_set = QBarSet("Purchase Amount")
             
             customers = self.customer_service.get_all_customers()
             customer_totals = [(customer, self.sale_service.get_total_sales_by_customer(customer.id)) for customer in customers]
-            top_customers = sorted(customer_totals, key=lambda x: x[1], reverse=True)[:5]
             
+            # Group by 3or4_digit_identifier
+            grouped_totals = {}
+            for customer, total in customer_totals:
+                group_id = customer.identifier_3or4 or 'Unknown'  # Use 3or4_digit_identifier, or 'Unknown' if not set
+                if group_id in grouped_totals:
+                    grouped_totals[group_id] += total
+                else:
+                    grouped_totals[group_id] = total
+            
+            # Sort and get top 5 groups
+            top_groups = sorted(grouped_totals.items(), key=lambda x: x[1], reverse=True)[:5]
+            
+            bar_set = QBarSet("Purchase Amount")
             categories = []
-            for customer, total in top_customers:
+            for group_id, total in top_groups:
                 bar_set.append(total)
-                categories.append(customer.identifier_9)
+                categories.append(group_id)
             
             series.append(bar_set)
             chart.addSeries(series)
@@ -202,8 +217,8 @@ class DashboardView(QWidget):
             chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
             series.attachAxis(axis_y)
         except Exception as e:
-            logger.error(f"Error creating top customers chart: {str(e)}")
-            chart.setTitle("Top 5 Customers (Data Unavailable)")
+            logger.error(f"Error creating top customer groups chart: {str(e)}")
+            chart.setTitle("Top 5 Customer Groups (Data Unavailable)")
         
         chart_view = QChartView(chart)
         chart_view.setRenderHint(QPainter.RenderHint.Antialiasing)

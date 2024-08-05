@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QInputDialog,
                                QPushButton, QTableWidgetItem, QDoubleSpinBox, QComboBox, QDialog,
-                               QFormLayout, QDialogButtonBox)
+                               QFormLayout, QDialogButtonBox, QHeaderView)
 from PySide6.QtCore import Qt
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
@@ -64,6 +64,7 @@ class InventoryView(QWidget):
         self.inventory_service = InventoryService()
         self.product_service = ProductService()
         self.category_service = CategoryService()
+        self.current_inventory = []  # Add this line
         self.setup_ui()
         event_system.product_added.connect(self.on_product_added)
         event_system.product_updated.connect(self.load_inventory)
@@ -91,7 +92,7 @@ class InventoryView(QWidget):
         layout.addLayout(search_layout)
 
         # Inventory table
-        self.inventory_table = create_table(["Product ID", "Product Name", "Category", "Quantity", "Actions"])
+        self.inventory_table = create_table(["ID", "Product Name", "Category", "Quantity", "Actions"])
         layout.addWidget(self.inventory_table)
 
         # Low stock alert button
@@ -121,19 +122,22 @@ class InventoryView(QWidget):
     def load_inventory(self):
         try:
             inventory_items = self.inventory_service.get_all_inventory()
+            self.current_inventory = inventory_items  # Store the current inventory
             self.update_inventory_table(inventory_items)
         except Exception as e:
             logger.error(f"Failed to load inventory: {str(e)}")
             show_error_message("Error", f"Failed to load inventory: {str(e)}")
 
     def update_inventory_table(self, inventory_items: List[Dict[str, Any]]):
+        current_sort_column = self.inventory_table.horizontalHeader().sortIndicatorSection()
+        current_sort_order = self.inventory_table.horizontalHeader().sortIndicatorOrder()
+        
+        self.inventory_table.setSortingEnabled(False)  # Disable sorting temporarily
         self.inventory_table.setRowCount(len(inventory_items))
         for row, item in enumerate(inventory_items):
-            #self.inventory_table.setItem(row, 0, QTableWidgetItem(str(item['product_id'])))
             self.inventory_table.setItem(row, 0, NumericTableWidgetItem(item['product_id']))
             self.inventory_table.setItem(row, 1, QTableWidgetItem(item['product_name']))
             self.inventory_table.setItem(row, 2, QTableWidgetItem(item['category_name']))
-            #self.inventory_table.setItem(row, 3, QTableWidgetItem(f"{item['quantity']:.2f}"))
             self.inventory_table.setItem(row, 3, PriceTableWidgetItem(item['quantity'], format_price))
             
             actions_widget = QWidget()
@@ -146,6 +150,9 @@ class InventoryView(QWidget):
             actions_layout.addWidget(edit_button)
             self.inventory_table.setCellWidget(row, 4, actions_widget)
 
+        self.inventory_table.setSortingEnabled(True)  # Re-enable sorting
+        self.inventory_table.sortItems(current_sort_column, current_sort_order)  # Restore the previous sort
+
     def edit_inventory(self, item: Dict[str, Any]):
         dialog = EditInventoryDialog(item, self)
         if dialog.exec():
@@ -155,12 +162,20 @@ class InventoryView(QWidget):
             
             try:
                 if adjustment != 0:
-                    # Convert float to int for adjust_inventory
                     self.inventory_service.adjust_inventory(item['product_id'], int(adjustment), reason)
+                    new_quantity = item['quantity'] + adjustment
                 else:
-                    # Convert float to int for set_quantity
                     self.inventory_service.set_quantity(item['product_id'], int(new_quantity))
-                self.load_inventory()
+                
+                # Update the specific item in the current_inventory
+                for i, inv_item in enumerate(self.current_inventory):
+                    if inv_item['product_id'] == item['product_id']:
+                        self.current_inventory[i]['quantity'] = new_quantity
+                        break
+                
+                # Update the specific row in the table
+                self.update_inventory_table(self.current_inventory)
+                
                 show_info_message("Success", "Inventory updated successfully.")
             except Exception as e:
                 logger.error(f"Failed to update inventory: {str(e)}")

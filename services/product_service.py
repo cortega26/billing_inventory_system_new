@@ -7,7 +7,12 @@ from functools import lru_cache
 
 class ProductService:
     @staticmethod
-    def create_product(name: str, description: Optional[str] = None, category_id: Optional[int] = None, cost_price: Optional[int] = None, sell_price: Optional[int] = None) -> Optional[int]:
+    def create_product(
+        name: str, description: Optional[str] = None,
+        category_id: Optional[int] = None,
+        cost_price: Optional[int] = None,
+        sell_price: Optional[int] = None
+        ) -> Optional[int]:
         try:
             logger.debug(f"Creating product with name: {name}, description: {description}, category_id: {category_id}, cost_price: {cost_price}, sell_price: {sell_price}")
             name = validate_string(name, "Product name", max_length=100)

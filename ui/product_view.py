@@ -17,7 +17,7 @@ from models.category import Category
 class EditProductDialog(QDialog):
     def __init__(self, product: Optional[Dict[str, Any]], categories: List[Category], parent=None):
         super().__init__(parent)
-        self.product = product
+        self.product = product or {}
         self.categories = categories
         self.setWindowTitle("Edit Product" if product else "Add Product")
         self.setup_ui()
@@ -25,17 +25,17 @@ class EditProductDialog(QDialog):
     def setup_ui(self):
         layout = QFormLayout(self)
         
-        self.name_input = QLineEdit(self.product['name'] if self.product else "")
+        self.name_input = QLineEdit(self.product.get('name', ''))
         layout.addRow("Name:", self.name_input)
         
-        self.description_input = QLineEdit(self.product['description'] if self.product and self.product['description'] else "")
+        self.description_input = QLineEdit(self.product.get('description', ''))
         layout.addRow("Description:", self.description_input)
         
         self.category_combo = QComboBox()
         self.category_combo.addItem("Uncategorized", None)
         for category in self.categories:
             self.category_combo.addItem(category.name, category.id)
-        if self.product and self.product.get('category_id'):
+        if self.product.get('category_id'):
             index = self.category_combo.findData(self.product['category_id'])
             if index >= 0:
                 self.category_combo.setCurrentIndex(index)
@@ -43,14 +43,12 @@ class EditProductDialog(QDialog):
         
         self.cost_price_input = QSpinBox()
         self.cost_price_input.setMaximum(1000000000)
-        if self.product and self.product.get('cost_price'):
-            self.cost_price_input.setValue(self.product['cost_price'])
+        self.cost_price_input.setValue(self.product.get('cost_price', 0) or 0)
         layout.addRow("Cost Price:", self.cost_price_input)
         
         self.sell_price_input = QSpinBox()
         self.sell_price_input.setMaximum(1000000000)
-        if self.product and self.product.get('sell_price'):
-            self.sell_price_input.setValue(self.product['sell_price'])
+        self.sell_price_input.setValue(self.product.get('sell_price', 0) or 0)
         layout.addRow("Sell Price:", self.sell_price_input)
         
         self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -78,12 +76,13 @@ class EditProductDialog(QDialog):
             show_error_message("Validation Error", "Prices cannot be negative.")
             return
 
-        self.product = self.product or {}
-        self.product['name'] = name
-        self.product['description'] = description
-        self.product['category_id'] = category_id
-        self.product['cost_price'] = cost_price
-        self.product['sell_price'] = sell_price
+        self.product = {
+            'name': name,
+            'description': description,
+            'category_id': category_id,
+            'cost_price': cost_price,
+            'sell_price': sell_price
+        }
         self.accept()
 
 class ProductView(QWidget):
@@ -91,6 +90,7 @@ class ProductView(QWidget):
         super().__init__()
         self.product_service = ProductService()
         self.category_service = CategoryService()
+        self.current_category_id = None
         self.setup_ui()
 
     def setup_ui(self):
@@ -111,7 +111,6 @@ class ProductView(QWidget):
         self.category_filter = QComboBox()
         self.category_filter.addItem("All Categories", None)
         self.load_categories()
-        #self.category_filter.currentIndexChanged.connect(self.filter_products)
         self.category_filter.currentIndexChanged.connect(self.on_category_changed)
         filter_layout.addWidget(QLabel("Filter by Category:"))
         filter_layout.addWidget(self.category_filter)
@@ -120,10 +119,8 @@ class ProductView(QWidget):
         # Product table
         self.product_table = create_table(["ID", "Name", "Description", "Category", "Cost Price", "Sell Price", "Profit Margin", "Actions"])
         self.product_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        self.product_table.horizontalHeader().setStretchLastSection(True)
         self.product_table.setSortingEnabled(True)
         self.product_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.product_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.product_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         layout.addWidget(self.product_table)
 
@@ -152,8 +149,8 @@ class ProductView(QWidget):
         event_system.product_deleted.connect(self.load_products)
 
     def on_category_changed(self, index):
-        category_id = self.category_filter.itemData(index)
-        self.filter_products(category_id=category_id)
+        self.current_category_id = self.category_filter.itemData(index)
+        self.filter_products(category_id=self.current_category_id)
 
     def load_categories(self):
         try:
@@ -172,6 +169,9 @@ class ProductView(QWidget):
             self.progress_bar.setVisible(True)
             self.progress_bar.setValue(0)
             products = self.product_service.get_all_products()
+            # Apply the current category filter if set
+            if self.current_category_id is not None:
+                products = [p for p in products if p.category and p.category.id == self.current_category_id]
             self.update_product_table(products)
             self.progress_bar.setValue(100)
             QTimer.singleShot(1000, lambda: self.progress_bar.setVisible(False))
@@ -186,7 +186,6 @@ class ProductView(QWidget):
             logger.debug(f"Loading product: {product}")
             try:
                 profit_margin = self.product_service.get_product_profit_margin(product.id)
-                #self.product_table.setItem(row, 0, QTableWidgetItem(str(product.id)))
                 self.product_table.setItem(row, 0, NumericTableWidgetItem(product.id))
                 self.product_table.setItem(row, 1, QTableWidgetItem(product.name))
                 self.product_table.setItem(row, 2, QTableWidgetItem(product.description or ""))
@@ -194,17 +193,14 @@ class ProductView(QWidget):
                 
                 cost_price_item = QTableWidgetItem(format_price(product.cost_price) if product.cost_price is not None else "N/A")
                 cost_price_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                #self.product_table.setItem(row, 4, cost_price_item)
                 self.product_table.setItem(row, 4, PriceTableWidgetItem(product.cost_price, format_price))
 
                 sell_price_item = QTableWidgetItem(format_price(product.sell_price) if product.sell_price is not None else "N/A")
                 sell_price_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                #self.product_table.setItem(row, 5, sell_price_item)
                 self.product_table.setItem(row, 5, PriceTableWidgetItem(product.sell_price, format_price))
 
                 profit_margin_item = QTableWidgetItem(f"{profit_margin:.2f}%".replace('.', ',') if profit_margin is not None else "N/A")
                 profit_margin_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                #self.product_table.setItem(row, 6, profit_margin_item)
                 self.product_table.setItem(row, 6, PercentageTableWidgetItem(profit_margin))
 
                 actions_widget = QWidget()
@@ -212,16 +208,30 @@ class ProductView(QWidget):
                 actions_layout.setContentsMargins(0, 0, 0, 0)
                 
                 edit_button = QPushButton("Edit")
-                edit_button.setFixedWidth(60)
+                edit_button.setFixedWidth(80)
                 edit_button.clicked.connect(lambda _, p=product: self.edit_product(p))
                 
                 delete_button = QPushButton("Delete")
-                delete_button.setFixedWidth(60)
+                delete_button.setFixedWidth(80)
                 delete_button.clicked.connect(lambda _, p=product: self.delete_product(p))
                 
                 actions_layout.addWidget(edit_button)
                 actions_layout.addWidget(delete_button)
                 self.product_table.setCellWidget(row, 7, actions_widget)
+
+                # Set column widths
+                self.product_table.setColumnWidth(0, 50)  # ID
+                self.product_table.setColumnWidth(1, 300)  # Name
+                self.product_table.setColumnWidth(2, 200)  # Description
+                self.product_table.setColumnWidth(3, 200)  # Category
+                self.product_table.setColumnWidth(4, 100)  # Cost Price
+                self.product_table.setColumnWidth(5, 100)  # Sell Price
+                self.product_table.setColumnWidth(6, 100)  # Profit Margin
+                self.product_table.setColumnWidth(7, 150)  # Actions
+
+                # Set the last column (Actions) to stretch
+                self.product_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
+
 
             except Exception as e:
                 logger.error(f"Error populating product row: {str(e)}")
@@ -243,7 +253,9 @@ class ProductView(QWidget):
                     product_id = self.product_service.create_product(
                         dialog.product['name'],
                         dialog.product['description'],
-                        dialog.product['category_id']
+                        dialog.product['category_id'],
+                        dialog.product['cost_price'],
+                        dialog.product['sell_price']
                     )
                     if product_id is not None:
                         logger.debug(f"Product added successfully with ID: {product_id}")

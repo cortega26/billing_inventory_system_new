@@ -1,7 +1,8 @@
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
-                               QPushButton, QTableWidget, QTableWidgetItem, QMessageBox,
-                               QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFormLayout,
-                               QDoubleSpinBox, QProgressBar, QHeaderView)
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTableWidget, QTableWidgetItem,
+    QMessageBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFormLayout, QDoubleSpinBox, QProgressBar,
+    QHeaderView
+    )
 from PySide6.QtCore import Qt, QDate, QTimer
 from services.sale_service import SaleService
 from services.customer_service import CustomerService
@@ -58,6 +59,7 @@ class SaleItemDialog(QDialog):
         self.quantity_input.setMinimum(0.01)
         self.quantity_input.setMaximum(1000000.00)
         self.quantity_input.setDecimals(2)
+        self.quantity_input.setValue(1.00)
         self.quantity_input.valueChanged.connect(self.update_total)
         layout.addRow("Quantity:", self.quantity_input)
         
@@ -190,8 +192,7 @@ class SaleView(QWidget):
         for row, sale in enumerate(sales):
             try:
                 customer = self.customer_service.get_customer(sale.customer_id)
-                
-                #self.sale_table.setItem(row, 0, QTableWidgetItem(str(sale.id)))
+
                 self.sale_table.setItem(row, 0, NumericTableWidgetItem(sale.id))
 
                 customer_text = f"{customer.identifier_9} ({customer.identifier_3or4 or 'N/A'})" if customer else "Unknown Customer"
@@ -201,21 +202,21 @@ class SaleView(QWidget):
 
                 total_amount_item = QTableWidgetItem(format_price(sale.total_amount))
                 total_amount_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                #self.sale_table.setItem(row, 3, total_amount_item)
+
                 self.sale_table.setItem(row, 3, PriceTableWidgetItem(sale.total_amount, format_price))
 
                 actions_widget = QWidget()
                 actions_layout = QHBoxLayout(actions_widget)
                 actions_layout.setContentsMargins(0, 0, 0, 0)
-                
+
                 view_button = QPushButton("View")
                 view_button.clicked.connect(lambda _, s=sale: self.view_sale(s))
                 actions_layout.addWidget(view_button)
-                
+
                 delete_button = QPushButton("Delete")
                 delete_button.clicked.connect(lambda _, s=sale: self.delete_sale(s))
                 actions_layout.addWidget(delete_button)
-                
+
                 self.sale_table.setCellWidget(row, 4, actions_widget)
 
             except Exception as e:
@@ -356,9 +357,7 @@ class SaleView(QWidget):
             self.load_sales()
 
     def on_product_updated(self, product_id):
-        # Refresh the sale items if the updated product is part of any sale
         self.load_sales()
 
     def on_product_deleted(self, product_id):
-        # Handle the case where a product in a sale has been deleted
         self.load_sales()

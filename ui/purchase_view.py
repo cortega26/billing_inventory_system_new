@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTableWidgetItem,
     QMessageBox, QHeaderView, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFormLayout,
-    QDoubleSpinBox, QProgressBar
+    QDoubleSpinBox, QProgressBar, QAbstractItemView
     )
 from PySide6.QtCore import Qt, QDate, QTimer
 from services.purchase_service import PurchaseService
@@ -112,7 +112,11 @@ class PurchaseView(QWidget):
 
         # Purchase table
         self.purchase_table = create_table(["ID", "Supplier", "Date", "Total Amount", "Actions"])
-        self.purchase_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        #self.purchase_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.purchase_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.purchase_table.setSortingEnabled(True)
+        self.purchase_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.purchase_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         layout.addWidget(self.purchase_table)
 
         # Progress bar
@@ -138,14 +142,12 @@ class PurchaseView(QWidget):
     def update_purchase_table(self, purchases: List[Purchase]):
         self.purchase_table.setRowCount(len(purchases))
         for row, purchase in enumerate(purchases):
-            #self.purchase_table.setItem(row, 0, QTableWidgetItem(str(purchase.id)))
             self.purchase_table.setItem(row, 0, NumericTableWidgetItem(purchase.id))
             self.purchase_table.setItem(row, 1, QTableWidgetItem(purchase.supplier))
             self.purchase_table.setItem(row, 2, QTableWidgetItem(purchase.date.strftime("%Y-%m-%d")))
 
             total_amount_item = QTableWidgetItem(format_price(purchase.total_amount))
             total_amount_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            #self.purchase_table.setItem(row, 3, total_amount_item)
             self.purchase_table.setItem(row, 3, PriceTableWidgetItem(purchase.total_amount, format_price))
 
             actions_widget = QWidget()

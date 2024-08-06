@@ -2,7 +2,7 @@ import sys
 from PySide6.QtWidgets import QApplication
 from ui.main_window import MainWindow
 from database import init_db
-from utils.logger import logger
+from utils.system.logger import logger
 
 def initialize_application():
     logger.info("Initializing the application")

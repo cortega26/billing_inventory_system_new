@@ -10,9 +10,9 @@ from ui.purchase_view import PurchaseView
 from ui.inventory_view import InventoryView
 from ui.analytics_view import AnalyticsView
 from typing import Dict, Type
-from utils.logger import logger
+from utils.system.logger import logger
 from config import APP_NAME, APP_VERSION, COMPANY_NAME
-from utils.event_system import event_system
+from utils.system.event_system import event_system
 
 class MainWindow(QMainWindow):
     def __init__(self):

@@ -7,8 +7,8 @@ from services.purchase_service import PurchaseService
 from services.inventory_service import InventoryService
 from services.customer_service import CustomerService
 from datetime import datetime, timedelta
-from utils.event_system import event_system
-from utils.logger import logger
+from utils.system.event_system import event_system
+from utils.system.logger import logger
 from typing import Callable, Union
 
 

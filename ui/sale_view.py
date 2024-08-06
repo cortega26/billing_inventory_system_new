@@ -9,10 +9,10 @@ from services.customer_service import CustomerService
 from services.product_service import ProductService
 from models.customer import Customer
 from models.sale import Sale
-from utils.utils import create_table, show_error_message, show_info_message, format_price
-from utils.logger import logger
-from utils.event_system import event_system
-from utils.table_items import NumericTableWidgetItem, PriceTableWidgetItem
+from utils.helpers import create_table, show_error_message, show_info_message, format_price
+from utils.system.logger import logger
+from utils.system.event_system import event_system
+from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
 from typing import List
 
 class CustomerSelectionDialog(QDialog):

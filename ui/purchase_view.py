@@ -7,10 +7,10 @@ from PySide6.QtCore import Qt, QDate, QTimer
 from services.purchase_service import PurchaseService
 from services.product_service import ProductService
 from models.purchase import Purchase
-from utils.utils import create_table, show_error_message, show_info_message, format_price
-from utils.logger import logger
-from utils.event_system import event_system
-from utils.table_items import NumericTableWidgetItem, PriceTableWidgetItem
+from utils.helpers import create_table, show_error_message, show_info_message, format_price
+from utils.system.logger import logger
+from utils.system.event_system import event_system
+from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
 from typing import List
 
 class PurchaseItemDialog(QDialog):

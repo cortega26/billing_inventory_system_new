@@ -5,11 +5,11 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QTimer
 from services.product_service import ProductService
 from services.category_service import CategoryService
-from utils.utils import create_table, show_error_message, show_info_message, format_price
-from utils.event_system import event_system
-from utils.logger import logger
+from utils.helpers import create_table, show_error_message, show_info_message, format_price
+from utils.system.event_system import event_system
+from utils.system.logger import logger
 from ui.category_management_dialog import CategoryManagementDialog
-from utils.table_items import NumericTableWidgetItem, PercentageTableWidgetItem, PriceTableWidgetItem
+from utils.ui.table_items import NumericTableWidgetItem, PercentageTableWidgetItem, PriceTableWidgetItem
 from typing import List, Optional, Dict, Any
 from models.product import Product
 from models.category import Category

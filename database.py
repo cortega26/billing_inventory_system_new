@@ -2,7 +2,7 @@ import sqlite3
 from contextlib import contextmanager
 from typing import List, Dict, Any, Union, Optional, Tuple
 from config import DATABASE_PATH
-from utils.logger import logger
+from utils.system.logger import logger
 
 def validate_query_params(params: Any) -> None:
     if params is None:

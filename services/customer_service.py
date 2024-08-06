@@ -1,8 +1,8 @@
 from typing import List, Optional, Tuple
 from database import DatabaseManager
 from models.customer import Customer
-from utils.validators import validate_9digit_identifier, validate_3or4digit_identifier
-from utils.logger import logger
+from utils.validation.validators import validate_9digit_identifier, validate_3or4digit_identifier
+from utils.system.logger import logger
 from functools import lru_cache
 
 class CustomerService:

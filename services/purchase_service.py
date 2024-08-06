@@ -2,7 +2,7 @@ from typing import List, Dict, Any, Optional
 from database import DatabaseManager
 from models.purchase import Purchase, PurchaseItem
 from services.inventory_service import InventoryService
-from utils.logger import logger
+from utils.system.logger import logger
 from functools import lru_cache
 
 class PurchaseService:

@@ -5,11 +5,11 @@ from PySide6.QtCore import Qt
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
 from services.category_service import CategoryService
-from utils.utils import create_table, show_error_message, show_info_message, format_price
-from utils.event_system import event_system
-from utils.table_items import NumericTableWidgetItem, PriceTableWidgetItem
+from utils.helpers import create_table, show_error_message, show_info_message, format_price
+from utils.system.event_system import event_system
+from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
 from typing import List, Dict, Any, Optional
-from utils.logger import logger
+from utils.system.logger import logger
 
 class EditInventoryDialog(QDialog):
     def __init__(self, product: Dict[str, Any], parent=None):

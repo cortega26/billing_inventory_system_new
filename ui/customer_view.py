@@ -3,10 +3,10 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineE
                                QDialog, QDialogButtonBox)
 from PySide6.QtCore import Qt
 from services.customer_service import CustomerService
-from utils.utils import create_table, show_error_message, format_price
-from utils.table_items import NumericTableWidgetItem, PriceTableWidgetItem
-from utils.validators import validate_9digit_identifier, validate_3or4digit_identifier
-from utils.logger import logger
+from utils.helpers import create_table, show_error_message, format_price
+from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
+from utils.validation.validators import validate_9digit_identifier, validate_3or4digit_identifier
+from utils.system.logger import logger
 
 class EditCustomerDialog(QDialog):
     def __init__(self, customer, parent=None):

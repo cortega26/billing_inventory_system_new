@@ -1,8 +1,8 @@
 from typing import List, Optional
 from database import DatabaseManager
 from models.category import Category
-from utils.validators import validate_string
-from utils.logger import logger
+from utils.validation.validators import validate_string
+from utils.system.logger import logger
 from functools import lru_cache
 
 class CategoryService:

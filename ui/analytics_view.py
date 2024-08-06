@@ -5,10 +5,10 @@ from PySide6.QtCore import Qt, QDate, QTimer
 from PySide6.QtGui import QPainter
 from PySide6.QtCharts import QChart, QChartView, QBarSeries, QBarSet, QValueAxis, QBarCategoryAxis, QLineSeries, QDateTimeAxis, QPieSeries
 from services.analytics_service import AnalyticsService
-from utils.utils import create_table, show_error_message, format_price
-from utils.table_items import NumericTableWidgetItem, PriceTableWidgetItem, PercentageTableWidgetItem
+from utils.helpers import create_table, show_error_message, format_price
+from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem, PercentageTableWidgetItem
 from typing import List, Dict, Any
-from utils.logger import logger
+from utils.system.logger import logger
 
 class AnalyticsView(QWidget):
     def __init__(self):

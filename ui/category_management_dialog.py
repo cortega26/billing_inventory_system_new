@@ -3,8 +3,8 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QListWidget,
                                QFormLayout, QDialogButtonBox, QLabel)
 from PySide6.QtCore import Qt
 from services.category_service import CategoryService
-from utils.logger import logger
-from utils.utils import show_error_message, show_info_message
+from utils.system.logger import logger
+from utils.helpers import show_error_message, show_info_message
 
 class AddEditCategoryDialog(QDialog):
     def __init__(self, parent=None, category=None):

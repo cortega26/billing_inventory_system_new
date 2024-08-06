@@ -2,7 +2,7 @@ from typing import List, Dict, Any
 from database import DatabaseManager
 from config import LOYALTY_THRESHOLD
 from functools import lru_cache
-from utils.logger import logger
+from utils.system.logger import logger
 
 class AnalyticsService:
     @staticmethod

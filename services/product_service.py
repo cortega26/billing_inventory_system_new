@@ -1,8 +1,8 @@
 from typing import List, Optional, Dict, Any
 from database import DatabaseManager
 from models.product import Product
-from utils.validators import validate_string
-from utils.logger import logger
+from utils.validation.validators import validate_string
+from utils.system.logger import logger
 from functools import lru_cache
 
 class ProductService:

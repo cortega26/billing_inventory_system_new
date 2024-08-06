@@ -1,8 +1,8 @@
 from typing import List, Dict, Any, Optional
 from database import DatabaseManager
 from models.inventory import Inventory
-from utils.event_system import event_system
-from utils.logger import logger
+from utils.system.event_system import event_system
+from utils.system.logger import logger
 from functools import lru_cache
 
 class InventoryService:

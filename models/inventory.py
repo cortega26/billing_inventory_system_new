@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 from typing import Dict, Any, Optional
+from utils.exceptions import ValidationException
+from utils.decorators import validate_input
 
 @dataclass
 class Inventory:
@@ -19,19 +21,21 @@ class Inventory:
             max_stock_level=row.get('max_stock_level')
         )
 
+    @validate_input(show_dialog=True)
     def update_quantity(self, change: int) -> None:
         new_quantity = self.quantity + change
         if new_quantity < 0:
-            raise ValueError(f"Cannot decrease quantity by {abs(change)}. Current quantity: {self.quantity}")
+            raise ValidationException(f"Cannot decrease quantity by {abs(change)}. Current quantity: {self.quantity}")
         if self.max_stock_level is not None and new_quantity > self.max_stock_level:
-            raise ValueError(f"Cannot increase quantity above max stock level of {self.max_stock_level}")
+            raise ValidationException(f"Cannot increase quantity above max stock level of {self.max_stock_level}")
         self.quantity = new_quantity
 
+    @validate_input(show_dialog=True)
     def set_quantity(self, new_quantity: int) -> None:
         if new_quantity < 0:
-            raise ValueError("Inventory quantity cannot be negative")
+            raise ValidationException("Inventory quantity cannot be negative")
         if self.max_stock_level is not None and new_quantity > self.max_stock_level:
-            raise ValueError(f"Cannot set quantity above max stock level of {self.max_stock_level}")
+            raise ValidationException(f"Cannot set quantity above max stock level of {self.max_stock_level}")
         self.quantity = new_quantity
 
     def is_low_stock(self) -> bool:

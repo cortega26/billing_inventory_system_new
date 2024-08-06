@@ -1,6 +1,6 @@
 import functools
 import logging
-from typing import Callable, Any, Type, Union, Optional
+from typing import Callable, Any, Type, Optional
 from PySide6.QtWidgets import QMessageBox, QWidget,QApplication
 from .exceptions import *
 

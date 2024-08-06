@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QTimer
 from services.product_service import ProductService
 from services.category_service import CategoryService
-from utils.helpers import create_table, show_error_message, show_info_message, format_price
+from utils.helpers import create_table, show_info_message, format_price
 from utils.system.event_system import event_system
 from utils.system.logger import logger
 from ui.category_management_dialog import CategoryManagementDialog
@@ -13,6 +13,7 @@ from utils.ui.table_items import NumericTableWidgetItem, PercentageTableWidgetIt
 from typing import List, Optional, Dict, Any
 from models.product import Product
 from models.category import Category
+from utils.decorators import ui_operation, validate_input
 
 class EditProductDialog(QDialog):
     def __init__(self, product: Optional[Dict[str, Any]], categories: List[Category], parent=None):
@@ -56,6 +57,7 @@ class EditProductDialog(QDialog):
         self.button_box.rejected.connect(self.reject)
         layout.addRow(self.button_box)
 
+    @validate_input(show_dialog=True)
     def validate_and_accept(self):
         name = self.name_input.text().strip()
         description = self.description_input.text().strip()
@@ -64,17 +66,13 @@ class EditProductDialog(QDialog):
         sell_price = self.sell_price_input.value()
 
         if not name:
-            show_error_message("Validation Error", "Product name cannot be empty.")
-            return
+            raise ValueError("Product name cannot be empty.")
         if len(name) > 100:
-            show_error_message("Validation Error", "Product name cannot exceed 100 characters.")
-            return
+            raise ValueError("Product name cannot exceed 100 characters.")
         if description and len(description) > 500:
-            show_error_message("Validation Error", "Product description cannot exceed 500 characters.")
-            return
+            raise ValueError("Product description cannot exceed 500 characters.")
         if cost_price < 0 or sell_price < 0:
-            show_error_message("Validation Error", "Prices cannot be negative.")
-            return
+            raise ValueError("Prices cannot be negative.")
 
         self.product = {
             'name': name,
@@ -148,210 +146,176 @@ class ProductView(QWidget):
         event_system.product_updated.connect(self.load_products)
         event_system.product_deleted.connect(self.load_products)
 
+    @ui_operation(show_dialog=True)
     def on_category_changed(self, index):
         self.current_category_id = self.category_filter.itemData(index)
         self.filter_products(category_id=self.current_category_id)
 
+    @ui_operation(show_dialog=True)
     def load_categories(self):
-        try:
-            categories = self.category_service.get_all_categories()
-            self.category_filter.clear()
-            self.category_filter.addItem("All Categories", None)
-            for category in categories:
-                self.category_filter.addItem(category.name, category.id)
-        except Exception as e:
-            logger.error(f"Failed to load categories: {str(e)}")
-            show_error_message("Error", f"Failed to load categories: {str(e)}")
+        categories = self.category_service.get_all_categories()
+        self.category_filter.clear()
+        self.category_filter.addItem("All Categories", None)
+        for category in categories:
+            self.category_filter.addItem(category.name, category.id)
 
+    @ui_operation(show_dialog=True)
     def load_products(self):
         logger.debug("Loading products")
-        try:
-            self.progress_bar.setVisible(True)
-            self.progress_bar.setValue(0)
-            products = self.product_service.get_all_products()
-            # Apply the current category filter if set
-            if self.current_category_id is not None:
-                products = [p for p in products if p.category and p.category.id == self.current_category_id]
-            self.update_product_table(products)
-            self.progress_bar.setValue(100)
-            QTimer.singleShot(1000, lambda: self.progress_bar.setVisible(False))
-        except Exception as e:
-            logger.error(f"Failed to load products: {str(e)}")
-            show_error_message("Error", f"Failed to load products: {str(e)}")
-            self.progress_bar.setVisible(False)
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setValue(0)
+        products = self.product_service.get_all_products()
+        # Apply the current category filter if set
+        if self.current_category_id is not None:
+            products = [p for p in products if p.category and p.category.id == self.current_category_id]
+        self.update_product_table(products)
+        self.progress_bar.setValue(100)
+        QTimer.singleShot(1000, lambda: self.progress_bar.setVisible(False))
 
+    @ui_operation(show_dialog=True)
     def update_product_table(self, products: List[Product]):
         self.product_table.setRowCount(len(products))
         for row, product in enumerate(products):
             logger.debug(f"Loading product: {product}")
-            try:
-                profit_margin = self.product_service.get_product_profit_margin(product.id)
-                self.product_table.setItem(row, 0, NumericTableWidgetItem(product.id))
-                self.product_table.setItem(row, 1, QTableWidgetItem(product.name))
-                self.product_table.setItem(row, 2, QTableWidgetItem(product.description or ""))
-                self.product_table.setItem(row, 3, QTableWidgetItem(product.category.name if product.category else ""))
-                
-                cost_price_item = QTableWidgetItem(format_price(product.cost_price) if product.cost_price is not None else "N/A")
-                cost_price_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                self.product_table.setItem(row, 4, PriceTableWidgetItem(product.cost_price, format_price))
+            profit_margin = self.product_service.get_product_profit_margin(product.id)
+            self.product_table.setItem(row, 0, NumericTableWidgetItem(product.id))
+            self.product_table.setItem(row, 1, QTableWidgetItem(product.name))
+            self.product_table.setItem(row, 2, QTableWidgetItem(product.description or ""))
+            self.product_table.setItem(row, 3, QTableWidgetItem(product.category.name if product.category else ""))
+            
+            self.product_table.setItem(row, 4, PriceTableWidgetItem(product.cost_price, format_price))
+            self.product_table.setItem(row, 5, PriceTableWidgetItem(product.sell_price, format_price))
+            self.product_table.setItem(row, 6, PercentageTableWidgetItem(profit_margin))
 
-                sell_price_item = QTableWidgetItem(format_price(product.sell_price) if product.sell_price is not None else "N/A")
-                sell_price_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                self.product_table.setItem(row, 5, PriceTableWidgetItem(product.sell_price, format_price))
+            actions_widget = QWidget()
+            actions_layout = QHBoxLayout(actions_widget)
+            actions_layout.setContentsMargins(0, 0, 0, 0)
+            
+            edit_button = QPushButton("Edit")
+            edit_button.setFixedWidth(80)
+            edit_button.clicked.connect(lambda _, p=product: self.edit_product(p))
+            
+            delete_button = QPushButton("Delete")
+            delete_button.setFixedWidth(80)
+            delete_button.clicked.connect(lambda _, p=product: self.delete_product(p))
+            
+            actions_layout.addWidget(edit_button)
+            actions_layout.addWidget(delete_button)
+            self.product_table.setCellWidget(row, 7, actions_widget)
 
-                profit_margin_item = QTableWidgetItem(f"{profit_margin:.2f}%".replace('.', ',') if profit_margin is not None else "N/A")
-                profit_margin_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                self.product_table.setItem(row, 6, PercentageTableWidgetItem(profit_margin))
+            # Set column widths
+            self.product_table.setColumnWidth(0, 50)  # ID
+            self.product_table.setColumnWidth(1, 300)  # Name
+            self.product_table.setColumnWidth(2, 200)  # Description
+            self.product_table.setColumnWidth(3, 200)  # Category
+            self.product_table.setColumnWidth(4, 100)  # Cost Price
+            self.product_table.setColumnWidth(5, 100)  # Sell Price
+            self.product_table.setColumnWidth(6, 100)  # Profit Margin
+            self.product_table.setColumnWidth(7, 150)  # Actions
 
-                actions_widget = QWidget()
-                actions_layout = QHBoxLayout(actions_widget)
-                actions_layout.setContentsMargins(0, 0, 0, 0)
-                
-                edit_button = QPushButton("Edit")
-                edit_button.setFixedWidth(80)
-                edit_button.clicked.connect(lambda _, p=product: self.edit_product(p))
-                
-                delete_button = QPushButton("Delete")
-                delete_button.setFixedWidth(80)
-                delete_button.clicked.connect(lambda _, p=product: self.delete_product(p))
-                
-                actions_layout.addWidget(edit_button)
-                actions_layout.addWidget(delete_button)
-                self.product_table.setCellWidget(row, 7, actions_widget)
-
-                # Set column widths
-                self.product_table.setColumnWidth(0, 50)  # ID
-                self.product_table.setColumnWidth(1, 300)  # Name
-                self.product_table.setColumnWidth(2, 200)  # Description
-                self.product_table.setColumnWidth(3, 200)  # Category
-                self.product_table.setColumnWidth(4, 100)  # Cost Price
-                self.product_table.setColumnWidth(5, 100)  # Sell Price
-                self.product_table.setColumnWidth(6, 100)  # Profit Margin
-                self.product_table.setColumnWidth(7, 150)  # Actions
-
-                # Set the last column (Actions) to stretch
-                self.product_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
-
-
-            except Exception as e:
-                logger.error(f"Error populating product row: {str(e)}")
+            # Set the last column (Actions) to stretch
+            self.product_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
 
         logger.debug(f"Loaded {len(products)} products")
 
+    @ui_operation(show_dialog=True)
     def manage_categories(self):
         dialog = CategoryManagementDialog(self)
         if dialog.exec():
             self.load_categories()
             self.load_products()
 
+    @ui_operation(show_dialog=True)
     def add_product(self):
         categories = self.category_service.get_all_categories()
         dialog = EditProductDialog(None, categories, self)
         if dialog.exec():
-            try:
-                if dialog.product:
-                    product_id = self.product_service.create_product(
-                        dialog.product['name'],
-                        dialog.product['description'],
-                        dialog.product['category_id'],
-                        dialog.product['cost_price'],
-                        dialog.product['sell_price']
-                    )
-                    if product_id is not None:
-                        logger.debug(f"Product added successfully with ID: {product_id}")
-                        self.load_products()
-                        show_info_message("Success", "Product added successfully.")
-                        event_system.product_added.emit(product_id)
-                    else:
-                        logger.error("Failed to add product")
-                        show_error_message("Error", "Failed to add product.")
+            if dialog.product:
+                product_id = self.product_service.create_product(
+                    dialog.product['name'],
+                    dialog.product['description'],
+                    dialog.product['category_id'],
+                    dialog.product['cost_price'],
+                    dialog.product['sell_price']
+                )
+                if product_id is not None:
+                    logger.debug(f"Product added successfully with ID: {product_id}")
+                    self.load_products()
+                    show_info_message("Success", "Product added successfully.")
+                    event_system.product_added.emit(product_id)
                 else:
-                    logger.error("No product data available")
-                    show_error_message("Error", "No product data available.")
-            except Exception as e:
-                logger.error(f"Error adding product: {str(e)}")
-                show_error_message("Error", str(e))
+                    raise ValueError("Failed to add product.")
+            else:
+                raise ValueError("No product data available.")
 
+    @ui_operation(show_dialog=True)
     def edit_product(self, product: Product):
         categories = self.category_service.get_all_categories()
         product_dict = product.to_dict()
         dialog = EditProductDialog(product_dict, categories, self)
         if dialog.exec():
-            try:
-                if dialog.product:
-                    self.product_service.update_product(
-                        product.id,
-                        dialog.product['name'],
-                        dialog.product['description'],
-                        dialog.product['category_id'],
-                        dialog.product['cost_price'],
-                        dialog.product['sell_price']
-                    )
-                    self.load_products()
-                    show_info_message("Success", "Product updated successfully.")
-                    event_system.product_updated.emit(product.id)
-                else:
-                    logger.error("No product data available")
-                    show_error_message("Error", "No product data available.")
-            except Exception as e:
-                logger.error(f"Error updating product: {str(e)}")
-                show_error_message("Error", str(e))
+            if dialog.product:
+                self.product_service.update_product(
+                    product.id,
+                    dialog.product['name'],
+                    dialog.product['description'],
+                    dialog.product['category_id'],
+                    dialog.product['cost_price'],
+                    dialog.product['sell_price']
+                )
+                self.load_products()
+                show_info_message("Success", "Product updated successfully.")
+                event_system.product_updated.emit(product.id)
+            else:
+                raise ValueError("No product data available.")
 
+    @ui_operation(show_dialog=True)
     def delete_product(self, product: Product):
         reply = QMessageBox.question(self, 'Delete Product', 
                                      f'Are you sure you want to delete product {product.name}?',
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
                                      QMessageBox.StandardButton.No)
         if reply == QMessageBox.StandardButton.Yes:
-            try:
-                self.product_service.delete_product(product.id)
-                self.load_products()
-                show_info_message("Success", "Product deleted successfully.")
-                event_system.product_deleted.emit(product.id)
-            except Exception as e:
-                logger.error(f"Error deleting product: {str(e)}")
-                show_error_message("Error", str(e))
+            self.product_service.delete_product(product.id)
+            self.load_products()
+            show_info_message("Success", "Product deleted successfully.")
+            event_system.product_deleted.emit(product.id)
 
+    @ui_operation(show_dialog=True)
     def search_products(self):
-        search_term = str(self.search_input.text().strip())
+        search_term = self.search_input.text().strip()
         category_id = self.category_filter.currentData()
         self.filter_products(search_term, category_id)
 
+    @ui_operation(show_dialog=True)
     def filter_products(self, search_term: Optional[str] = None, category_id: Optional[int] = None):
         if search_term is None:
-            search_term = str(self.search_input.text().strip())
-        else:
-            search_term = str(search_term)  # Ensure search_term is a string
+            search_term = self.search_input.text().strip()
         
         if category_id is None:
             category_id = self.category_filter.currentData()
         
-        try:
-            all_products = self.product_service.get_all_products()
-            filtered_products = []
+        all_products = self.product_service.get_all_products()
+        filtered_products = []
 
-            for p in all_products:
-                logger.debug(f"Filtering product: id={p.id}, name={p.name}, description={p.description}, category={p.category}")
-                
-                matches_search = False
-                if not search_term:
-                    matches_search = True
-                else:
-                    name_match = search_term.lower() in str(p.name).lower() if p.name is not None else False
-                    desc_match = search_term.lower() in str(p.description).lower() if p.description is not None else False
-                    matches_search = name_match or desc_match
+        for p in all_products:
+            logger.debug(f"Filtering product: id={p.id}, name={p.name}, description={p.description}, category={p.category}")
+            
+            matches_search = False
+            if not search_term:
+                matches_search = True
+            else:
+                name_match = search_term.lower() in p.name.lower() if p.name is not None else False
+                desc_match = search_term.lower() in p.description.lower() if p.description is not None else False
+                matches_search = name_match or desc_match
 
-                matches_category = (
-                    category_id is None or  # "All Categories" selected
-                    (p.category and p.category.id == category_id)  # Product has a category and it matches
-                )
+            matches_category = (
+                category_id is None or  # "All Categories" selected
+                (p.category and p.category.id == category_id)  # Product has a category and it matches
+            )
 
-                if matches_search and matches_category:
-                    filtered_products.append(p)
+            if matches_search and matches_category:
+                filtered_products.append(p)
 
-            logger.debug(f"Filtered products count: {len(filtered_products)}")
-            self.update_product_table(filtered_products)
-        except Exception as e:
-            logger.error(f"Error filtering products: {str(e)}")
-            logger.exception("Stack trace:")
-            show_error_message("Error", f"Failed to filter products: {str(e)}")
+        logger.debug(f"Filtered products count: {len(filtered_products)}")
+        self.update_product_table(filtered_products)

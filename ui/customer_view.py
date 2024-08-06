@@ -7,6 +7,7 @@ from utils.helpers import create_table, show_error_message, format_price
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
 from utils.validation.validators import validate_9digit_identifier, validate_3or4digit_identifier
 from utils.system.logger import logger
+from utils.decorators import ui_operation
 
 class EditCustomerDialog(QDialog):
     def __init__(self, customer, parent=None):
@@ -29,14 +30,12 @@ class EditCustomerDialog(QDialog):
         self.button_box.rejected.connect(self.reject)
         layout.addWidget(self.button_box)
 
+    @ui_operation(show_dialog=True)
     def validate_and_accept(self):
-        try:
-            validate_9digit_identifier(self.identifier_9_input.text())
-            if self.identifier_3or4_input.text():
-                validate_3or4digit_identifier(self.identifier_3or4_input.text())
-            self.accept()
-        except ValueError as e:
-            show_error_message("Validation Error", str(e))
+        validate_9digit_identifier(self.identifier_9_input.text())
+        if self.identifier_3or4_input.text():
+            validate_3or4digit_identifier(self.identifier_3or4_input.text())
+        self.accept()
 
 class CustomerView(QWidget):
     def __init__(self):
@@ -80,114 +79,82 @@ class CustomerView(QWidget):
 
         self.load_customers()
 
+    @ui_operation(show_dialog=True)
     def load_customers(self):
-        logger.debug("Loading customers")
-        try:
-            customers = self.customer_service.get_all_customers()
-            self.populate_customer_table(customers)
-        except Exception as e:
-            logger.error(f"Failed to load customers: {str(e)}")
-            show_error_message("Error", f"Failed to load customers: {str(e)}")
+        customers = self.customer_service.get_all_customers()
+        self.populate_customer_table(customers)
 
+    @ui_operation(show_dialog=True)
     def populate_customer_table(self, customers):
         self.customer_table.setRowCount(len(customers))
         for row, customer in enumerate(customers):
-            logger.debug(f"Loading customer: {customer}")
-            try:
-                total_purchases, total_amount = self.customer_service.get_customer_stats(customer.id)
-                #self.customer_table.setItem(row, 0, QTableWidgetItem(str(customer.id)))
-                self.customer_table.setItem(row, 0, NumericTableWidgetItem(customer.id))
-                self.customer_table.setItem(row, 1, QTableWidgetItem(customer.identifier_9))
-                self.customer_table.setItem(row, 2, QTableWidgetItem(customer.identifier_3or4 or "N/A"))
-                #self.customer_table.setItem(row, 3, QTableWidgetItem(str(total_purchases)))
-                self.customer_table.setItem(row, 3, NumericTableWidgetItem(total_purchases))
-                
-                # Create a QTableWidgetItem for the total amount and set its alignment
-                total_amount_item = QTableWidgetItem(format_price(total_amount))
-                #self.customer_table.setItem(row, 4, total_amount_item)
-                self.customer_table.setItem(row, 4, PriceTableWidgetItem(total_amount, format_price))
-                
-                actions_widget = QWidget()
-                actions_layout = QHBoxLayout(actions_widget)
-                actions_layout.setContentsMargins(0, 0, 0, 0)
-                
-                edit_button = QPushButton("Edit")
-                edit_button.setFixedWidth(50)
-                edit_button.clicked.connect(lambda _, c=customer: self.edit_customer(c))
-                
-                delete_button = QPushButton("Delete")
-                delete_button.setFixedWidth(50)
-                delete_button.clicked.connect(lambda _, c=customer: self.delete_customer(c))
-                
-                actions_layout.addWidget(edit_button)
-                actions_layout.addWidget(delete_button)
-                self.customer_table.setCellWidget(row, 5, actions_widget)
-            except Exception as e:
-                logger.error(f"Error populating customer row: {str(e)}")
-        logger.debug(f"Loaded {len(customers)} customers")
+            total_purchases, total_amount = self.customer_service.get_customer_stats(customer.id)
+            self.customer_table.setItem(row, 0, NumericTableWidgetItem(customer.id))
+            self.customer_table.setItem(row, 1, QTableWidgetItem(customer.identifier_9))
+            self.customer_table.setItem(row, 2, QTableWidgetItem(customer.identifier_3or4 or "N/A"))
+            self.customer_table.setItem(row, 3, NumericTableWidgetItem(total_purchases))
+            self.customer_table.setItem(row, 4, PriceTableWidgetItem(total_amount, format_price))
+            
+            actions_widget = QWidget()
+            actions_layout = QHBoxLayout(actions_widget)
+            actions_layout.setContentsMargins(0, 0, 0, 0)
+            
+            edit_button = QPushButton("Edit")
+            edit_button.setFixedWidth(50)
+            edit_button.clicked.connect(lambda _, c=customer: self.edit_customer(c))
+            
+            delete_button = QPushButton("Delete")
+            delete_button.setFixedWidth(50)
+            delete_button.clicked.connect(lambda _, c=customer: self.delete_customer(c))
+            
+            actions_layout.addWidget(edit_button)
+            actions_layout.addWidget(delete_button)
+            self.customer_table.setCellWidget(row, 5, actions_widget)
 
+    @ui_operation(show_dialog=True)
     def add_customer(self):
         identifier_9 = self.identifier_9_input.text().strip()
         identifier_3or4 = self.identifier_3or4_input.text().strip() or None
-        logger.debug(f"Adding customer with identifier_9: {identifier_9}, identifier_3or4: {identifier_3or4}")
 
-        try:
-            validate_9digit_identifier(identifier_9)
-            if identifier_3or4:
-                validate_3or4digit_identifier(identifier_3or4)
+        validate_9digit_identifier(identifier_9)
+        if identifier_3or4:
+            validate_3or4digit_identifier(identifier_3or4)
 
-            customer_id = self.customer_service.create_customer(identifier_9, identifier_3or4)
-            if customer_id is not None:
-                logger.debug(f"Customer added successfully with ID: {customer_id}")
-                self.load_customers()
-                self.identifier_9_input.clear()
-                self.identifier_3or4_input.clear()
-                QMessageBox.information(self, "Success", "Customer added successfully.")
-            else:
-                logger.error("Failed to add customer")
-                show_error_message("Error", "Failed to add customer.")
-        except ValueError as e:
-            logger.error(f"Validation error: {str(e)}")
-            show_error_message("Validation Error", str(e))
-        except Exception as e:
-            logger.error(f"Error adding customer: {str(e)}")
-            show_error_message("Error", str(e))
+        customer_id = self.customer_service.create_customer(identifier_9, identifier_3or4)
+        if customer_id is not None:
+            self.load_customers()
+            self.identifier_9_input.clear()
+            self.identifier_3or4_input.clear()
+            QMessageBox.information(self, "Success", "Customer added successfully.")
+        else:
+            raise ValueError("Failed to add customer.")
 
+    @ui_operation(show_dialog=True)
     def edit_customer(self, customer):
         dialog = EditCustomerDialog(customer, self)
         if dialog.exec():
             new_identifier_9 = dialog.identifier_9_input.text().strip()
             new_identifier_3or4 = dialog.identifier_3or4_input.text().strip() or None
-            try:
-                self.customer_service.update_customer(customer.id, new_identifier_9, new_identifier_3or4)
-                self.load_customers()
-                QMessageBox.information(self, "Success", "Customer updated successfully.")
-            except Exception as e:
-                logger.error(f"Error updating customer: {str(e)}")
-                show_error_message("Error", str(e))
+            self.customer_service.update_customer(customer.id, new_identifier_9, new_identifier_3or4)
+            self.load_customers()
+            QMessageBox.information(self, "Success", "Customer updated successfully.")
 
+    @ui_operation(show_dialog=True)
     def delete_customer(self, customer):
         reply = QMessageBox.question(self, 'Delete Customer', 
                                      f'Are you sure you want to delete customer {customer.identifier_9}?',
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
                                      QMessageBox.StandardButton.No)
         if reply == QMessageBox.StandardButton.Yes:
-            try:
-                self.customer_service.delete_customer(customer.id)
-                self.load_customers()
-                QMessageBox.information(self, "Success", "Customer deleted successfully.")
-            except Exception as e:
-                logger.error(f"Error deleting customer: {str(e)}")
-                show_error_message("Error", str(e))
+            self.customer_service.delete_customer(customer.id)
+            self.load_customers()
+            QMessageBox.information(self, "Success", "Customer deleted successfully.")
 
+    @ui_operation(show_dialog=True)
     def search_customers(self):
         search_term = self.search_input.text().strip()
         if search_term:
-            try:
-                customers = self.customer_service.search_customers(search_term)
-                self.populate_customer_table(customers)
-            except Exception as e:
-                logger.error(f"Error searching customers: {str(e)}")
-                show_error_message("Error", f"Failed to search customers: {str(e)}")
+            customers = self.customer_service.search_customers(search_term)
+            self.populate_customer_table(customers)
         else:
             self.load_customers()

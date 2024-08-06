@@ -5,6 +5,7 @@ from PySide6.QtCore import Qt
 from services.category_service import CategoryService
 from utils.system.logger import logger
 from utils.helpers import show_error_message, show_info_message
+from utils.decorators import ui_operation
 
 class AddEditCategoryDialog(QDialog):
     def __init__(self, parent=None, category=None):
@@ -25,21 +26,18 @@ class AddEditCategoryDialog(QDialog):
         self.button_box.rejected.connect(self.reject)
         layout.addRow(self.button_box)
 
+    @ui_operation(show_dialog=True)
     def accept(self):
         name = self.name_input.text().strip()
         if not name:
             show_error_message("Invalid Input", "Category name cannot be empty.")
             return
         
-        try:
-            if self.category:
-                self.category_service.update_category(self.category.id, name)
-            else:
-                self.category_service.create_category(name)
-            super().accept()
-        except Exception as e:
-            logger.error(f"Error {'updating' if self.category else 'creating'} category: {str(e)}")
-            show_error_message("Error", f"Failed to {'update' if self.category else 'create'} category: {str(e)}")
+        if self.category:
+            self.category_service.update_category(self.category.id, name)
+        else:
+            self.category_service.create_category(name)
+        super().accept()
 
 class CategoryManagementDialog(QDialog):
     def __init__(self, parent=None):
@@ -86,41 +84,37 @@ class CategoryManagementDialog(QDialog):
         
         self.load_categories()
 
+    @ui_operation(show_dialog=True)
     def load_categories(self):
-        try:
-            self.category_list.clear()
-            categories = self.category_service.get_all_categories()
-            for category in categories:
-                self.category_list.addItem(category.name)
-            self.update_status(f"Loaded {len(categories)} categories")
-        except Exception as e:
-            logger.error(f"Error loading categories: {str(e)}")
-            show_error_message("Error", f"Failed to load categories: {str(e)}")
+        self.category_list.clear()
+        categories = self.category_service.get_all_categories()
+        for category in categories:
+            self.category_list.addItem(category.name)
+        self.update_status(f"Loaded {len(categories)} categories")
 
+    @ui_operation(show_dialog=True)
     def add_category(self):
         dialog = AddEditCategoryDialog(self)
         if dialog.exec():
             self.load_categories()
             show_info_message("Success", "Category added successfully.")
 
+    @ui_operation(show_dialog=True)
     def edit_category(self):
         current_item = self.category_list.currentItem()
         if current_item:
-            try:
-                category = self.category_service.get_category_by_name(current_item.text())
-                if category:
-                    dialog = AddEditCategoryDialog(self, category)
-                    if dialog.exec():
-                        self.load_categories()
-                        show_info_message("Success", "Category updated successfully.")
-                else:
-                    raise ValueError(f"Category '{current_item.text()}' not found")
-            except Exception as e:
-                logger.error(f"Error editing category: {str(e)}")
-                show_error_message("Error", f"Failed to edit category: {str(e)}")
+            category = self.category_service.get_category_by_name(current_item.text())
+            if category:
+                dialog = AddEditCategoryDialog(self, category)
+                if dialog.exec():
+                    self.load_categories()
+                    show_info_message("Success", "Category updated successfully.")
+            else:
+                raise ValueError(f"Category '{current_item.text()}' not found")
         else:
             show_error_message("Error", "Please select a category to edit.")
 
+    @ui_operation(show_dialog=True)
     def delete_category(self):
         current_item = self.category_list.currentItem()
         if current_item:
@@ -129,32 +123,25 @@ class CategoryManagementDialog(QDialog):
                                          QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
                                          QMessageBox.StandardButton.No)
             if reply == QMessageBox.StandardButton.Yes:
-                try:
-                    category = self.category_service.get_category_by_name(current_item.text())
-                    if category:
-                        self.category_service.delete_category(category.id)
-                        self.load_categories()
-                        show_info_message("Success", "Category deleted successfully.")
-                    else:
-                        raise ValueError(f"Category '{current_item.text()}' not found")
-                except Exception as e:
-                    logger.error(f"Error deleting category: {str(e)}")
-                    show_error_message("Error", f"Failed to delete category: {str(e)}")
+                category = self.category_service.get_category_by_name(current_item.text())
+                if category:
+                    self.category_service.delete_category(category.id)
+                    self.load_categories()
+                    show_info_message("Success", "Category deleted successfully.")
+                else:
+                    raise ValueError(f"Category '{current_item.text()}' not found")
         else:
             show_error_message("Error", "Please select a category to delete.")
 
+    @ui_operation(show_dialog=True)
     def search_categories(self):
         search_term = self.search_input.text().strip()
         if search_term:
-            try:
-                categories = self.category_service.search_categories(search_term)
-                self.category_list.clear()
-                for category in categories:
-                    self.category_list.addItem(category.name)
-                self.update_status(f"Found {len(categories)} categories matching '{search_term}'")
-            except Exception as e:
-                logger.error(f"Error searching categories: {str(e)}")
-                show_error_message("Error", f"Failed to search categories: {str(e)}")
+            categories = self.category_service.search_categories(search_term)
+            self.category_list.clear()
+            for category in categories:
+                self.category_list.addItem(category.name)
+            self.update_status(f"Found {len(categories)} categories matching '{search_term}'")
         else:
             self.load_categories()
 

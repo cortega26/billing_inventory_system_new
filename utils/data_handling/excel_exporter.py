@@ -1,14 +1,18 @@
 import xlsxwriter
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
+import itertools
 import os
 import logging
-import itertools
+from utils.decorators import handle_external_service, validate_input
+from utils.exceptions import ExternalServiceException, ValidationException
 
 logger = logging.getLogger(__name__)
 
 class ExcelExporter:
     @staticmethod
+    @handle_external_service(show_dialog=True)
+    @validate_input(show_dialog=True)
     def export_to_excel(data: List[Dict[str, Any]], headers: List[str], filename: str, 
                         sheet_name: str = "Sheet1", auto_adjust_columns: bool = True) -> None:
         """
@@ -22,14 +26,14 @@ class ExcelExporter:
             auto_adjust_columns (bool, optional): Whether to auto-adjust column widths. Defaults to True.
 
         Raises:
-            ValueError: If the data is empty or headers don't match the data.
-            IOError: If there's an issue writing to the file.
+            ValidationException: If the data is empty or headers don't match the data.
+            ExternalServiceException: If there's an issue writing to the file.
         """
         if not data:
-            raise ValueError("No data to export")
+            raise ValidationException("No data to export")
 
         if set(headers) != set(data[0].keys()):
-            raise ValueError("Headers don't match the data keys")
+            raise ValidationException("Headers don't match the data keys")
 
         try:
             workbook = xlsxwriter.Workbook(filename)
@@ -59,13 +63,13 @@ class ExcelExporter:
             workbook.close()
             logger.info(f"Excel file created successfully: {os.path.abspath(filename)}")
         except IOError as e:
-            logger.error(f"Error writing to file {filename}: {str(e)}")
-            raise IOError(f"Error writing to file {filename}: {str(e)}")
+            raise ExternalServiceException(f"Error writing to file {filename}: {str(e)}")
         except Exception as e:
-            logger.error(f"An error occurred while exporting to Excel: {str(e)}")
-            raise Exception(f"An error occurred while exporting to Excel: {str(e)}")
+            raise ExternalServiceException(f"An error occurred while exporting to Excel: {str(e)}")
 
     @staticmethod
+    @handle_external_service(show_dialog=True)
+    @validate_input(show_dialog=True)
     def export_large_dataset(data_generator: Any, headers: List[str], filename: str, 
                              sheet_name: str = "Sheet1", chunk_size: int = 1000) -> None:
         """
@@ -79,7 +83,7 @@ class ExcelExporter:
             chunk_size (int, optional): Number of rows to write at a time. Defaults to 1000.
 
         Raises:
-            IOError: If there's an issue writing to the file.
+            ExternalServiceException: If there's an issue writing to the file.
         """
         try:
             workbook = xlsxwriter.Workbook(filename)
@@ -100,7 +104,7 @@ class ExcelExporter:
                     break
 
                 for item in chunk:
-                    for col, (key, value) in enumerate(item.items()):
+                    for col, (_, value) in enumerate(item.items()):
                         if isinstance(value, datetime):
                             worksheet.write_datetime(row, col, value, date_format)
                         else:
@@ -110,8 +114,6 @@ class ExcelExporter:
             workbook.close()
             logger.info(f"Large dataset exported successfully: {os.path.abspath(filename)}")
         except IOError as e:
-            logger.error(f"Error writing to file {filename}: {str(e)}")
-            raise IOError(f"Error writing to file {filename}: {str(e)}")
+            raise ExternalServiceException(f"Error writing to file {filename}: {str(e)}")
         except Exception as e:
-            logger.error(f"An error occurred while exporting large dataset to Excel: {str(e)}")
-            raise Exception(f"An error occurred while exporting large dataset to Excel: {str(e)}")
+            raise ExternalServiceException(f"An error occurred while exporting large dataset to Excel: {str(e)}")

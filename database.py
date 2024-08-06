@@ -3,6 +3,8 @@ from contextlib import contextmanager
 from typing import List, Dict, Any, Union, Optional, Tuple
 from config import DATABASE_PATH
 from utils.system.logger import logger
+from utils.decorators import db_operation, handle_exceptions
+from utils.exceptions import DatabaseException, ValidationException
 
 def validate_query_params(params: Any) -> None:
     if params is None:
@@ -10,17 +12,18 @@ def validate_query_params(params: Any) -> None:
     if isinstance(params, (tuple, list)):
         for param in params:
             if not isinstance(param, (str, int, float, type(None))):
-                raise ValueError(f"Invalid parameter type: {type(param)}")
+                raise ValidationException(f"Invalid parameter type: {type(param)}")
     elif isinstance(params, dict):
         for value in params.values():
             if not isinstance(value, (str, int, float, type(None))):
-                raise ValueError(f"Invalid parameter type: {type(value)}")
+                raise ValidationException(f"Invalid parameter type: {type(value)}")
     else:
-        raise ValueError(f"Invalid params type: {type(params)}")
+        raise ValidationException(f"Invalid params type: {type(params)}")
 
 class DatabaseManager:
     @staticmethod
     @contextmanager
+    @handle_exceptions(DatabaseException)
     def get_db_connection():
         conn = None
         try:
@@ -30,13 +33,14 @@ class DatabaseManager:
             yield conn
         except sqlite3.Error as e:
             logger.error(f"Database connection error: {e}")
-            raise
+            raise DatabaseException(f"Database connection error: {e}")
         finally:
             if conn:
                 conn.close()
                 logger.debug("Database connection closed")
 
     @classmethod
+    @db_operation(show_dialog=True)
     def execute_query(cls, query: str, params: Optional[Union[Tuple, List, Dict]] = None) -> sqlite3.Cursor:
         logger.debug(f"Executing query: {query}")
         logger.debug(f"Query parameters: {params}")
@@ -54,9 +58,10 @@ class DatabaseManager:
             except sqlite3.Error as e:
                 conn.rollback()
                 logger.error(f"Query execution error: {e}")
-                raise
+                raise DatabaseException(f"Query execution error: {e}")
 
     @classmethod
+    @db_operation(show_dialog=True)
     def fetch_one(cls, query: str, params: Optional[Union[Tuple, List, Dict]] = None) -> Optional[Dict[str, Any]]:
         logger.debug(f"Fetching one row with query: {query}")
         logger.debug(f"Query parameters: {params}")
@@ -71,6 +76,7 @@ class DatabaseManager:
             return dict(row) if row else None
 
     @classmethod
+    @db_operation(show_dialog=True)
     def fetch_all(cls, query: str, params: Optional[Union[Tuple, List, Dict]] = None) -> List[Dict[str, Any]]:
         logger.debug(f"Fetching all rows with query: {query}")
         logger.debug(f"Query parameters: {params}")
@@ -84,6 +90,7 @@ class DatabaseManager:
             logger.debug(f"Fetched {len(rows)} rows")
             return [dict(row) for row in rows]
 
+@db_operation(show_dialog=True)
 def init_db():
     with DatabaseManager.get_db_connection() as conn:
         cursor = conn.cursor()
@@ -187,4 +194,4 @@ def init_db():
         except sqlite3.Error as e:
             conn.rollback()
             logger.error(f"Database initialization error: {e}")
-            raise
+            raise DatabaseException(f"Database initialization error: {e}")

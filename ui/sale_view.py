@@ -14,6 +14,7 @@ from utils.system.logger import logger
 from utils.system.event_system import event_system
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
 from typing import List
+from utils.decorators import ui_operation, validate_input
 
 class CustomerSelectionDialog(QDialog):
     def __init__(self, customers: List[Customer], parent=None):
@@ -92,13 +93,12 @@ class SaleItemDialog(QDialog):
         total = self.quantity_input.value() * self.price_input.value()
         self.total_label.setText(f"{total:.2f}")
 
+    @validate_input(show_dialog=True)
     def validate_and_accept(self):
         if self.quantity_input.value() <= 0:
-            show_error_message("Invalid Quantity", "Quantity must be greater than 0.")
-            return
+            raise ValueError("Quantity must be greater than 0.")
         if self.price_input.value() <= 0:
-            show_error_message("Invalid Price", "Price must be greater than 0.")
-            return
+            raise ValueError("Price must be greater than 0.")
         self.accept()
 
     def get_item_data(self):
@@ -173,155 +173,133 @@ class SaleView(QWidget):
 
         self.load_sales()
 
+    @ui_operation(show_dialog=True)
     def load_sales(self):
         logger.debug("Loading sales")
-        try:
-            self.progress_bar.setVisible(True)
-            self.progress_bar.setValue(0)
-            sales = self.sale_service.get_all_sales()
-            self.update_sale_table(sales)
-            self.progress_bar.setValue(100)
-            QTimer.singleShot(1000, lambda: self.progress_bar.setVisible(False))
-        except Exception as e:
-            logger.error(f"Failed to load sales: {str(e)}")
-            show_error_message("Error", f"Failed to load sales: {str(e)}")
-            self.progress_bar.setVisible(False)
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setValue(0)
+        sales = self.sale_service.get_all_sales()
+        self.update_sale_table(sales)
+        self.progress_bar.setValue(100)
+        QTimer.singleShot(1000, lambda: self.progress_bar.setVisible(False))
 
+    @ui_operation(show_dialog=True)
     def update_sale_table(self, sales: List[Sale]):
         self.sale_table.setRowCount(len(sales))
         for row, sale in enumerate(sales):
-            try:
-                customer = self.customer_service.get_customer(sale.customer_id)
+            customer = self.customer_service.get_customer(sale.customer_id)
 
-                self.sale_table.setItem(row, 0, NumericTableWidgetItem(sale.id))
+            self.sale_table.setItem(row, 0, NumericTableWidgetItem(sale.id))
 
-                customer_text = f"{customer.identifier_9} ({customer.identifier_3or4 or 'N/A'})" if customer else "Unknown Customer"
-                self.sale_table.setItem(row, 1, QTableWidgetItem(customer_text))
+            customer_text = f"{customer.identifier_9} ({customer.identifier_3or4 or 'N/A'})" if customer else "Unknown Customer"
+            self.sale_table.setItem(row, 1, QTableWidgetItem(customer_text))
 
-                self.sale_table.setItem(row, 2, QTableWidgetItem(sale.date.strftime("%Y-%m-%d")))
+            self.sale_table.setItem(row, 2, QTableWidgetItem(sale.date.strftime("%Y-%m-%d")))
 
-                total_amount_item = QTableWidgetItem(format_price(sale.total_amount))
-                total_amount_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            self.sale_table.setItem(row, 3, PriceTableWidgetItem(sale.total_amount, format_price))
 
-                self.sale_table.setItem(row, 3, PriceTableWidgetItem(sale.total_amount, format_price))
+            actions_widget = QWidget()
+            actions_layout = QHBoxLayout(actions_widget)
+            actions_layout.setContentsMargins(0, 0, 0, 0)
 
-                actions_widget = QWidget()
-                actions_layout = QHBoxLayout(actions_widget)
-                actions_layout.setContentsMargins(0, 0, 0, 0)
+            view_button = QPushButton("View")
+            view_button.clicked.connect(lambda _, s=sale: self.view_sale(s))
+            actions_layout.addWidget(view_button)
 
-                view_button = QPushButton("View")
-                view_button.clicked.connect(lambda _, s=sale: self.view_sale(s))
-                actions_layout.addWidget(view_button)
+            delete_button = QPushButton("Delete")
+            delete_button.clicked.connect(lambda _, s=sale: self.delete_sale(s))
+            actions_layout.addWidget(delete_button)
 
-                delete_button = QPushButton("Delete")
-                delete_button.clicked.connect(lambda _, s=sale: self.delete_sale(s))
-                actions_layout.addWidget(delete_button)
+            self.sale_table.setCellWidget(row, 4, actions_widget)
 
-                self.sale_table.setCellWidget(row, 4, actions_widget)
-
-            except Exception as e:
-                logger.error(f"Error populating sale row: {str(e)}")
-
+    @ui_operation(show_dialog=True)
     def select_customer(self):
         identifier = self.customer_input.text().strip()
         logger.debug(f"Selecting customer with identifier: {identifier}")
-        try:
-            if len(identifier) == 9:
-                customer = self.customer_service.get_customer_by_identifier_9(identifier)
-            elif len(identifier) in (3, 4):
-                customers = self.customer_service.get_customers_by_identifier_3or4(identifier)
-                if len(customers) == 1:
-                    customer = customers[0]
-                elif len(customers) > 1:
-                    # If multiple customers found, show a dialog to select one
-                    dialog = CustomerSelectionDialog(customers, self)
-                    if dialog.exec():
-                        customer = self.customer_service.get_customer(dialog.get_selected_customer())
-                    else:
-                        return
+        if len(identifier) == 9:
+            customer = self.customer_service.get_customer_by_identifier_9(identifier)
+        elif len(identifier) in (3, 4):
+            customers = self.customer_service.get_customers_by_identifier_3or4(identifier)
+            if len(customers) == 1:
+                customer = customers[0]
+            elif len(customers) > 1:
+                # If multiple customers found, show a dialog to select one
+                dialog = CustomerSelectionDialog(customers, self)
+                if dialog.exec():
+                    customer = self.customer_service.get_customer(dialog.get_selected_customer())
                 else:
-                    customer = None
+                    return
             else:
-                raise ValueError("Invalid identifier length")
-            
-            if customer:
-                self.selected_customer_id = customer.id
-                self.customer_input.setText(f"{customer.identifier_9} ({customer.identifier_3or4 or 'N/A'})")
-            else:
-                show_error_message("Error", "No customer found with the given identifier.")
-        except Exception as e:
-            logger.error(f"Error selecting customer: {str(e)}")
-            show_error_message("Error", str(e))
+                customer = None
+        else:
+            raise ValueError("Invalid identifier length")
+        
+        if customer:
+            self.selected_customer_id = customer.id
+            self.customer_input.setText(f"{customer.identifier_9} ({customer.identifier_3or4 or 'N/A'})")
+        else:
+            raise ValueError("No customer found with the given identifier.")
 
+    @ui_operation(show_dialog=True)
     def add_sale(self):
         if not hasattr(self, 'selected_customer_id'):
-            logger.error("No customer selected")
-            show_error_message("Error", "Please select a customer first.")
-            return
+            raise ValueError("Please select a customer first.")
 
         date = self.date_input.date().toString("yyyy-MM-dd")
 
-        try:
-            products = self.product_service.get_all_products()
-            items = []
-            while True:
-                dialog = SaleItemDialog(products, self)
-                if dialog.exec():
-                    items.append(dialog.get_item_data())
-                    reply = QMessageBox.question(
-                        self, "Add Another Item", "Do you want to add another item?",
-                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No
-                        )
-                    if reply == QMessageBox.StandardButton.No:
-                        break
-                else:
+        products = self.product_service.get_all_products()
+        items = []
+        while True:
+            dialog = SaleItemDialog(products, self)
+            if dialog.exec():
+                items.append(dialog.get_item_data())
+                reply = QMessageBox.question(
+                    self, "Add Another Item", "Do you want to add another item?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No
+                    )
+                if reply == QMessageBox.StandardButton.No:
                     break
-
-            if items:
-                sale_id = self.sale_service.create_sale(self.selected_customer_id, date, items)
-                if sale_id is not None:
-                    logger.info(f"Sale added successfully with ID: {sale_id}")
-                    self.load_sales()
-                    self.customer_input.clear()
-                    del self.selected_customer_id
-                    show_info_message("Success", "Sale added successfully.")
-                    event_system.sale_added.emit(sale_id)
-                else:
-                    logger.error("Failed to add sale")
-                    show_error_message("Error", "Failed to add sale.")
             else:
-                logger.error("No items added to the sale")
-                show_error_message("Error", "No items added to the sale.")
-        except Exception as e:
-            logger.error(f"Error adding sale: {str(e)}")
-            show_error_message("Error", str(e))
+                break
 
+        if items:
+            sale_id = self.sale_service.create_sale(self.selected_customer_id, date, items)
+            if sale_id is not None:
+                logger.info(f"Sale added successfully with ID: {sale_id}")
+                self.load_sales()
+                self.customer_input.clear()
+                del self.selected_customer_id
+                show_info_message("Success", "Sale added successfully.")
+                event_system.sale_added.emit(sale_id)
+            else:
+                raise ValueError("Failed to add sale.")
+        else:
+            raise ValueError("No items added to the sale.")
+
+    @ui_operation(show_dialog=True)
     def view_sale(self, sale: Sale):
-        try:
-            items = self.sale_service.get_sale_items(sale.id)
-            customer = self.customer_service.get_customer(sale.customer_id)
-            customer_text = f"{customer.identifier_9} ({customer.identifier_3or4 or 'N/A'})" if customer else "Unknown Customer"
-            
-            message = f"<pre>"
-            message += f"{'Sale Details':=^60}\n\n"
-            message += f"Customer: {customer_text}\n"
-            message += f"Date: {sale.date.strftime('%Y-%m-%d')}\n"
-            message += f"{'':=^60}\n\n"
-            message += f"{'Item':<20}{'Quantity':>10}{'Unit Price':>15}{'Subtotal':>15}\n"
-            message += f"{'':-^60}\n"
-            for item in items:
-                product = self.product_service.get_product(item.product_id)
-                product_name = product.name if product else "Unknown Product"
-                message += f"{product_name[:20]:<20}{item.quantity:>10.2f}{format_price(item.unit_price):>15}{format_price(item.total_price()):>15}\n"
-            message += f"{'':-^60}\n"
-            message += f"{'Total Amount:':<45}{format_price(sale.total_amount):>15}\n"
-            message += "</pre>"
-            
-            show_info_message("Sale Details", message)
-        except Exception as e:
-            logger.error(f"Error viewing sale details: {str(e)}")
-            show_error_message("Error", f"Failed to view sale details: {str(e)}")
+        items = self.sale_service.get_sale_items(sale.id)
+        customer = self.customer_service.get_customer(sale.customer_id)
+        customer_text = f"{customer.identifier_9} ({customer.identifier_3or4 or 'N/A'})" if customer else "Unknown Customer"
+        
+        message = f"<pre>"
+        message += f"{'Sale Details':=^60}\n\n"
+        message += f"Customer: {customer_text}\n"
+        message += f"Date: {sale.date.strftime('%Y-%m-%d')}\n"
+        message += f"{'':=^60}\n\n"
+        message += f"{'Item':<20}{'Quantity':>10}{'Unit Price':>15}{'Subtotal':>15}\n"
+        message += f"{'':-^60}\n"
+        for item in items:
+            product = self.product_service.get_product(item.product_id)
+            product_name = product.name if product else "Unknown Product"
+            message += f"{product_name[:20]:<20}{item.quantity:>10.2f}{format_price(item.unit_price):>15}{format_price(item.total_price()):>15}\n"
+        message += f"{'':-^60}\n"
+        message += f"{'Total Amount:':<45}{format_price(sale.total_amount):>15}\n"
+        message += "</pre>"
+        
+        show_info_message("Sale Details", message)
 
+    @ui_operation(show_dialog=True)
     def delete_sale(self, sale: Sale):
         reply = QMessageBox.question(
             self, 'Delete Sale', 
@@ -329,35 +307,30 @@ class SaleView(QWidget):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No
             )
         if reply == QMessageBox.StandardButton.Yes:
-            try:
-                self.sale_service.delete_sale(sale.id)
-                self.load_sales()
-                show_info_message("Success", "Sale deleted successfully.")
-                event_system.sale_deleted.emit(sale.id)
-            except Exception as e:
-                logger.error(f"Error deleting sale: {str(e)}")
-                show_error_message("Error", str(e))
+            self.sale_service.delete_sale(sale.id)
+            self.load_sales()
+            show_info_message("Success", "Sale deleted successfully.")
+            event_system.sale_deleted.emit(sale.id)
 
+    @ui_operation(show_dialog=True)
     def search_sales(self):
         search_term = self.search_input.text().strip().lower()
         if search_term:
-            try:
-                sales = self.sale_service.get_all_sales()
-                filtered_sales = [
-                    s for s in sales
-                    if search_term in str(s.id).lower() or
-                    search_term in s.date.strftime("%Y-%m-%d").lower() or
-                    search_term in str(s.total_amount).lower()
-                ]
-                self.update_sale_table(filtered_sales)
-            except Exception as e:
-                logger.error(f"Error searching sales: {str(e)}")
-                show_error_message("Error", f"Failed to search sales: {str(e)}")
+            sales = self.sale_service.get_all_sales()
+            filtered_sales = [
+                s for s in sales
+                if search_term in str(s.id).lower() or
+                search_term in s.date.strftime("%Y-%m-%d").lower() or
+                search_term in str(s.total_amount).lower()
+            ]
+            self.update_sale_table(filtered_sales)
         else:
             self.load_sales()
 
+    @ui_operation(show_dialog=True)
     def on_product_updated(self, product_id):
         self.load_sales()
 
+    @ui_operation(show_dialog=True)
     def on_product_deleted(self, product_id):
         self.load_sales()

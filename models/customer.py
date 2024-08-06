@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
+from utils.exceptions import ValidationException
+from utils.decorators import validate_input
 
 @dataclass
 class Customer:
@@ -21,16 +23,18 @@ class Customer:
             identifier_3or4=row.get('identifier_3or4')
         )
 
+    @validate_input(show_dialog=True)
     def update_identifier_9(self, new_identifier_9: str) -> None:
         if not isinstance(new_identifier_9, str) or len(new_identifier_9) != 9:
-            raise ValueError("identifier_9 must be a string of 9 characters")
+            raise ValidationException("identifier_9 must be a string of 9 characters")
         self.identifier_9 = new_identifier_9
         self._identifiers[0] = new_identifier_9
 
+    @validate_input(show_dialog=True)
     def update_identifier_3or4(self, new_identifier_3or4: Optional[str]) -> None:
         if new_identifier_3or4 is not None:
             if not isinstance(new_identifier_3or4, str) or len(new_identifier_3or4) not in (3, 4):
-                raise ValueError("identifier_3or4 must be a string of 3 or 4 characters")
+                raise ValidationException("identifier_3or4 must be a string of 3 or 4 characters")
             self.identifier_3or4 = new_identifier_3or4
             if len(self._identifiers) > 1:
                 self._identifiers[1] = new_identifier_3or4

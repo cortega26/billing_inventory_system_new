@@ -9,6 +9,7 @@ from utils.helpers import create_table, show_error_message, format_price
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem, PercentageTableWidgetItem
 from typing import List, Dict, Any
 from utils.system.logger import logger
+from utils.decorators import ui_operation
 
 class AnalyticsView(QWidget):
     def __init__(self):
@@ -84,6 +85,7 @@ class AnalyticsView(QWidget):
         self.update_timer.timeout.connect(self.update_analytics)
         self.update_timer.start(300000)  # Update every 5 minutes
 
+    @ui_operation(show_dialog=True)
     def generate_analytics(self):
         self.progress_bar.setValue(0)
         analytics_type = self.analytics_type.currentText()
@@ -91,121 +93,94 @@ class AnalyticsView(QWidget):
         end_date = self.end_date.date().toString("yyyy-MM-dd")
         top_n = self.top_n_spinbox.value()
 
-        try:
-            if analytics_type == "Loyal Customers":
-                self.show_loyal_customers()
-            elif analytics_type == "Sales by Weekday":
-                self.show_sales_by_weekday(start_date, end_date)
-            elif analytics_type == "Top Selling Products":
-                self.show_top_selling_products(start_date, end_date, top_n)
-            elif analytics_type == "Sales Trend":
-                self.show_sales_trend(start_date, end_date)
-            elif analytics_type == "Category Performance":
-                self.show_category_performance(start_date, end_date)
-            elif analytics_type == "Inventory Turnover":
-                self.show_inventory_turnover(start_date, end_date)
-            elif analytics_type == "Customer Retention Rate":
-                self.show_customer_retention_rate(start_date, end_date)
+        if analytics_type == "Loyal Customers":
+            self.show_loyal_customers()
+        elif analytics_type == "Sales by Weekday":
+            self.show_sales_by_weekday(start_date, end_date)
+        elif analytics_type == "Top Selling Products":
+            self.show_top_selling_products(start_date, end_date, top_n)
+        elif analytics_type == "Sales Trend":
+            self.show_sales_trend(start_date, end_date)
+        elif analytics_type == "Category Performance":
+            self.show_category_performance(start_date, end_date)
+        elif analytics_type == "Inventory Turnover":
+            self.show_inventory_turnover(start_date, end_date)
+        elif analytics_type == "Customer Retention Rate":
+            self.show_customer_retention_rate(start_date, end_date)
 
-            self.progress_bar.setValue(100)
-        except Exception as e:
-            logger.error(f"Error generating analytics: {str(e)}")
-            show_error_message("Error", f"Failed to generate analytics: {str(e)}")
+        self.progress_bar.setValue(100)
 
     def update_analytics(self):
-        # Auto-update the current view
         self.generate_analytics()
 
+    @ui_operation(show_dialog=True)
     def show_loyal_customers(self):
-        try:
-            loyal_customers = self.analytics_service.get_loyal_customers()
-            self._populate_table_and_chart(loyal_customers, 
-                                           ["ID", "9-digit Identifier", "Purchase Count"], 
-                                           'identifier_9', 'purchase_count', "Loyal Customers")
-            total_loyal = len(loyal_customers)
-            avg_purchases = sum(c['purchase_count'] for c in loyal_customers) / total_loyal if total_loyal > 0 else 0
-            self.summary_text.setText(f"Total loyal customers: {total_loyal}, Average purchases: {format_price(avg_purchases)}")
+        loyal_customers = self.analytics_service.get_loyal_customers()
+        self._populate_table_and_chart(loyal_customers, 
+                                       ["ID", "9-digit Identifier", "Purchase Count"], 
+                                       'identifier_9', 'purchase_count', "Loyal Customers")
+        total_loyal = len(loyal_customers)
+        avg_purchases = sum(c['purchase_count'] for c in loyal_customers) / total_loyal if total_loyal > 0 else 0
+        self.summary_text.setText(f"Total loyal customers: {total_loyal}, Average purchases: {format_price(avg_purchases)}")
 
-        except Exception as e:
-            logger.error(f"Error showing loyal customers: {str(e)}")
-            show_error_message("Error", f"Failed to show loyal customers: {str(e)}")
-
+    @ui_operation(show_dialog=True)
     def show_sales_by_weekday(self, start_date: str, end_date: str):
-        try:
-            sales_by_weekday = self.analytics_service.get_sales_by_weekday(start_date, end_date)
-            self._populate_table_and_chart(sales_by_weekday, 
-                                           ["Weekday", "Total Sales"], 
-                                           'weekday', 'total_sales', "Sales by Weekday")
-            total_sales = sum(day['total_sales'] for day in sales_by_weekday)
-            avg_daily_sales = total_sales / 7 if len(sales_by_weekday) == 7 else 0
-            self.summary_text.setText(f"Total sales: {format_price(total_sales)}, Average daily sales: {format_price(avg_daily_sales)}")
-        except Exception as e:
-            logger.error(f"Error showing sales by weekday: {str(e)}")
-            show_error_message("Error", f"Failed to show sales by weekday: {str(e)}")
+        sales_by_weekday = self.analytics_service.get_sales_by_weekday(start_date, end_date)
+        self._populate_table_and_chart(sales_by_weekday, 
+                                       ["Weekday", "Total Sales"], 
+                                       'weekday', 'total_sales', "Sales by Weekday")
+        total_sales = sum(day['total_sales'] for day in sales_by_weekday)
+        avg_daily_sales = total_sales / 7 if len(sales_by_weekday) == 7 else 0
+        self.summary_text.setText(f"Total sales: {format_price(total_sales)}, Average daily sales: {format_price(avg_daily_sales)}")
 
+    @ui_operation(show_dialog=True)
     def show_top_selling_products(self, start_date: str, end_date: str, top_n: int):
-        try:
-            top_products = self.analytics_service.get_top_selling_products(start_date, end_date, top_n)
-            self._populate_table_and_chart(top_products, 
-                                           ["Product ID", "Product Name", "Total Quantity", "Total Revenue"], 
-                                           'name', 'total_quantity', "Top Selling Products")
-            total_quantity = sum(p['total_quantity'] for p in top_products)
-            total_revenue = sum(p['total_revenue'] for p in top_products)
-            self.summary_text.setText(f"Total quantity sold: {total_quantity}, Total revenue: ${total_revenue:.2f}")
-        except Exception as e:
-            logger.error(f"Error showing top selling products: {str(e)}")
-            show_error_message("Error", f"Failed to show top selling products: {str(e)}")
+        top_products = self.analytics_service.get_top_selling_products(start_date, end_date, top_n)
+        self._populate_table_and_chart(top_products, 
+                                       ["Product ID", "Product Name", "Total Quantity", "Total Revenue"], 
+                                       'name', 'total_quantity', "Top Selling Products")
+        total_quantity = sum(p['total_quantity'] for p in top_products)
+        total_revenue = sum(p['total_revenue'] for p in top_products)
+        self.summary_text.setText(f"Total quantity sold: {total_quantity}, Total revenue: ${total_revenue:.2f}")
 
+    @ui_operation(show_dialog=True)
     def show_sales_trend(self, start_date: str, end_date: str):
-        try:
-            sales_trend = self.analytics_service.get_sales_trend(start_date, end_date)
-            self._populate_table_and_chart(sales_trend, 
-                                           ["Date", "Daily Sales"], 
-                                           'date', 'daily_sales', "Sales Trend", 
-                                           chart_type='line')
-            total_sales = sum(day['daily_sales'] for day in sales_trend)
-            avg_daily_sales = total_sales / len(sales_trend) if sales_trend else 0
-            self.summary_text.setText(f"Total sales: ${total_sales:.2f}, Average daily sales: ${avg_daily_sales:.2f}")
-        except Exception as e:
-            logger.error(f"Error showing sales trend: {str(e)}")
-            show_error_message("Error", f"Failed to show sales trend: {str(e)}")
+        sales_trend = self.analytics_service.get_sales_trend(start_date, end_date)
+        self._populate_table_and_chart(sales_trend, 
+                                       ["Date", "Daily Sales"], 
+                                       'date', 'daily_sales', "Sales Trend", 
+                                       chart_type='line')
+        total_sales = sum(day['daily_sales'] for day in sales_trend)
+        avg_daily_sales = total_sales / len(sales_trend) if sales_trend else 0
+        self.summary_text.setText(f"Total sales: ${total_sales:.2f}, Average daily sales: ${avg_daily_sales:.2f}")
 
+    @ui_operation(show_dialog=True)
     def show_category_performance(self, start_date: str, end_date: str):
-        try:
-            category_performance = self.analytics_service.get_category_performance(start_date, end_date)
-            self._populate_table_and_chart(category_performance,
-                                           ["Category", "Total Sales", "Number of Products Sold"],
-                                           'category', 'total_sales', "Category Performance")
-            total_sales = sum(c['total_sales'] for c in category_performance)
-            total_products_sold = sum(c['number_of_products_sold'] for c in category_performance)
-            self.summary_text.setText(f"Total sales: ${total_sales:.2f}, Total products sold: {total_products_sold}")
-        except Exception as e:
-            logger.error(f"Error showing category performance: {str(e)}")
-            show_error_message("Error", f"Failed to show category performance: {str(e)}")
+        category_performance = self.analytics_service.get_category_performance(start_date, end_date)
+        self._populate_table_and_chart(category_performance,
+                                       ["Category", "Total Sales", "Number of Products Sold"],
+                                       'category', 'total_sales', "Category Performance")
+        total_sales = sum(c['total_sales'] for c in category_performance)
+        total_products_sold = sum(c['number_of_products_sold'] for c in category_performance)
+        self.summary_text.setText(f"Total sales: ${total_sales:.2f}, Total products sold: {total_products_sold}")
 
+    @ui_operation(show_dialog=True)
     def show_inventory_turnover(self, start_date: str, end_date: str):
-        try:
-            inventory_turnover = self.analytics_service.get_inventory_turnover(start_date, end_date)
-            self._populate_table_and_chart(inventory_turnover,
-                                           ["Product ID", "Product Name", "Turnover Ratio"],
-                                           'name', 'turnover_ratio', "Inventory Turnover")
-            avg_turnover = sum(p['turnover_ratio'] for p in inventory_turnover) / len(inventory_turnover) if inventory_turnover else 0
-            self.summary_text.setText(f"Average turnover ratio: {avg_turnover:.2f}")
-        except Exception as e:
-            logger.error(f"Error showing inventory turnover: {str(e)}")
-            show_error_message("Error", f"Failed to show inventory turnover: {str(e)}")
+        inventory_turnover = self.analytics_service.get_inventory_turnover(start_date, end_date)
+        self._populate_table_and_chart(inventory_turnover,
+                                       ["Product ID", "Product Name", "Turnover Ratio"],
+                                       'name', 'turnover_ratio', "Inventory Turnover")
+        avg_turnover = sum(p['turnover_ratio'] for p in inventory_turnover) / len(inventory_turnover) if inventory_turnover else 0
+        self.summary_text.setText(f"Average turnover ratio: {avg_turnover:.2f}")
 
+    @ui_operation(show_dialog=True)
     def show_customer_retention_rate(self, start_date: str, end_date: str):
-        try:
-            retention_data = self.analytics_service.get_customer_retention_rate(start_date, end_date)
-            self._populate_table_and_chart([retention_data],
-                                           ["Total Customers", "Returning Customers", "Retention Rate"],
-                                           'retention_rate', 'retention_rate', "Customer Retention Rate",
-                                           chart_type='pie')
-            self.summary_text.setText(f"Customer retention rate: {retention_data['retention_rate']:.2f}%")
-        except Exception as e:
-            logger.error(f"Error showing customer retention rate: {str(e)}")
-            show_error_message("Error", f"Failed to show customer retention rate: {str(e)}")
+        retention_data = self.analytics_service.get_customer_retention_rate(start_date, end_date)
+        self._populate_table_and_chart([retention_data],
+                                       ["Total Customers", "Returning Customers", "Retention Rate"],
+                                       'retention_rate', 'retention_rate', "Customer Retention Rate",
+                                       chart_type='pie')
+        self.summary_text.setText(f"Customer retention rate: {retention_data['retention_rate']:.2f}%")
 
     def _populate_table_and_chart(self, data: List[Dict[str, Any]], headers: List[str], 
                                   x_key: str, y_key: str, title: str, chart_type: str = 'bar'):

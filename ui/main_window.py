@@ -13,6 +13,7 @@ from typing import Dict, Type
 from utils.system.logger import logger
 from config import APP_NAME, APP_VERSION, COMPANY_NAME
 from utils.system.event_system import event_system
+from utils.decorators import ui_operation
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -21,38 +22,35 @@ class MainWindow(QMainWindow):
         self.settings = QSettings(COMPANY_NAME, APP_NAME)
         self.setup_ui()
 
+    @ui_operation(show_dialog=True)
     def setup_ui(self):
-        try:
-            # Handle window size
-            size_value = self.settings.value("WindowSize")
-            if isinstance(size_value, QSize):
-                self.resize(size_value)
-            else:
-                self.resize(QSize(1200, 800))
+        # Handle window size
+        size_value = self.settings.value("WindowSize")
+        if isinstance(size_value, QSize):
+            self.resize(size_value)
+        else:
+            self.resize(QSize(1200, 800))
 
-            # Handle window position
-            pos_value = self.settings.value("WindowPosition")
-            if isinstance(pos_value, QPoint):
-                self.move(pos_value)
-            else:
-                self.move(QPoint(100, 100))
+        # Handle window position
+        pos_value = self.settings.value("WindowPosition")
+        if isinstance(pos_value, QPoint):
+            self.move(pos_value)
+        else:
+            self.move(QPoint(100, 100))
 
-            self.setup_menu_bar()
-            self.setup_status_bar()
+        self.setup_menu_bar()
+        self.setup_status_bar()
 
-            central_widget = QWidget()
-            self.setCentralWidget(central_widget)
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
 
-            layout = QVBoxLayout(central_widget)
+        layout = QVBoxLayout(central_widget)
 
-            self.tab_widget = QTabWidget()
-            layout.addWidget(self.tab_widget)
+        self.tab_widget = QTabWidget()
+        layout.addWidget(self.tab_widget)
 
-            self.create_tabs()
-            logger.info("Main window UI setup completed successfully")
-        except Exception as e:
-            logger.error(f"Error setting up main window UI: {str(e)}")
-            QMessageBox.critical(self, "UI Setup Error", f"An error occurred while setting up the UI: {str(e)}")
+        self.create_tabs()
+        logger.info("Main window UI setup completed successfully")
 
     def setup_menu_bar(self):
         menu_bar = QMenuBar(self)
@@ -80,6 +78,7 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("Ready")
 
+    @ui_operation(show_dialog=True)
     def create_tabs(self):
         tabs: Dict[str, Type[QWidget]] = {
             "Dashboard": DashboardView,
@@ -92,16 +91,9 @@ class MainWindow(QMainWindow):
         }
 
         for tab_name, view_class in tabs.items():
-            try:
-                view = view_class()
-                self.tab_widget.addTab(view, tab_name)
-                logger.info(f"Added {tab_name} tab successfully")
-            except Exception as e:
-                logger.error(f"Error initializing {tab_name} view: {str(e)}")
-                QMessageBox.critical(
-                    self, "Initialization Error", 
-                    f"Failed to initialize {tab_name} view. The application may not function correctly: {str(e)}"
-                    )
+            view = view_class()
+            self.tab_widget.addTab(view, tab_name)
+            logger.info(f"Added {tab_name} tab successfully")
 
         # Restore the last selected tab
         last_tab_index = self.settings.value("LastTabIndex", 0)
@@ -120,11 +112,13 @@ class MainWindow(QMainWindow):
         event_system.sale_added.connect(self.on_sale_added)
         event_system.purchase_added.connect(self.on_purchase_added)
 
+    @ui_operation(show_dialog=True)
     def on_tab_changed(self, index):
         self.settings.setValue("LastTabIndex", index)
         tab_name = self.tab_widget.tabText(index)
         self.status_bar.showMessage(f"Current view: {tab_name}")
 
+    @ui_operation(show_dialog=True)
     def show_about_dialog(self):
         QMessageBox.about(
             self, "About",
@@ -133,6 +127,7 @@ class MainWindow(QMainWindow):
             "An inventory and billing management system."
             )
 
+    @ui_operation(show_dialog=True)
     def closeEvent(self, event):
         reply = QMessageBox.question(
             self, 'Exit', 'Are you sure you want to exit?',
@@ -153,26 +148,32 @@ class MainWindow(QMainWindow):
     def show_status_message(self, message: str, timeout: int = 5000):
         self.status_bar.showMessage(message, timeout)
 
+    @ui_operation(show_dialog=True)
     def on_product_added(self, product_id: int):
         self.show_status_message(f"Product added (ID: {product_id})")
         self.refresh_relevant_views()
 
+    @ui_operation(show_dialog=True)
     def on_product_updated(self, product_id: int):
         self.show_status_message(f"Product updated (ID: {product_id})")
         self.refresh_relevant_views()
 
+    @ui_operation(show_dialog=True)
     def on_product_deleted(self, product_id: int):
         self.show_status_message(f"Product deleted (ID: {product_id})")
         self.refresh_relevant_views()
 
+    @ui_operation(show_dialog=True)
     def on_sale_added(self, sale_id: int):
         self.show_status_message(f"Sale added (ID: {sale_id})")
         self.refresh_relevant_views()
 
+    @ui_operation(show_dialog=True)
     def on_purchase_added(self, purchase_id: int):
         self.show_status_message(f"Purchase added (ID: {purchase_id})")
         self.refresh_relevant_views()
 
+    @ui_operation(show_dialog=True)
     def refresh_relevant_views(self):
         for i in range(self.tab_widget.count()):
             widget = self.tab_widget.widget(i)

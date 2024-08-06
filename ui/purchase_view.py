@@ -7,11 +7,12 @@ from PySide6.QtCore import Qt, QDate, QTimer
 from services.purchase_service import PurchaseService
 from services.product_service import ProductService
 from models.purchase import Purchase
-from utils.helpers import create_table, show_error_message, show_info_message, format_price
+from utils.helpers import create_table, show_info_message, format_price
 from utils.system.logger import logger
 from utils.system.event_system import event_system
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
 from typing import List
+from utils.decorators import ui_operation, validate_input
 
 class PurchaseItemDialog(QDialog):
     def __init__(self, products, parent=None):
@@ -54,13 +55,12 @@ class PurchaseItemDialog(QDialog):
         else:
             self.cost_price_input.setValue(0.00)
 
+    @validate_input(show_dialog=True)
     def validate_and_accept(self):
         if self.quantity_input.value() <= 0:
-            show_error_message("Invalid Quantity", "Quantity must be greater than 0.")
-            return
+            raise ValueError("Quantity must be greater than 0.")
         if self.cost_price_input.value() <= 0:
-            show_error_message("Invalid Price", "Cost price must be greater than 0.")
-            return
+            raise ValueError("Cost price must be greater than 0.")
         self.accept()
 
     def get_item_data(self):
@@ -112,7 +112,6 @@ class PurchaseView(QWidget):
 
         # Purchase table
         self.purchase_table = create_table(["ID", "Supplier", "Date", "Total Amount", "Actions"])
-        #self.purchase_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.purchase_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.purchase_table.setSortingEnabled(True)
         self.purchase_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -126,28 +125,22 @@ class PurchaseView(QWidget):
 
         self.load_purchases()
 
+    @ui_operation(show_dialog=True)
     def load_purchases(self):
-        try:
-            self.progress_bar.setVisible(True)
-            self.progress_bar.setValue(0)
-            purchases = self.purchase_service.get_all_purchases()
-            self.update_purchase_table(purchases)
-            self.progress_bar.setValue(100)
-            QTimer.singleShot(1000, lambda: self.progress_bar.setVisible(False))
-        except Exception as e:
-            logger.error(f"Failed to load purchases: {str(e)}")
-            show_error_message("Error", f"Failed to load purchases: {str(e)}")
-            self.progress_bar.setVisible(False)
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setValue(0)
+        purchases = self.purchase_service.get_all_purchases()
+        self.update_purchase_table(purchases)
+        self.progress_bar.setValue(100)
+        QTimer.singleShot(1000, lambda: self.progress_bar.setVisible(False))
 
+    @ui_operation(show_dialog=True)
     def update_purchase_table(self, purchases: List[Purchase]):
         self.purchase_table.setRowCount(len(purchases))
         for row, purchase in enumerate(purchases):
             self.purchase_table.setItem(row, 0, NumericTableWidgetItem(purchase.id))
             self.purchase_table.setItem(row, 1, QTableWidgetItem(purchase.supplier))
             self.purchase_table.setItem(row, 2, QTableWidgetItem(purchase.date.strftime("%Y-%m-%d")))
-
-            total_amount_item = QTableWidgetItem(format_price(purchase.total_amount))
-            total_amount_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             self.purchase_table.setItem(row, 3, PriceTableWidgetItem(purchase.total_amount, format_price))
 
             actions_widget = QWidget()
@@ -164,60 +157,54 @@ class PurchaseView(QWidget):
 
             self.purchase_table.setCellWidget(row, 4, actions_widget)
 
+    @ui_operation(show_dialog=True)
     def add_purchase(self):
         supplier = self.supplier_input.text().strip()
         date = self.date_input.date().toString("yyyy-MM-dd")
 
         if not supplier:
-            show_error_message("Error", "Supplier is required.")
-            return
+            raise ValueError("Supplier is required.")
 
-        try:
-            products = self.product_service.get_all_products()
-            items = []
-            while True:
-                dialog = PurchaseItemDialog(products, self)
-                if dialog.exec():
-                    items.append(dialog.get_item_data())
-                    reply = QMessageBox.question(
-                        self, "Add Another Item", "Do you want to add another item?",
-                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
-                        QMessageBox.StandardButton.No
-                        )
-                    if reply == QMessageBox.StandardButton.No:
-                        break
-                else:
+        products = self.product_service.get_all_products()
+        items = []
+        while True:
+            dialog = PurchaseItemDialog(products, self)
+            if dialog.exec():
+                items.append(dialog.get_item_data())
+                reply = QMessageBox.question(
+                    self, "Add Another Item", "Do you want to add another item?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
+                    QMessageBox.StandardButton.No
+                    )
+                if reply == QMessageBox.StandardButton.No:
                     break
-
-            if items:
-                purchase_id = self.purchase_service.create_purchase(supplier, date, items)
-                if purchase_id is not None:
-                    self.load_purchases()
-                    self.supplier_input.clear()
-                    show_info_message("Success", "Purchase added successfully.")
-                    event_system.purchase_added.emit(purchase_id)
-                else:
-                    show_error_message("Error", "Failed to add purchase.")
             else:
-                show_error_message("Error", "No items added to the purchase.")
-        except Exception as e:
-            logger.error(f"Error adding purchase: {str(e)}")
-            show_error_message("Error", str(e))
+                break
 
+        if items:
+            purchase_id = self.purchase_service.create_purchase(supplier, date, items)
+            if purchase_id is not None:
+                self.load_purchases()
+                self.supplier_input.clear()
+                show_info_message("Success", "Purchase added successfully.")
+                event_system.purchase_added.emit(purchase_id)
+            else:
+                raise ValueError("Failed to add purchase.")
+        else:
+            raise ValueError("No items added to the purchase.")
+
+    @ui_operation(show_dialog=True)
     def view_purchase(self, purchase):
-        try:
-            items = self.purchase_service.get_purchase_items(purchase.id)
-            message = f"Purchase Details:\n\nSupplier: {purchase.supplier}\nDate: {purchase.date.strftime('%Y-%m-%d')}\n\nItems:\n"
-            for item in items:
-                product = self.product_service.get_product(item.product_id)
-                product_name = product.name if product else "Unknown Product"
-                message += f"- {product_name}: {item.quantity:.2f} @ {format_price(item.price)}\n"
-            message += f"\nTotal Amount: {format_price(purchase.total_amount)}"
-            show_info_message("Purchase Details", message)
-        except Exception as e:
-            logger.error(f"Error viewing purchase details: {str(e)}")
-            show_error_message("Error", f"Failed to view purchase details: {str(e)}")
+        items = self.purchase_service.get_purchase_items(purchase.id)
+        message = f"Purchase Details:\n\nSupplier: {purchase.supplier}\nDate: {purchase.date.strftime('%Y-%m-%d')}\n\nItems:\n"
+        for item in items:
+            product = self.product_service.get_product(item.product_id)
+            product_name = product.name if product else "Unknown Product"
+            message += f"- {product_name}: {item.quantity:.2f} @ {format_price(item.price)}\n"
+        message += f"\nTotal Amount: {format_price(purchase.total_amount)}"
+        show_info_message("Purchase Details", message)
 
+    @ui_operation(show_dialog=True)
     def delete_purchase(self, purchase):
         reply = QMessageBox.question(
             self, 'Delete Purchase', 
@@ -226,15 +213,12 @@ class PurchaseView(QWidget):
             QMessageBox.StandardButton.No
             )
         if reply == QMessageBox.StandardButton.Yes:
-            try:
-                self.purchase_service.delete_purchase(purchase.id)
-                self.load_purchases()
-                show_info_message("Success", "Purchase deleted successfully.")
-                event_system.purchase_deleted.emit(purchase.id)
-            except Exception as e:
-                logger.error(f"Error deleting purchase: {str(e)}")
-                show_error_message("Error", str(e))
+            self.purchase_service.delete_purchase(purchase.id)
+            self.load_purchases()
+            show_info_message("Success", "Purchase deleted successfully.")
+            event_system.purchase_deleted.emit(purchase.id)
 
+    @ui_operation(show_dialog=True)
     def search_purchases(self):
         search_term = self.search_input.text().strip().lower()
         if search_term:

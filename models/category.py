@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 from typing import Dict, Any
+from utils.exceptions import ValidationException
+from utils.decorators import validate_input
 
 @dataclass
 class Category:
@@ -23,8 +25,9 @@ class Category:
         }
 
     @staticmethod
+    @validate_input(show_dialog=True)
     def validate_name(name: str) -> None:
         if not name or len(name.strip()) == 0:
-            raise ValueError("Category name cannot be empty")
+            raise ValidationException("Category name cannot be empty")
         if len(name) > 50:
-            raise ValueError("Category name cannot exceed 50 characters")
+            raise ValidationException("Category name cannot exceed 50 characters")

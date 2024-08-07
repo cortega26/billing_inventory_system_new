@@ -2,7 +2,8 @@ import re
 from typing import Union, Optional, TypeVar, Any, Type, Tuple, List
 from datetime import datetime
 
-T = TypeVar('T')
+T = TypeVar("T")
+
 
 def validate_9digit_identifier(identifier: str) -> str:
     """
@@ -17,9 +18,10 @@ def validate_9digit_identifier(identifier: str) -> str:
     Raises:
         ValueError: If the identifier is not exactly 9 digits.
     """
-    if not re.match(r'^\d{9}$', identifier):
+    if not re.match(r"^\d{9}$", identifier):
         raise ValueError("Identifier must be exactly 9 digits")
     return identifier
+
 
 def validate_3or4digit_identifier(identifier: str) -> str:
     """
@@ -34,11 +36,17 @@ def validate_3or4digit_identifier(identifier: str) -> str:
     Raises:
         ValueError: If the identifier is not 3 or 4 digits.
     """
-    if not re.match(r'^\d{3,4}$', identifier):
+    if not re.match(r"^\d{3,4}$", identifier):
         raise ValueError("Identifier must be either 3 or 4 digits")
     return identifier
 
-def validate_numeric(value: Union[int, float, str], field_name: str, min_value: Optional[Union[int, float]] = None, max_value: Optional[Union[int, float]] = None) -> Union[int, float]:
+
+def validate_numeric(
+    value: Union[int, float, str],
+    field_name: str,
+    min_value: Optional[Union[int, float]] = None,
+    max_value: Optional[Union[int, float]] = None,
+) -> Union[int, float]:
     """
     Validate and convert a value to a numeric type within an optional range.
 
@@ -66,7 +74,14 @@ def validate_numeric(value: Union[int, float, str], field_name: str, min_value: 
     except ValueError:
         raise ValueError(f"{field_name} must be a valid number.")
 
-def validate_string(value: str, field_name: str, max_length: Optional[int] = None, min_length: Optional[int] = None, pattern: Optional[str] = None) -> str:
+
+def validate_string(
+    value: str,
+    field_name: str,
+    max_length: Optional[int] = None,
+    min_length: Optional[int] = None,
+    pattern: Optional[str] = None,
+) -> str:
     """
     Validate a string.
 
@@ -94,6 +109,7 @@ def validate_string(value: str, field_name: str, max_length: Optional[int] = Non
         raise ValueError(f"{field_name} does not match the required pattern")
     return stripped_value
 
+
 def validate_email(email: str) -> str:
     """
     Validate an email address.
@@ -107,10 +123,11 @@ def validate_email(email: str) -> str:
     Raises:
         ValueError: If the email address is invalid.
     """
-    email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    email_regex = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
     if not re.match(email_regex, email):
         raise ValueError("Invalid email address")
     return email
+
 
 def validate_date(date_str: str, format: str = "%Y-%m-%d") -> datetime:
     """
@@ -131,6 +148,7 @@ def validate_date(date_str: str, format: str = "%Y-%m-%d") -> datetime:
     except ValueError:
         raise ValueError(f"Invalid date format. Expected format: {format}")
 
+
 def validate_phone_number(phone: str) -> str:
     """
     Validate a phone number.
@@ -144,10 +162,11 @@ def validate_phone_number(phone: str) -> str:
     Raises:
         ValueError: If the phone number is invalid.
     """
-    phone_regex = r'^\+?1?\d{9,15}$'
+    phone_regex = r"^\+?1?\d{9,15}$"
     if not re.match(phone_regex, phone):
         raise ValueError("Invalid phone number")
     return phone
+
 
 def validate_url(url: str) -> str:
     """
@@ -162,12 +181,15 @@ def validate_url(url: str) -> str:
     Raises:
         ValueError: If the URL is invalid.
     """
-    url_regex = r'^(http:\/\/www\.|https:\/\/www\.|http:\/\/|https:\/\/)?[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,5}(:[0-9]{1,5})?(\/.*)?$'
+    url_regex = r"^(http:\/\/www\.|https:\/\/www\.|http:\/\/|https:\/\/)?[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,5}(:[0-9]{1,5})?(\/.*)?$"
     if not re.match(url_regex, url):
         raise ValueError("Invalid URL")
     return url
 
-def validate_type(value: Any, expected_type: Union[Type[T], Tuple[Type[T], ...]], field_name: str) -> T:
+
+def validate_type(
+    value: Any, expected_type: Union[Type[T], Tuple[Type[T], ...]], field_name: str
+) -> T:
     """
     Validate that a value is of the expected type(s).
 
@@ -183,11 +205,21 @@ def validate_type(value: Any, expected_type: Union[Type[T], Tuple[Type[T], ...]]
         TypeError: If the value is not of the expected type(s).
     """
     if not isinstance(value, expected_type):
-        type_names = expected_type.__name__ if isinstance(expected_type, type) else " or ".join(t.__name__ for t in expected_type)
+        type_names = (
+            expected_type.__name__
+            if isinstance(expected_type, type)
+            else " or ".join(t.__name__ for t in expected_type)
+        )
         raise TypeError(f"{field_name} must be of type {type_names}")
     return value
 
-def validate_in_range(value: Union[int, float], min_value: Union[int, float], max_value: Union[int, float], field_name: str) -> Union[int, float]:
+
+def validate_in_range(
+    value: Union[int, float],
+    min_value: Union[int, float],
+    max_value: Union[int, float],
+    field_name: str,
+) -> Union[int, float]:
     """
     Validate that a numeric value is within a specified range.
 
@@ -207,6 +239,7 @@ def validate_in_range(value: Union[int, float], min_value: Union[int, float], ma
         raise ValueError(f"{field_name} must be between {min_value} and {max_value}")
     return value
 
+
 def validate_non_empty_list(value: List[Any], field_name: str) -> List[Any]:
     """
     Validate that a list is not empty.
@@ -224,6 +257,7 @@ def validate_non_empty_list(value: List[Any], field_name: str) -> List[Any]:
     if not value:
         raise ValueError(f"{field_name} cannot be empty")
     return value
+
 
 def validate_boolean(value: Any, field_name: str) -> bool:
     """
@@ -243,8 +277,8 @@ def validate_boolean(value: Any, field_name: str) -> bool:
         return value
     if isinstance(value, str):
         lowered = value.lower()
-        if lowered in ('true', '1', 'yes', 'on'):
+        if lowered in ("true", "1", "yes", "on"):
             return True
-        if lowered in ('false', '0', 'no', 'off'):
+        if lowered in ("false", "0", "no", "off"):
             return False
     raise ValueError(f"{field_name} must be a valid boolean value")

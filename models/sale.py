@@ -4,6 +4,7 @@ from datetime import datetime
 from utils.exceptions import ValidationException
 from utils.decorators import validate_input
 
+
 @dataclass
 class SaleItem:
     id: int
@@ -13,17 +14,18 @@ class SaleItem:
     unit_price: float
 
     @classmethod
-    def from_db_row(cls, row: Dict[str, Any]) -> 'SaleItem':
+    def from_db_row(cls, row: Dict[str, Any]) -> "SaleItem":
         return cls(
-            id=row['id'],
-            sale_id=row['sale_id'],
-            product_id=row['product_id'],
-            quantity=row['quantity'],
-            unit_price=float(row['price'])
+            id=row["id"],
+            sale_id=row["sale_id"],
+            product_id=row["product_id"],
+            quantity=row["quantity"],
+            unit_price=float(row["price"]),
         )
 
     def total_price(self) -> float:
         return round(self.quantity * self.unit_price, 2)
+
 
 @dataclass
 class Sale:
@@ -34,12 +36,12 @@ class Sale:
     items: List[SaleItem] = field(default_factory=list)
 
     @classmethod
-    def from_db_row(cls, row: Dict[str, Any]) -> 'Sale':
+    def from_db_row(cls, row: Dict[str, Any]) -> "Sale":
         return cls(
-            id=row['id'],
-            customer_id=row['customer_id'],
-            date=datetime.fromisoformat(row['date']),
-            total_amount=float(row['total_amount'])
+            id=row["id"],
+            customer_id=row["customer_id"],
+            date=datetime.fromisoformat(row["date"]),
+            total_amount=float(row["total_amount"]),
         )
 
     @validate_input(show_dialog=True)
@@ -57,16 +59,18 @@ class Sale:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            'id': self.id,
-            'customer_id': self.customer_id,
-            'date': self.date.isoformat(),
-            'total_amount': self.total_amount,
-            'items': [item.__dict__ for item in self.items]
+            "id": self.id,
+            "customer_id": self.customer_id,
+            "date": self.date.isoformat(),
+            "total_amount": self.total_amount,
+            "items": [item.__dict__ for item in self.items],
         }
 
     def __str__(self) -> str:
-        return (f"Sale(id={self.id}, customer_id={self.customer_id}, "
-                f"date='{self.date.isoformat()}', total_amount={self.total_amount:.2f})")
+        return (
+            f"Sale(id={self.id}, customer_id={self.customer_id}, "
+            f"date='{self.date.isoformat()}', total_amount={self.total_amount:.2f})"
+        )
 
     @staticmethod
     @validate_input(show_dialog=True)

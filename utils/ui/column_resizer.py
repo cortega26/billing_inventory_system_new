@@ -3,6 +3,7 @@ from PySide6.QtCore import QSettings, QObject, Slot
 from typing import Dict, Optional
 from config import COMPANY_NAME, APP_NAME
 
+
 class ColumnResizer(QObject):
     def __init__(self, table_widget: QTableWidget, settings_prefix: str):
         super().__init__()
@@ -12,7 +13,9 @@ class ColumnResizer(QObject):
         self.column_widths: Dict[int, int] = {}
 
         self.restore_column_widths()
-        self.table_widget.horizontalHeader().sectionResized.connect(self.on_section_resized)
+        self.table_widget.horizontalHeader().sectionResized.connect(
+            self.on_section_resized
+        )
 
     def restore_column_widths(self) -> None:
         """Restore column widths from settings."""
@@ -31,7 +34,7 @@ class ColumnResizer(QObject):
     def on_section_resized(self, logical_index: int, _: int, new_size: int) -> None:
         """
         Slot to handle column resize events.
-        
+
         Args:
             logical_index (int): The index of the resized column.
             _ (int): The old size (unused).
@@ -43,10 +46,10 @@ class ColumnResizer(QObject):
     def get_setting(self, key: str) -> Optional[int]:
         """
         Retrieve a setting value and convert it to an integer.
-        
+
         Args:
             key (str): The settings key to retrieve.
-        
+
         Returns:
             Optional[int]: The setting value as an integer, or None if not found or invalid.
         """
@@ -54,14 +57,14 @@ class ColumnResizer(QObject):
         if value is None:
             return None
         try:
-            return int(value) # type: ignore
+            return int(value)  # type: ignore
         except (ValueError, TypeError):
             return None
 
     def apply_default_widths(self, default_widths: Dict[int, int]) -> None:
         """
         Apply default widths to columns that haven't been resized by the user.
-        
+
         Args:
             default_widths (Dict[int, int]): A dictionary mapping column indices to their default widths.
         """
@@ -74,7 +77,7 @@ class ColumnResizer(QObject):
     def reset_to_default(self, default_widths: Dict[int, int]) -> None:
         """
         Reset all column widths to the provided default values.
-        
+
         Args:
             default_widths (Dict[int, int]): A dictionary mapping column indices to their default widths.
         """
@@ -87,7 +90,7 @@ class ColumnResizer(QObject):
     def adjust_to_contents(self, padding: int = 20) -> None:
         """
         Adjust all column widths to fit their contents.
-        
+
         Args:
             padding (int): Additional padding to add to each column width.
         """

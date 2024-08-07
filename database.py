@@ -6,6 +6,7 @@ from utils.system.logger import logger
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import DatabaseException, ValidationException
 
+
 def validate_query_params(params: Any) -> None:
     if params is None:
         return
@@ -19,6 +20,7 @@ def validate_query_params(params: Any) -> None:
                 raise ValidationException(f"Invalid parameter type: {type(value)}")
     else:
         raise ValidationException(f"Invalid params type: {type(params)}")
+
 
 class DatabaseManager:
     @staticmethod
@@ -41,7 +43,9 @@ class DatabaseManager:
 
     @classmethod
     @db_operation(show_dialog=True)
-    def execute_query(cls, query: str, params: Optional[Union[Tuple, List, Dict]] = None) -> sqlite3.Cursor:
+    def execute_query(
+        cls, query: str, params: Optional[Union[Tuple, List, Dict]] = None
+    ) -> sqlite3.Cursor:
         logger.debug(f"Executing query: {query}")
         logger.debug(f"Query parameters: {params}")
         validate_query_params(params)
@@ -62,7 +66,9 @@ class DatabaseManager:
 
     @classmethod
     @db_operation(show_dialog=True)
-    def fetch_one(cls, query: str, params: Optional[Union[Tuple, List, Dict]] = None) -> Optional[Dict[str, Any]]:
+    def fetch_one(
+        cls, query: str, params: Optional[Union[Tuple, List, Dict]] = None
+    ) -> Optional[Dict[str, Any]]:
         logger.debug(f"Fetching one row with query: {query}")
         logger.debug(f"Query parameters: {params}")
         with cls.get_db_connection() as conn:
@@ -77,7 +83,9 @@ class DatabaseManager:
 
     @classmethod
     @db_operation(show_dialog=True)
-    def fetch_all(cls, query: str, params: Optional[Union[Tuple, List, Dict]] = None) -> List[Dict[str, Any]]:
+    def fetch_all(
+        cls, query: str, params: Optional[Union[Tuple, List, Dict]] = None
+    ) -> List[Dict[str, Any]]:
         logger.debug(f"Fetching all rows with query: {query}")
         logger.debug(f"Query parameters: {params}")
         with cls.get_db_connection() as conn:
@@ -90,21 +98,25 @@ class DatabaseManager:
             logger.debug(f"Fetched {len(rows)} rows")
             return [dict(row) for row in rows]
 
+
 @db_operation(show_dialog=True)
 def init_db():
     with DatabaseManager.get_db_connection() as conn:
         cursor = conn.cursor()
         try:
             # Create categories table
-            cursor.execute('''
+            cursor.execute(
+                """
             CREATE TABLE IF NOT EXISTS categories (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL UNIQUE
             )
-            ''')
+            """
+            )
 
             # Create products table with category_id
-            cursor.execute('''
+            cursor.execute(
+                """
             CREATE TABLE IF NOT EXISTS products (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
@@ -114,15 +126,19 @@ def init_db():
                 sell_price REAL,
                 FOREIGN KEY (category_id) REFERENCES categories (id)
             )
-            ''')
+            """
+            )
 
-            cursor.execute('''
+            cursor.execute(
+                """
             CREATE TABLE IF NOT EXISTS customers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 identifier_9 TEXT NOT NULL UNIQUE
             )
-            ''')
-            cursor.execute('''
+            """
+            )
+            cursor.execute(
+                """
             CREATE TABLE IF NOT EXISTS customer_identifiers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 customer_id INTEGER,
@@ -130,8 +146,10 @@ def init_db():
                 FOREIGN KEY (customer_id) REFERENCES customers (id),
                 UNIQUE (customer_id, identifier_3or4)
             )
-            ''')
-            cursor.execute('''
+            """
+            )
+            cursor.execute(
+                """
             CREATE TABLE IF NOT EXISTS sales (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 customer_id INTEGER,
@@ -139,8 +157,10 @@ def init_db():
                 total_amount REAL NOT NULL,
                 FOREIGN KEY (customer_id) REFERENCES customers (id)
             )
-            ''')
-            cursor.execute('''
+            """
+            )
+            cursor.execute(
+                """
             CREATE TABLE IF NOT EXISTS sale_items (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 sale_id INTEGER,
@@ -150,16 +170,20 @@ def init_db():
                 FOREIGN KEY (sale_id) REFERENCES sales (id),
                 FOREIGN KEY (product_id) REFERENCES products (id)
             )
-            ''')
-            cursor.execute('''
+            """
+            )
+            cursor.execute(
+                """
             CREATE TABLE IF NOT EXISTS purchases (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 supplier TEXT NOT NULL,
                 date TEXT NOT NULL,
                 total_amount REAL NOT NULL
             )
-            ''')
-            cursor.execute('''
+            """
+            )
+            cursor.execute(
+                """
             CREATE TABLE IF NOT EXISTS purchase_items (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 purchase_id INTEGER,
@@ -169,25 +193,44 @@ def init_db():
                 FOREIGN KEY (purchase_id) REFERENCES purchases (id),
                 FOREIGN KEY (product_id) REFERENCES products (id)
             )
-            ''')
-            cursor.execute('''
+            """
+            )
+            cursor.execute(
+                """
             CREATE TABLE IF NOT EXISTS inventory (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 product_id INTEGER UNIQUE,
                 quantity INTEGER NOT NULL DEFAULT 0,
                 FOREIGN KEY (product_id) REFERENCES products (id)
             )
-            ''')
+            """
+            )
 
             # Add indexes
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_products_category_id ON products (category_id)')
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_customers_identifier_9 ON customers (identifier_9)')
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_sales_customer_id ON sales (customer_id)')
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items (sale_id)')
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_sale_items_product_id ON sale_items (product_id)')
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_purchase_items_purchase_id ON purchase_items (purchase_id)')
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_purchase_items_product_id ON purchase_items (product_id)')
-            cursor.execute('CREATE INDEX IF NOT EXISTS idx_inventory_product_id ON inventory (product_id)')
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_products_category_id ON products (category_id)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_customers_identifier_9 ON customers (identifier_9)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sales_customer_id ON sales (customer_id)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items (sale_id)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sale_items_product_id ON sale_items (product_id)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_purchase_items_purchase_id ON purchase_items (purchase_id)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_purchase_items_product_id ON purchase_items (product_id)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_inventory_product_id ON inventory (product_id)"
+            )
 
             conn.commit()
             logger.info("Database initialized successfully")

@@ -8,12 +8,18 @@ from utils.exceptions import ExternalServiceException, ValidationException
 
 logger = logging.getLogger(__name__)
 
+
 class ExcelExporter:
     @staticmethod
     @handle_external_service(show_dialog=True)
     @validate_input(show_dialog=True)
-    def export_to_excel(data: List[Dict[str, Any]], headers: List[str], filename: str, 
-                        sheet_name: str = "Sheet1", auto_adjust_columns: bool = True) -> None:
+    def export_to_excel(
+        data: List[Dict[str, Any]],
+        headers: List[str],
+        filename: str,
+        sheet_name: str = "Sheet1",
+        auto_adjust_columns: bool = True,
+    ) -> None:
         """
         Export data to an Excel file.
 
@@ -39,8 +45,10 @@ class ExcelExporter:
                 worksheet = workbook.add_worksheet(sheet_name)
 
                 # Define styles
-                header_format = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3'})
-                date_format = workbook.add_format({'num_format': 'yyyy-mm-dd hh:mm:ss'})
+                header_format = workbook.add_format(
+                    {"bold": True, "bg_color": "#D3D3D3"}
+                )
+                date_format = workbook.add_format({"num_format": "yyyy-mm-dd hh:mm:ss"})
 
                 # Add headers
                 for col, header in enumerate(headers):
@@ -61,15 +69,24 @@ class ExcelExporter:
 
             logger.info(f"Excel file created successfully: {os.path.abspath(filename)}")
         except IOError as e:
-            raise ExternalServiceException(f"Error writing to file {filename}: {str(e)}")
+            raise ExternalServiceException(
+                f"Error writing to file {filename}: {str(e)}"
+            )
         except Exception as e:
-            raise ExternalServiceException(f"An error occurred while exporting to Excel: {str(e)}")
+            raise ExternalServiceException(
+                f"An error occurred while exporting to Excel: {str(e)}"
+            )
 
     @staticmethod
     @handle_external_service(show_dialog=True)
     @validate_input(show_dialog=True)
-    def export_large_dataset(data_generator: Iterable[Dict[str, Any]], headers: List[str], filename: str, 
-                             sheet_name: str = "Sheet1", chunk_size: int = 1000) -> None:
+    def export_large_dataset(
+        data_generator: Iterable[Dict[str, Any]],
+        headers: List[str],
+        filename: str,
+        sheet_name: str = "Sheet1",
+        chunk_size: int = 1000,
+    ) -> None:
         """
         Export a large dataset to Excel file using a generator to conserve memory.
 
@@ -88,8 +105,10 @@ class ExcelExporter:
                 worksheet = workbook.add_worksheet(sheet_name)
 
                 # Define styles
-                header_format = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3'})
-                date_format = workbook.add_format({'num_format': 'yyyy-mm-dd hh:mm:ss'})
+                header_format = workbook.add_format(
+                    {"bold": True, "bg_color": "#D3D3D3"}
+                )
+                date_format = workbook.add_format({"num_format": "yyyy-mm-dd hh:mm:ss"})
 
                 # Add headers
                 for col, header in enumerate(headers):
@@ -107,8 +126,14 @@ class ExcelExporter:
                     if row % chunk_size == 0:
                         logger.info(f"Exported {row} rows...")
 
-            logger.info(f"Large dataset exported successfully: {os.path.abspath(filename)}")
+            logger.info(
+                f"Large dataset exported successfully: {os.path.abspath(filename)}"
+            )
         except IOError as e:
-            raise ExternalServiceException(f"Error writing to file {filename}: {str(e)}")
+            raise ExternalServiceException(
+                f"Error writing to file {filename}: {str(e)}"
+            )
         except Exception as e:
-            raise ExternalServiceException(f"An error occurred while exporting large dataset to Excel: {str(e)}")
+            raise ExternalServiceException(
+                f"An error occurred while exporting large dataset to Excel: {str(e)}"
+            )

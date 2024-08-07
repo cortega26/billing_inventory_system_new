@@ -3,7 +3,8 @@ from typing import List, Any, Optional, Union, Callable, TypeVar
 from decimal import Decimal
 import datetime
 
-T = TypeVar('T')
+T = TypeVar("T")
+
 
 def create_table(headers: List[str]) -> QTableWidget:
     """
@@ -25,7 +26,10 @@ def create_table(headers: List[str]) -> QTableWidget:
     table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
     return table
 
-def show_message(title: str, message: str, icon: QMessageBox.Icon = QMessageBox.Icon.Information) -> None:
+
+def show_message(
+    title: str, message: str, icon: QMessageBox.Icon = QMessageBox.Icon.Information
+) -> None:
     """
     Display a message box with the specified title, message, and icon.
 
@@ -40,6 +44,7 @@ def show_message(title: str, message: str, icon: QMessageBox.Icon = QMessageBox.
     msg_box.setText(message)
     msg_box.exec()
 
+
 def show_error_message(title: str, message: str) -> None:
     """
     Display an error message box with the specified title and message.
@@ -49,6 +54,7 @@ def show_error_message(title: str, message: str) -> None:
         message (str): The detailed error message to be displayed.
     """
     show_message(title, message, QMessageBox.Icon.Critical)
+
 
 def show_info_message(title: str, message: str) -> None:
     """
@@ -60,7 +66,13 @@ def show_info_message(title: str, message: str) -> None:
     """
     show_message(title, message, QMessageBox.Icon.Information)
 
-def validate_integer_input(value: str, field_name: str, min_value: Optional[int] = None, max_value: Optional[int] = None) -> int:
+
+def validate_integer_input(
+    value: str,
+    field_name: str,
+    min_value: Optional[int] = None,
+    max_value: Optional[int] = None,
+) -> int:
     """
     Validate and convert a string input to an integer within an optional range.
 
@@ -86,6 +98,7 @@ def validate_integer_input(value: str, field_name: str, min_value: Optional[int]
     except ValueError:
         raise ValueError(f"{field_name} must be a valid integer.")
 
+
 def safe_convert(value: Any, target_type: Callable[[Any], T], default: T) -> T:
     """
     Safely convert a value to a target type, returning a default value if conversion fails.
@@ -103,6 +116,7 @@ def safe_convert(value: Any, target_type: Callable[[Any], T], default: T) -> T:
     except (ValueError, TypeError):
         return default
 
+
 def format_date(date: datetime.date, format_str: str = "%Y-%m-%d") -> str:
     """
     Format a date object as a string.
@@ -115,6 +129,7 @@ def format_date(date: datetime.date, format_str: str = "%Y-%m-%d") -> str:
         str: The formatted date string.
     """
     return date.strftime(format_str)
+
 
 def truncate_string(text: str, max_length: int, ellipsis: str = "...") -> str:
     """
@@ -130,7 +145,8 @@ def truncate_string(text: str, max_length: int, ellipsis: str = "...") -> str:
     """
     if len(text) <= max_length:
         return text
-    return text[:max_length - len(ellipsis)] + ellipsis
+    return text[: max_length - len(ellipsis)] + ellipsis
+
 
 def format_price(amount: Union[int, float, Decimal]) -> str:
     """
@@ -142,7 +158,8 @@ def format_price(amount: Union[int, float, Decimal]) -> str:
     Returns:
         str: The formatted price string.
     """
-    return f"{int(amount):,}".replace(',', '.')
+    return f"{int(amount):,}".replace(",", ".")
+
 
 def confirm_action(parent: Optional[QWidget], title: str, message: str) -> bool:
     """
@@ -160,11 +177,13 @@ def confirm_action(parent: Optional[QWidget], title: str, message: str) -> bool:
     msg_box = QMessageBox(parent) if parent else QMessageBox()
     msg_box.setWindowTitle(title)
     msg_box.setText(message)
-    msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+    msg_box.setStandardButtons(
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+    )
     msg_box.setDefaultButton(QMessageBox.StandardButton.No)
-    
+
     # Use exec() to show the dialog and get the result
     result = msg_box.exec()
-    
+
     # Compare the result with QMessageBox.StandardButton.Yes
     return result == QMessageBox.StandardButton.Yes

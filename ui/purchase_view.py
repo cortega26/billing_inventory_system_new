@@ -1,17 +1,40 @@
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTableWidgetItem,
-    QMessageBox, QHeaderView, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFormLayout,
-    QDoubleSpinBox, QProgressBar, QAbstractItemView, QMenu, QApplication)
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QTableWidgetItem,
+    QMessageBox,
+    QHeaderView,
+    QComboBox,
+    QDateEdit,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QDoubleSpinBox,
+    QProgressBar,
+    QAbstractItemView,
+    QMenu,
+    QApplication,
+)
 from PySide6.QtCore import Qt, QDate, QTimer, Signal
 from PySide6.QtGui import QAction, QKeySequence
 from services.purchase_service import PurchaseService
 from services.product_service import ProductService
 from models.purchase import Purchase
-from utils.helpers import create_table, show_info_message, show_error_message, format_price
+from utils.helpers import (
+    create_table,
+    show_info_message,
+    show_error_message,
+    format_price,
+)
 from utils.system.event_system import event_system
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
 from typing import List, Optional
 from utils.decorators import ui_operation, validate_input
+
 
 class PurchaseItemDialog(QDialog):
     def __init__(self, products, parent=None):
@@ -41,7 +64,9 @@ class PurchaseItemDialog(QDialog):
         self.cost_price_input.setDecimals(2)
         layout.addRow("Cost Price:", self.cost_price_input)
 
-        self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        self.buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
         self.buttons.accepted.connect(self.validate_and_accept)
         self.buttons.rejected.connect(self.reject)
         layout.addRow(self.buttons)
@@ -67,8 +92,9 @@ class PurchaseItemDialog(QDialog):
             "product_id": self.product_combo.currentData(),
             "product_name": self.product_combo.currentText(),
             "quantity": self.quantity_input.value(),
-            "cost_price": self.cost_price_input.value()
+            "cost_price": self.cost_price_input.value(),
         }
+
 
 class PurchaseView(QWidget):
     purchase_updated = Signal()
@@ -115,11 +141,19 @@ class PurchaseView(QWidget):
         layout.addLayout(input_layout)
 
         # Purchase table
-        self.purchase_table = create_table(["ID", "Supplier", "Date", "Total Amount", "Actions"])
-        self.purchase_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.purchase_table = create_table(
+            ["ID", "Supplier", "Date", "Total Amount", "Actions"]
+        )
+        self.purchase_table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
         self.purchase_table.setSortingEnabled(True)
-        self.purchase_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.purchase_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.purchase_table.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows
+        )
+        self.purchase_table.setEditTriggers(
+            QAbstractItemView.EditTrigger.NoEditTriggers
+        )
         self.purchase_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.purchase_table.customContextMenuRequested.connect(self.show_context_menu)
         layout.addWidget(self.purchase_table)
@@ -164,8 +198,12 @@ class PurchaseView(QWidget):
         for row, purchase in enumerate(purchases):
             self.purchase_table.setItem(row, 0, NumericTableWidgetItem(purchase.id))
             self.purchase_table.setItem(row, 1, QTableWidgetItem(purchase.supplier))
-            self.purchase_table.setItem(row, 2, QTableWidgetItem(purchase.date.strftime("%Y-%m-%d")))
-            self.purchase_table.setItem(row, 3, PriceTableWidgetItem(purchase.total_amount, format_price))
+            self.purchase_table.setItem(
+                row, 2, QTableWidgetItem(purchase.date.strftime("%Y-%m-%d"))
+            )
+            self.purchase_table.setItem(
+                row, 3, PriceTableWidgetItem(purchase.total_amount, format_price)
+            )
 
             actions_widget = QWidget()
             actions_layout = QHBoxLayout(actions_widget)
@@ -198,9 +236,11 @@ class PurchaseView(QWidget):
             if dialog.exec():
                 items.append(dialog.get_item_data())
                 reply = QMessageBox.question(
-                    self, "Add Another Item", "Do you want to add another item?",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
-                    QMessageBox.StandardButton.No
+                    self,
+                    "Add Another Item",
+                    "Do you want to add another item?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No,
                 )
                 if reply == QMessageBox.StandardButton.No:
                     break
@@ -227,17 +267,20 @@ class PurchaseView(QWidget):
         for item in items:
             product = self.product_service.get_product(item.product_id)
             product_name = product.name if product else "Unknown Product"
-            message += f"- {product_name}: {item.quantity:.2f} @ {format_price(item.price)}\n"
+            message += (
+                f"- {product_name}: {item.quantity:.2f} @ {format_price(item.price)}\n"
+            )
         message += f"\nTotal Amount: {format_price(purchase.total_amount)}"
         show_info_message("Purchase Details", message)
 
     @ui_operation(show_dialog=True)
     def delete_purchase(self, purchase):
         reply = QMessageBox.question(
-            self, 'Delete Purchase', 
-            f'Are you sure you want to delete this purchase from {purchase.supplier}?',
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
-            QMessageBox.StandardButton.No
+            self,
+            "Delete Purchase",
+            f"Are you sure you want to delete this purchase from {purchase.supplier}?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
             self.purchase_service.delete_purchase(purchase.id)
@@ -252,8 +295,10 @@ class PurchaseView(QWidget):
         if search_term:
             purchases = self.purchase_service.get_all_purchases()
             filtered_purchases = [
-                p for p in purchases
-                if search_term in p.supplier.lower() or search_term in p.date.strftime("%Y-%m-%d").lower()
+                p
+                for p in purchases
+                if search_term in p.supplier.lower()
+                or search_term in p.date.strftime("%Y-%m-%d").lower()
             ]
             self.update_purchase_table(filtered_purchases)
         else:
@@ -266,20 +311,22 @@ class PurchaseView(QWidget):
         menu = QMenu()
         view_action = menu.addAction("View")
         delete_action = menu.addAction("Delete")
-        
+
         action = menu.exec(self.purchase_table.mapToGlobal(position))
         if action:
             row = self.purchase_table.rowAt(position.y())
             purchase_id = int(self.purchase_table.item(row, 0).text())
             purchase = self.purchase_service.get_purchase(purchase_id)
-            
+
             if purchase is not None:
                 if action == view_action:
                     self.view_purchase(purchase)
                 elif action == delete_action:
                     self.delete_purchase(purchase)
             else:
-                show_error_message("Error", f"Purchase with ID {purchase_id} not found.")
+                show_error_message(
+                    "Error", f"Purchase with ID {purchase_id} not found."
+                )
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Delete:

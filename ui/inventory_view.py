@@ -1,17 +1,38 @@
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QInputDialog,
-                               QPushButton, QTableWidgetItem, QDoubleSpinBox, QComboBox, QDialog,
-                               QFormLayout, QDialogButtonBox, QHeaderView, QProgressBar, QMenu,
-                               QApplication)
+from PySide6.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QInputDialog,
+    QPushButton,
+    QTableWidgetItem,
+    QDoubleSpinBox,
+    QComboBox,
+    QDialog,
+    QFormLayout,
+    QDialogButtonBox,
+    QHeaderView,
+    QProgressBar,
+    QMenu,
+    QApplication,
+)
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QAction, QKeySequence
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
 from services.category_service import CategoryService
-from utils.helpers import create_table, show_info_message, show_error_message, format_price
+from utils.helpers import (
+    create_table,
+    show_info_message,
+    show_error_message,
+    format_price,
+)
 from utils.system.event_system import event_system
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
 from typing import List, Dict, Any, Optional
 from utils.decorators import ui_operation, validate_input
+
 
 class EditInventoryDialog(QDialog):
     def __init__(self, product: Dict[str, Any], parent=None):
@@ -27,7 +48,7 @@ class EditInventoryDialog(QDialog):
         self.quantity_input.setMinimum(0)
         self.quantity_input.setMaximum(1000000)
         self.quantity_input.setDecimals(2)
-        self.quantity_input.setValue(self.product['quantity'])
+        self.quantity_input.setValue(self.product["quantity"])
         layout.addRow("Quantity:", self.quantity_input)
 
         self.adjustment_input = QDoubleSpinBox()
@@ -40,7 +61,9 @@ class EditInventoryDialog(QDialog):
         self.reason_input = QLineEdit()
         layout.addRow("Reason for Adjustment:", self.reason_input)
 
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
         buttons.accepted.connect(self.validate_and_accept)
         buttons.rejected.connect(self.reject)
         layout.addRow(buttons)
@@ -59,6 +82,7 @@ class EditInventoryDialog(QDialog):
 
     def get_reason(self) -> str:
         return self.reason_input.text().strip()
+
 
 class InventoryView(QWidget):
     inventory_updated = Signal()
@@ -93,9 +117,15 @@ class InventoryView(QWidget):
         layout.addLayout(search_layout)
 
         # Inventory table
-        self.inventory_table = create_table(["ID", "Product Name", "Category", "Quantity", "Actions"])
-        self.inventory_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.inventory_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.inventory_table = create_table(
+            ["ID", "Product Name", "Category", "Quantity", "Actions"]
+        )
+        self.inventory_table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
+        self.inventory_table.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu
+        )
         self.inventory_table.customContextMenuRequested.connect(self.show_context_menu)
         layout.addWidget(self.inventory_table)
 
@@ -135,7 +165,9 @@ class InventoryView(QWidget):
 
     @ui_operation(show_dialog=True)
     def on_product_added(self, product_id: int):
-        self.inventory_service.update_quantity(product_id, 0)  # Add new product with quantity 0
+        self.inventory_service.update_quantity(
+            product_id, 0
+        )  # Add new product with quantity 0
         self.load_inventory()
 
     @ui_operation(show_dialog=True)
@@ -156,19 +188,25 @@ class InventoryView(QWidget):
     def update_inventory_table(self, inventory_items: List[Dict[str, Any]]):
         self.inventory_table.setRowCount(len(inventory_items))
         for row, item in enumerate(inventory_items):
-            self.inventory_table.setItem(row, 0, NumericTableWidgetItem(item['product_id']))
-            self.inventory_table.setItem(row, 1, QTableWidgetItem(item['product_name']))
-            self.inventory_table.setItem(row, 2, QTableWidgetItem(item['category_name']))
-            self.inventory_table.setItem(row, 3, PriceTableWidgetItem(item['quantity'], format_price))
-            
+            self.inventory_table.setItem(
+                row, 0, NumericTableWidgetItem(item["product_id"])
+            )
+            self.inventory_table.setItem(row, 1, QTableWidgetItem(item["product_name"]))
+            self.inventory_table.setItem(
+                row, 2, QTableWidgetItem(item["category_name"])
+            )
+            self.inventory_table.setItem(
+                row, 3, PriceTableWidgetItem(item["quantity"], format_price)
+            )
+
             actions_widget = QWidget()
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(0, 0, 0, 0)
-            
+
             edit_button = QPushButton("Edit")
             edit_button.clicked.connect(lambda _, i=item: self.edit_inventory(i))
             edit_button.setToolTip("Edit inventory for this product")
-            
+
             actions_layout.addWidget(edit_button)
             self.inventory_table.setCellWidget(row, 4, actions_widget)
 
@@ -179,28 +217,34 @@ class InventoryView(QWidget):
             new_quantity = dialog.get_new_quantity()
             adjustment = dialog.get_adjustment()
             reason = dialog.get_reason()
-            
+
             if adjustment != 0:
-                self.inventory_service.adjust_inventory(item['product_id'], int(adjustment), reason)
-                new_quantity = item['quantity'] + adjustment
+                self.inventory_service.adjust_inventory(
+                    item["product_id"], int(adjustment), reason
+                )
+                new_quantity = item["quantity"] + adjustment
             else:
-                self.inventory_service.set_quantity(item['product_id'], int(new_quantity))
-            
+                self.inventory_service.set_quantity(
+                    item["product_id"], int(new_quantity)
+                )
+
             # Update the specific item in the current_inventory
             for i, inv_item in enumerate(self.current_inventory):
-                if inv_item['product_id'] == item['product_id']:
-                    self.current_inventory[i]['quantity'] = new_quantity
+                if inv_item["product_id"] == item["product_id"]:
+                    self.current_inventory[i]["quantity"] = new_quantity
                     break
-            
+
             # Update the specific row in the table
             self.update_inventory_table(self.current_inventory)
-            
+
             show_info_message("Success", "Inventory updated successfully.")
             self.inventory_updated.emit()
 
     @ui_operation(show_dialog=True)
     def show_low_stock_alert(self):
-        threshold, ok = QInputDialog.getInt(self, "Low Stock Threshold", "Enter the low stock threshold:", 10, 1, 1000)
+        threshold, ok = QInputDialog.getInt(
+            self, "Low Stock Threshold", "Enter the low stock threshold:", 10, 1, 1000
+        )
         if ok:
             low_stock_items = self.inventory_service.get_low_stock_products(threshold)
             if low_stock_items:
@@ -218,19 +262,24 @@ class InventoryView(QWidget):
         self.filter_inventory(search_term, category_id)
 
     @ui_operation(show_dialog=True)
-    def filter_inventory(self, search_term: Optional[str] = None, category_id: Optional[int] = None):
+    def filter_inventory(
+        self, search_term: Optional[str] = None, category_id: Optional[int] = None
+    ):
         if search_term is None:
             search_term = self.search_input.text().strip()
         if category_id is None:
             category_id = self.category_filter.currentData()
-        
+
         all_items = self.inventory_service.get_all_inventory()
         filtered_items = [
-            item for item in all_items
-            if (search_term.lower() in item['product_name'].lower() or 
-                search_term.lower() in str(item['product_id']) or
-                search_term.lower() in item['category_name'].lower()) and
-               (category_id is None or item['category_id'] == category_id)
+            item
+            for item in all_items
+            if (
+                search_term.lower() in item["product_name"].lower()
+                or search_term.lower() in str(item["product_id"])
+                or search_term.lower() in item["category_name"].lower()
+            )
+            and (category_id is None or item["category_id"] == category_id)
         ]
         self.update_inventory_table(filtered_items)
 
@@ -240,18 +289,27 @@ class InventoryView(QWidget):
     def show_context_menu(self, position):
         menu = QMenu()
         edit_action = menu.addAction("Edit")
-        
+
         action = menu.exec(self.inventory_table.mapToGlobal(position))
         if action:
             row = self.inventory_table.rowAt(position.y())
             product_id = int(self.inventory_table.item(row, 0).text())
-            item = next((item for item in self.current_inventory if item['product_id'] == product_id), None)
-            
+            item = next(
+                (
+                    item
+                    for item in self.current_inventory
+                    if item["product_id"] == product_id
+                ),
+                None,
+            )
+
             if item is not None:
                 if action == edit_action:
                     self.edit_inventory(item)
             else:
-                show_error_message("Error", f"Inventory item for product ID {product_id} not found.")
+                show_error_message(
+                    "Error", f"Inventory item for product ID {product_id} not found."
+                )
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_F5:

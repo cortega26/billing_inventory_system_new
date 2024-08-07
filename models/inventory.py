@@ -3,6 +3,7 @@ from typing import Dict, Any, Optional
 from utils.exceptions import ValidationException
 from utils.decorators import validate_input
 
+
 @dataclass
 class Inventory:
     id: int
@@ -12,22 +13,26 @@ class Inventory:
     max_stock_level: Optional[int] = None
 
     @classmethod
-    def from_db_row(cls, row: Dict[str, Any]) -> 'Inventory':
+    def from_db_row(cls, row: Dict[str, Any]) -> "Inventory":
         return cls(
-            id=row['id'],
-            product_id=row['product_id'],
-            quantity=row['quantity'],
-            min_stock_level=row.get('min_stock_level', 0),
-            max_stock_level=row.get('max_stock_level')
+            id=row["id"],
+            product_id=row["product_id"],
+            quantity=row["quantity"],
+            min_stock_level=row.get("min_stock_level", 0),
+            max_stock_level=row.get("max_stock_level"),
         )
 
     @validate_input(show_dialog=True)
     def update_quantity(self, change: int) -> None:
         new_quantity = self.quantity + change
         if new_quantity < 0:
-            raise ValidationException(f"Cannot decrease quantity by {abs(change)}. Current quantity: {self.quantity}")
+            raise ValidationException(
+                f"Cannot decrease quantity by {abs(change)}. Current quantity: {self.quantity}"
+            )
         if self.max_stock_level is not None and new_quantity > self.max_stock_level:
-            raise ValidationException(f"Cannot increase quantity above max stock level of {self.max_stock_level}")
+            raise ValidationException(
+                f"Cannot increase quantity above max stock level of {self.max_stock_level}"
+            )
         self.quantity = new_quantity
 
     @validate_input(show_dialog=True)
@@ -35,7 +40,9 @@ class Inventory:
         if new_quantity < 0:
             raise ValidationException("Inventory quantity cannot be negative")
         if self.max_stock_level is not None and new_quantity > self.max_stock_level:
-            raise ValidationException(f"Cannot set quantity above max stock level of {self.max_stock_level}")
+            raise ValidationException(
+                f"Cannot set quantity above max stock level of {self.max_stock_level}"
+            )
         self.quantity = new_quantity
 
     def is_low_stock(self) -> bool:
@@ -52,9 +59,9 @@ class Inventory:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            'id': self.id,
-            'product_id': self.product_id,
-            'quantity': self.quantity,
-            'min_stock_level': self.min_stock_level,
-            'max_stock_level': self.max_stock_level
+            "id": self.id,
+            "product_id": self.product_id,
+            "quantity": self.quantity,
+            "min_stock_level": self.min_stock_level,
+            "max_stock_level": self.max_stock_level,
         }

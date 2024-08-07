@@ -1,16 +1,38 @@
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
-                               QPushButton, QTableWidget, QTableWidgetItem, QMessageBox,
-                               QDialog, QDialogButtonBox, QFormLayout, QHeaderView,
-                               QMenu, QApplication)
+from PySide6.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QMessageBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QHeaderView,
+    QMenu,
+    QApplication,
+)
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QAction, QKeySequence
 from services.customer_service import CustomerService
-from utils.helpers import create_table, show_error_message, show_info_message, format_price
+from utils.helpers import (
+    create_table,
+    show_error_message,
+    show_info_message,
+    format_price,
+)
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
-from utils.validation.validators import validate_9digit_identifier, validate_3or4digit_identifier
+from utils.validation.validators import (
+    validate_9digit_identifier,
+    validate_3or4digit_identifier,
+)
 from utils.decorators import ui_operation
 from models.customer import Customer
 from typing import Optional
+
 
 class EditCustomerDialog(QDialog):
     def __init__(self, customer: Optional[Customer], parent=None):
@@ -21,14 +43,20 @@ class EditCustomerDialog(QDialog):
 
     def setup_ui(self):
         layout = QFormLayout(self)
-        
-        self.identifier_9_input = QLineEdit(self.customer.identifier_9 if self.customer else "")
-        self.identifier_3or4_input = QLineEdit(self.customer.identifier_3or4 or "" if self.customer else "")
-        
+
+        self.identifier_9_input = QLineEdit(
+            self.customer.identifier_9 if self.customer else ""
+        )
+        self.identifier_3or4_input = QLineEdit(
+            self.customer.identifier_3or4 or "" if self.customer else ""
+        )
+
         layout.addRow("9-digit Identifier:", self.identifier_9_input)
         layout.addRow("3 or 4-digit Identifier:", self.identifier_3or4_input)
-        
-        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+
+        self.button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
         self.button_box.accepted.connect(self.validate_and_accept)
         self.button_box.rejected.connect(self.reject)
         layout.addRow(self.button_box)
@@ -42,6 +70,7 @@ class EditCustomerDialog(QDialog):
             self.accept()
         except ValueError as e:
             show_error_message("Validation Error", str(e))
+
 
 class CustomerView(QWidget):
     customer_updated = Signal()
@@ -66,10 +95,23 @@ class CustomerView(QWidget):
         layout.addLayout(search_layout)
 
         # Customer table
-        self.customer_table = create_table(["ID", "9-digit Identifier", "3 or 4-digit Identifier", "Total Purchases", "Total Amount", "Actions"])
-        self.customer_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.customer_table = create_table(
+            [
+                "ID",
+                "9-digit Identifier",
+                "3 or 4-digit Identifier",
+                "Total Purchases",
+                "Total Amount",
+                "Actions",
+            ]
+        )
+        self.customer_table.setSelectionBehavior(
+            QTableWidget.SelectionBehavior.SelectRows
+        )
         self.customer_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.customer_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.customer_table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
         self.customer_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customer_table.customContextMenuRequested.connect(self.show_context_menu)
         layout.addWidget(self.customer_table)
@@ -109,27 +151,33 @@ class CustomerView(QWidget):
     def populate_customer_table(self, customers):
         self.customer_table.setRowCount(len(customers))
         for row, customer in enumerate(customers):
-            total_purchases, total_amount = self.customer_service.get_customer_stats(customer.id)
+            total_purchases, total_amount = self.customer_service.get_customer_stats(
+                customer.id
+            )
             self.customer_table.setItem(row, 0, NumericTableWidgetItem(customer.id))
             self.customer_table.setItem(row, 1, QTableWidgetItem(customer.identifier_9))
-            self.customer_table.setItem(row, 2, QTableWidgetItem(customer.identifier_3or4 or "N/A"))
+            self.customer_table.setItem(
+                row, 2, QTableWidgetItem(customer.identifier_3or4 or "N/A")
+            )
             self.customer_table.setItem(row, 3, NumericTableWidgetItem(total_purchases))
-            self.customer_table.setItem(row, 4, PriceTableWidgetItem(total_amount, format_price))
-            
+            self.customer_table.setItem(
+                row, 4, PriceTableWidgetItem(total_amount, format_price)
+            )
+
             actions_widget = QWidget()
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(0, 0, 0, 0)
-            
+
             edit_button = QPushButton("Edit")
             edit_button.setFixedWidth(50)
             edit_button.clicked.connect(lambda _, c=customer: self.edit_customer(c))
             edit_button.setToolTip("Edit this customer")
-            
+
             delete_button = QPushButton("Delete")
             delete_button.setFixedWidth(50)
             delete_button.clicked.connect(lambda _, c=customer: self.delete_customer(c))
             delete_button.setToolTip("Delete this customer")
-            
+
             actions_layout.addWidget(edit_button)
             actions_layout.addWidget(delete_button)
             self.customer_table.setCellWidget(row, 5, actions_widget)
@@ -141,7 +189,9 @@ class CustomerView(QWidget):
             identifier_9 = dialog.identifier_9_input.text().strip()
             identifier_3or4 = dialog.identifier_3or4_input.text().strip() or None
 
-            customer_id = self.customer_service.create_customer(identifier_9, identifier_3or4)
+            customer_id = self.customer_service.create_customer(
+                identifier_9, identifier_3or4
+            )
             if customer_id is not None:
                 self.load_customers()
                 show_info_message("Success", "Customer added successfully.")
@@ -154,12 +204,14 @@ class CustomerView(QWidget):
         if customer is None:
             show_error_message("Error", "No customer selected for editing.")
             return
-        
+
         dialog = EditCustomerDialog(customer, self)
         if dialog.exec():
             new_identifier_9 = dialog.identifier_9_input.text().strip()
             new_identifier_3or4 = dialog.identifier_3or4_input.text().strip() or None
-            self.customer_service.update_customer(customer.id, new_identifier_9, new_identifier_3or4)
+            self.customer_service.update_customer(
+                customer.id, new_identifier_9, new_identifier_3or4
+            )
             self.load_customers()
             show_info_message("Success", "Customer updated successfully.")
             self.customer_updated.emit()
@@ -169,11 +221,14 @@ class CustomerView(QWidget):
         if customer is None:
             show_error_message("Error", "No customer selected for deletion.")
             return
-        
-        reply = QMessageBox.question(self, 'Delete Customer', 
-                                     f'Are you sure you want to delete customer {customer.identifier_9}?',
-                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
-                                     QMessageBox.StandardButton.No)
+
+        reply = QMessageBox.question(
+            self,
+            "Delete Customer",
+            f"Are you sure you want to delete customer {customer.identifier_9}?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
         if reply == QMessageBox.StandardButton.Yes:
             self.customer_service.delete_customer(customer.id)
             self.load_customers()
@@ -193,17 +248,19 @@ class CustomerView(QWidget):
         menu = QMenu()
         edit_action = menu.addAction("Edit")
         delete_action = menu.addAction("Delete")
-        
+
         action = menu.exec(self.customer_table.mapToGlobal(position))
         if action:
             row = self.customer_table.rowAt(position.y())
             customer_id = self.customer_table.item(row, 0).text()
             customer = self.customer_service.get_customer(int(customer_id))
-            
+
             if customer is not None:
                 if action == edit_action:
                     self.edit_customer(customer)
                 elif action == delete_action:
                     self.delete_customer(customer)
             else:
-                show_error_message("Error", f"Customer with ID {customer_id} not found.")
+                show_error_message(
+                    "Error", f"Customer with ID {customer_id} not found."
+                )

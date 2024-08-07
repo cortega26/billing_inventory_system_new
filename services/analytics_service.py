@@ -5,19 +5,20 @@ from functools import lru_cache
 from utils.decorators import db_operation
 from utils.exceptions import ValidationException
 
+
 class AnalyticsService:
     @staticmethod
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
     def get_loyal_customers(threshold: int = LOYALTY_THRESHOLD) -> List[Dict[str, Any]]:
-        query = '''
+        query = """
             SELECT c.id, c.identifier_9, COUNT(DISTINCT s.id) as purchase_count
             FROM customers c
             JOIN sales s ON c.id = s.customer_id
             GROUP BY c.id
             HAVING purchase_count >= ?
             ORDER BY purchase_count DESC
-        '''
+        """
         return DatabaseManager.fetch_all(query, (threshold,))
 
     @staticmethod
@@ -25,7 +26,7 @@ class AnalyticsService:
     @db_operation(show_dialog=True)
     def get_sales_by_weekday(start_date: str, end_date: str) -> List[Dict[str, Any]]:
         AnalyticsService._validate_date_range(start_date, end_date)
-        query = '''
+        query = """
             SELECT 
                 CASE CAST(strftime('%w', date) AS INTEGER)
                     WHEN 0 THEN 'Sunday'
@@ -41,15 +42,17 @@ class AnalyticsService:
             WHERE date BETWEEN ? AND ?
             GROUP BY weekday
             ORDER BY CAST(strftime('%w', date) AS INTEGER)
-        '''
+        """
         return DatabaseManager.fetch_all(query, (start_date, end_date))
 
     @staticmethod
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
-    def get_top_selling_products(start_date: str, end_date: str, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_top_selling_products(
+        start_date: str, end_date: str, limit: int = 10
+    ) -> List[Dict[str, Any]]:
         AnalyticsService._validate_date_range(start_date, end_date)
-        query = '''
+        query = """
             SELECT p.id, p.name, SUM(si.quantity) as total_quantity, SUM(si.quantity * si.price) as total_revenue
             FROM products p
             JOIN sale_items si ON p.id = si.product_id
@@ -58,7 +61,7 @@ class AnalyticsService:
             GROUP BY p.id
             ORDER BY total_quantity DESC
             LIMIT ?
-        '''
+        """
         return DatabaseManager.fetch_all(query, (start_date, end_date, limit))
 
     @staticmethod
@@ -66,13 +69,13 @@ class AnalyticsService:
     @db_operation(show_dialog=True)
     def get_sales_trend(start_date: str, end_date: str) -> List[Dict[str, Any]]:
         AnalyticsService._validate_date_range(start_date, end_date)
-        query = '''
+        query = """
             SELECT date, SUM(total_amount) as daily_sales
             FROM sales
             WHERE date BETWEEN ? AND ?
             GROUP BY date
             ORDER BY date
-        '''
+        """
         return DatabaseManager.fetch_all(query, (start_date, end_date))
 
     @staticmethod
@@ -80,7 +83,7 @@ class AnalyticsService:
     @db_operation(show_dialog=True)
     def get_inventory_turnover(start_date: str, end_date: str) -> List[Dict[str, Any]]:
         AnalyticsService._validate_date_range(start_date, end_date)
-        query = '''
+        query = """
             SELECT 
                 p.id, 
                 p.name, 
@@ -97,15 +100,17 @@ class AnalyticsService:
             LEFT JOIN inventory i ON p.id = i.product_id
             GROUP BY p.id
             ORDER BY turnover_ratio DESC
-        '''
+        """
         return DatabaseManager.fetch_all(query, (start_date, end_date))
 
     @staticmethod
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
-    def get_category_performance(start_date: str, end_date: str) -> List[Dict[str, Any]]:
+    def get_category_performance(
+        start_date: str, end_date: str
+    ) -> List[Dict[str, Any]]:
         AnalyticsService._validate_date_range(start_date, end_date)
-        query = '''
+        query = """
             SELECT 
                 c.name as category,
                 SUM(si.quantity * si.price) as total_sales,
@@ -117,7 +122,7 @@ class AnalyticsService:
             WHERE s.date BETWEEN ? AND ?
             GROUP BY c.id
             ORDER BY total_sales DESC
-        '''
+        """
         return DatabaseManager.fetch_all(query, (start_date, end_date))
 
     @staticmethod
@@ -125,7 +130,7 @@ class AnalyticsService:
     @db_operation(show_dialog=True)
     def get_profit_margin(start_date: str, end_date: str) -> List[Dict[str, Any]]:
         AnalyticsService._validate_date_range(start_date, end_date)
-        query = '''
+        query = """
             SELECT 
                 p.id, 
                 p.name, 
@@ -143,7 +148,7 @@ class AnalyticsService:
             WHERE s.date BETWEEN ? AND ?
             GROUP BY p.id
             ORDER BY profit_margin DESC
-        '''
+        """
         return DatabaseManager.fetch_all(query, (start_date, end_date))
 
     @staticmethod
@@ -151,7 +156,7 @@ class AnalyticsService:
     @db_operation(show_dialog=True)
     def get_customer_retention_rate(start_date: str, end_date: str) -> Dict[str, Any]:
         AnalyticsService._validate_date_range(start_date, end_date)
-        query = '''
+        query = """
         WITH customers_in_period AS (
             SELECT DISTINCT customer_id
             FROM sales
@@ -176,20 +181,22 @@ class AnalyticsService:
             END as retention_rate
         FROM customers_in_period c
         LEFT JOIN returning_customers rc ON c.customer_id = rc.customer_id
-        '''
-        result = DatabaseManager.fetch_one(query, (start_date, end_date, start_date, start_date, end_date))
-        
+        """
+        result = DatabaseManager.fetch_one(
+            query, (start_date, end_date, start_date, start_date, end_date)
+        )
+
         if result is None:
             return {
-                'total_customers': 0,
-                'returning_customers': 0,
-                'retention_rate': 0.0
+                "total_customers": 0,
+                "returning_customers": 0,
+                "retention_rate": 0.0,
             }
-        
+
         return {
-            'total_customers': result['total_customers'],
-            'returning_customers': result['returning_customers'],
-            'retention_rate': result['retention_rate']
+            "total_customers": result["total_customers"],
+            "returning_customers": result["returning_customers"],
+            "retention_rate": result["retention_rate"],
         }
 
     @staticmethod

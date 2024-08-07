@@ -4,6 +4,7 @@ from datetime import datetime
 from utils.exceptions import ValidationException
 from utils.decorators import validate_input
 
+
 @dataclass
 class PurchaseItem:
     id: int
@@ -13,13 +14,13 @@ class PurchaseItem:
     price: float
 
     @classmethod
-    def from_db_row(cls, row: Dict[str, Any]) -> 'PurchaseItem':
+    def from_db_row(cls, row: Dict[str, Any]) -> "PurchaseItem":
         return cls(
-            id=row['id'],
-            purchase_id=row['purchase_id'],
-            product_id=row['product_id'],
-            quantity=row['quantity'],
-            price=float(row['price'])
+            id=row["id"],
+            purchase_id=row["purchase_id"],
+            product_id=row["product_id"],
+            quantity=row["quantity"],
+            price=float(row["price"]),
         )
 
     def total_price(self) -> float:
@@ -27,13 +28,14 @@ class PurchaseItem:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            'id': self.id,
-            'purchase_id': self.purchase_id,
-            'product_id': self.product_id,
-            'quantity': self.quantity,
-            'price': self.price,
-            'total_price': self.total_price()
+            "id": self.id,
+            "purchase_id": self.purchase_id,
+            "product_id": self.product_id,
+            "quantity": self.quantity,
+            "price": self.price,
+            "total_price": self.total_price(),
         }
+
 
 @dataclass
 class Purchase:
@@ -47,11 +49,11 @@ class Purchase:
         self.recalculate_total()
 
     @classmethod
-    def from_db_row(cls, row: Dict[str, Any]) -> 'Purchase':
+    def from_db_row(cls, row: Dict[str, Any]) -> "Purchase":
         return cls(
-            id=row['id'],
-            supplier=row['supplier'],
-            date=datetime.fromisoformat(row['date'])
+            id=row["id"],
+            supplier=row["supplier"],
+            date=datetime.fromisoformat(row["date"]),
         )
 
     @validate_input(show_dialog=True)
@@ -66,7 +68,9 @@ class Purchase:
             self.items.remove(item)
             self._total_amount -= item.total_price()
         else:
-            raise ValidationException(f"Item with id {item_id} not found in the purchase")
+            raise ValidationException(
+                f"Item with id {item_id} not found in the purchase"
+            )
 
     def recalculate_total(self) -> None:
         self._total_amount = sum(item.total_price() for item in self.items)
@@ -77,11 +81,11 @@ class Purchase:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            'id': self.id,
-            'supplier': self.supplier,
-            'date': self.date.isoformat(),
-            'total_amount': self.total_amount,
-            'items': [item.to_dict() for item in self.items]
+            "id": self.id,
+            "supplier": self.supplier,
+            "date": self.date.isoformat(),
+            "total_amount": self.total_amount,
+            "items": [item.to_dict() for item in self.items],
         }
 
     def __str__(self) -> str:

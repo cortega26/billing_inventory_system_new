@@ -3,6 +3,7 @@ from typing import Optional, List, Dict, Any
 from utils.exceptions import ValidationException
 from utils.decorators import validate_input
 
+
 @dataclass
 class Customer:
     id: int
@@ -16,11 +17,11 @@ class Customer:
             self._identifiers.append(self.identifier_3or4)
 
     @classmethod
-    def from_db_row(cls, row: Dict[str, Any]) -> 'Customer':
+    def from_db_row(cls, row: Dict[str, Any]) -> "Customer":
         return cls(
-            id=row['id'],
-            identifier_9=row['identifier_9'],
-            identifier_3or4=row.get('identifier_3or4')
+            id=row["id"],
+            identifier_9=row["identifier_9"],
+            identifier_3or4=row.get("identifier_3or4"),
         )
 
     @validate_input(show_dialog=True)
@@ -33,8 +34,12 @@ class Customer:
     @validate_input(show_dialog=True)
     def update_identifier_3or4(self, new_identifier_3or4: Optional[str]) -> None:
         if new_identifier_3or4 is not None:
-            if not isinstance(new_identifier_3or4, str) or len(new_identifier_3or4) not in (3, 4):
-                raise ValidationException("identifier_3or4 must be a string of 3 or 4 characters")
+            if not isinstance(new_identifier_3or4, str) or len(
+                new_identifier_3or4
+            ) not in (3, 4):
+                raise ValidationException(
+                    "identifier_3or4 must be a string of 3 or 4 characters"
+                )
             self.identifier_3or4 = new_identifier_3or4
             if len(self._identifiers) > 1:
                 self._identifiers[1] = new_identifier_3or4
@@ -49,7 +54,7 @@ class Customer:
         return self._identifiers.copy()
 
     def __str__(self) -> str:
-        identifiers = ', '.join(self._identifiers)
+        identifiers = ", ".join(self._identifiers)
         return f"Customer(id={self.id}, identifiers=[{identifiers}])"
 
     def __eq__(self, other: object) -> bool:
@@ -59,7 +64,7 @@ class Customer:
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            'id': self.id,
-            'identifier_9': self.identifier_9,
-            'identifier_3or4': self.identifier_3or4
+            "id": self.id,
+            "identifier_9": self.identifier_9,
+            "identifier_3or4": self.identifier_3or4,
         }

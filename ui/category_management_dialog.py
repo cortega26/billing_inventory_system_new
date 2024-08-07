@@ -1,11 +1,21 @@
-from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QListWidget, 
-                               QPushButton, QMessageBox, QLineEdit,
-                               QFormLayout, QDialogButtonBox, QLabel)
+from PySide6.QtWidgets import (
+    QDialog,
+    QVBoxLayout,
+    QHBoxLayout,
+    QListWidget,
+    QPushButton,
+    QMessageBox,
+    QLineEdit,
+    QFormLayout,
+    QDialogButtonBox,
+    QLabel,
+)
 from PySide6.QtCore import Qt
 from services.category_service import CategoryService
 from utils.system.logger import logger
 from utils.helpers import show_error_message, show_info_message
 from utils.decorators import ui_operation
+
 
 class AddEditCategoryDialog(QDialog):
     def __init__(self, parent=None, category=None):
@@ -21,7 +31,9 @@ class AddEditCategoryDialog(QDialog):
         self.name_input = QLineEdit(self.category.name if self.category else "")
         layout.addRow("Category Name:", self.name_input)
 
-        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        self.button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
         layout.addRow(self.button_box)
@@ -32,12 +44,13 @@ class AddEditCategoryDialog(QDialog):
         if not name:
             show_error_message("Invalid Input", "Category name cannot be empty.")
             return
-        
+
         if self.category:
             self.category_service.update_category(self.category.id, name)
         else:
             self.category_service.create_category(name)
         super().accept()
+
 
 class CategoryManagementDialog(QDialog):
     def __init__(self, parent=None):
@@ -48,7 +61,7 @@ class CategoryManagementDialog(QDialog):
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
-        
+
         # Search bar
         search_layout = QHBoxLayout()
         self.search_input = QLineEdit()
@@ -62,7 +75,7 @@ class CategoryManagementDialog(QDialog):
         # Category list
         self.category_list = QListWidget()
         layout.addWidget(self.category_list)
-        
+
         # Buttons
         button_layout = QHBoxLayout()
         add_button = QPushButton("Add Category")
@@ -71,17 +84,17 @@ class CategoryManagementDialog(QDialog):
         edit_button.clicked.connect(self.edit_category)
         delete_button = QPushButton("Delete Category")
         delete_button.clicked.connect(self.delete_category)
-        
+
         button_layout.addWidget(add_button)
         button_layout.addWidget(edit_button)
         button_layout.addWidget(delete_button)
-        
+
         layout.addLayout(button_layout)
 
         # Status label
         self.status_label = QLabel()
         layout.addWidget(self.status_label)
-        
+
         self.load_categories()
 
     @ui_operation(show_dialog=True)
@@ -118,12 +131,17 @@ class CategoryManagementDialog(QDialog):
     def delete_category(self):
         current_item = self.category_list.currentItem()
         if current_item:
-            reply = QMessageBox.question(self, "Delete Category", 
-                                         f"Are you sure you want to delete the category '{current_item.text()}'?",
-                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
-                                         QMessageBox.StandardButton.No)
+            reply = QMessageBox.question(
+                self,
+                "Delete Category",
+                f"Are you sure you want to delete the category '{current_item.text()}'?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
             if reply == QMessageBox.StandardButton.Yes:
-                category = self.category_service.get_category_by_name(current_item.text())
+                category = self.category_service.get_category_by_name(
+                    current_item.text()
+                )
                 if category:
                     self.category_service.delete_category(category.id)
                     self.load_categories()
@@ -141,7 +159,9 @@ class CategoryManagementDialog(QDialog):
             self.category_list.clear()
             for category in categories:
                 self.category_list.addItem(category.name)
-            self.update_status(f"Found {len(categories)} categories matching '{search_term}'")
+            self.update_status(
+                f"Found {len(categories)} categories matching '{search_term}'"
+            )
         else:
             self.load_categories()
 

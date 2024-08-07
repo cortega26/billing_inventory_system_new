@@ -6,6 +6,7 @@ from utils.system.logger import logger
 from utils.exceptions import DatabaseException, AppException
 from utils.decorators import handle_exceptions
 
+
 class Application:
     @staticmethod
     @handle_exceptions(AppException, show_dialog=True)
@@ -25,6 +26,7 @@ class Application:
         window.show()
         logger.info("Application started")
         sys.exit(app.exec())
+
 
 if __name__ == "__main__":
     try:

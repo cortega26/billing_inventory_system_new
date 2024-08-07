@@ -1,5 +1,13 @@
-from PySide6.QtWidgets import (QMainWindow, QTabWidget, QVBoxLayout, QWidget, QMessageBox,
-                               QStatusBar, QMenuBar, QMenu)
+from PySide6.QtWidgets import (
+    QMainWindow,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+    QMessageBox,
+    QStatusBar,
+    QMenuBar,
+    QMenu,
+)
 from PySide6.QtCore import Qt, QSettings, QSize, QPoint
 from PySide6.QtGui import QAction, QKeySequence
 from ui.customer_view import CustomerView
@@ -15,9 +23,10 @@ from config import APP_NAME, APP_VERSION, COMPANY_NAME
 from utils.system.event_system import event_system
 from utils.decorators import ui_operation
 
+
 class RefreshableWidget(Protocol):
-    def refresh(self) -> None:
-        ...
+    def refresh(self) -> None: ...
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -60,18 +69,29 @@ class MainWindow(QMainWindow):
         menu_bar = QMenuBar(self)
         self.setMenuBar(menu_bar)
 
-        file_menu = self.create_menu("&File", [
-            ("&Export Data", "Ctrl+E", self.export_data),
-            ("&Import Data", "Ctrl+I", self.import_data),
-            ("E&xit", QKeySequence.StandardKey.Quit, self.close)
-        ])
-        view_menu = self.create_menu("&View", [
-            ("&Refresh", QKeySequence.StandardKey.Refresh, self.refresh_current_tab)
-        ])
-        help_menu = self.create_menu("&Help", [
-            ("&User Guide", QKeySequence.StandardKey.HelpContents, self.show_user_guide),
-            ("&About", None, self.show_about_dialog)
-        ])
+        file_menu = self.create_menu(
+            "&File",
+            [
+                ("&Export Data", "Ctrl+E", self.export_data),
+                ("&Import Data", "Ctrl+I", self.import_data),
+                ("E&xit", QKeySequence.StandardKey.Quit, self.close),
+            ],
+        )
+        view_menu = self.create_menu(
+            "&View",
+            [("&Refresh", QKeySequence.StandardKey.Refresh, self.refresh_current_tab)],
+        )
+        help_menu = self.create_menu(
+            "&Help",
+            [
+                (
+                    "&User Guide",
+                    QKeySequence.StandardKey.HelpContents,
+                    self.show_user_guide,
+                ),
+                ("&About", None, self.show_about_dialog),
+            ],
+        )
 
         menu_bar.addMenu(file_menu)
         menu_bar.addMenu(view_menu)
@@ -91,7 +111,7 @@ class MainWindow(QMainWindow):
             "Sales": SaleView,
             "Purchases": PurchaseView,
             "Inventory": InventoryView,
-            "Analytics": AnalyticsView
+            "Analytics": AnalyticsView,
         }
 
         for tab_name, view_class in tabs.items():
@@ -106,7 +126,10 @@ class MainWindow(QMainWindow):
 
     def restore_last_tab(self):
         last_tab_index = self.settings.value("LastTabIndex", 0)
-        if isinstance(last_tab_index, int) and 0 <= last_tab_index < self.tab_widget.count():
+        if (
+            isinstance(last_tab_index, int)
+            and 0 <= last_tab_index < self.tab_widget.count()
+        ):
             self.tab_widget.setCurrentIndex(last_tab_index)
         else:
             self.tab_widget.setCurrentIndex(0)
@@ -127,24 +150,27 @@ class MainWindow(QMainWindow):
     @ui_operation(show_dialog=True)
     def show_about_dialog(self):
         QMessageBox.about(
-            self, "About",
+            self,
+            "About",
             f"{APP_NAME} v{APP_VERSION}\n\n"
             f"Developed by {COMPANY_NAME}\n\n"
-            "An inventory and billing management system."
+            "An inventory and billing management system.",
         )
 
     @ui_operation(show_dialog=True)
     def closeEvent(self, event):
         reply = QMessageBox.question(
-            self, 'Exit', 'Are you sure you want to exit?',
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
-            QMessageBox.StandardButton.No
+            self,
+            "Exit",
+            "Are you sure you want to exit?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
 
         if reply == QMessageBox.StandardButton.Yes:
             self.settings.setValue("WindowSize", self.size())
             self.settings.setValue("WindowPosition", self.pos())
-            
+
             logger.info("Application closed by user")
             event.accept()
         else:
@@ -182,7 +208,7 @@ class MainWindow(QMainWindow):
     def refresh_relevant_views(self):
         for i in range(self.tab_widget.count()):
             widget = self.tab_widget.widget(i)
-            if hasattr(widget, 'refresh') and callable(getattr(widget, 'refresh')):
+            if hasattr(widget, "refresh") and callable(getattr(widget, "refresh")):
                 refreshable_widget = cast(RefreshableWidget, widget)
                 refreshable_widget.refresh()
 
@@ -214,7 +240,9 @@ class MainWindow(QMainWindow):
     @ui_operation(show_dialog=True)
     def refresh_current_tab(self):
         current_widget = self.tab_widget.currentWidget()
-        if hasattr(current_widget, 'refresh') and callable(getattr(current_widget, 'refresh')):
+        if hasattr(current_widget, "refresh") and callable(
+            getattr(current_widget, "refresh")
+        ):
             refreshable_widget = cast(RefreshableWidget, current_widget)
             refreshable_widget.refresh()
         self.show_status_message("View refreshed")

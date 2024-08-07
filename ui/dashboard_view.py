@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSizePolicy
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPainter, QColor
 from PySide6.QtCharts import QChart, QChartView, QPieSeries, QBarSeries, QBarSet, QBarCategoryAxis, QValueAxis
@@ -74,8 +74,15 @@ class DashboardView(QWidget):
         self.charts_layout = QHBoxLayout()
         self.sales_chart_view = self.create_sales_by_category_chart()
         self.customers_chart_view = self.create_top_customers_chart()
-        self.charts_layout.addWidget(self.sales_chart_view)
-        self.charts_layout.addWidget(self.customers_chart_view)
+        
+        # Set fixed size policies for both charts
+        self.sales_chart_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.customers_chart_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        
+        # Add charts to the layout with a 1:1 ratio
+        self.charts_layout.addWidget(self.sales_chart_view, 1)
+        self.charts_layout.addWidget(self.customers_chart_view, 1)
+        
         layout.addLayout(self.charts_layout)
 
     def setup_update_timer(self):
@@ -182,6 +189,10 @@ class DashboardView(QWidget):
         # Update charts
         new_sales_chart = self.create_sales_by_category_chart()
         new_customers_chart = self.create_top_customers_chart()
+        
+        # Set fixed size policies for new charts
+        new_sales_chart.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        new_customers_chart.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         
         self.charts_layout.replaceWidget(self.sales_chart_view, new_sales_chart)
         self.charts_layout.replaceWidget(self.customers_chart_view, new_customers_chart)

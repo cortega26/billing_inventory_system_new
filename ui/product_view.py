@@ -1,8 +1,9 @@
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTableWidgetItem, QMessageBox,
-    QSpinBox, QDialog, QDialogButtonBox, QComboBox, QFormLayout, QHeaderView, QAbstractItemView, QProgressBar
-)
-from PySide6.QtCore import Qt, Signal
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,QTableWidgetItem, QMessageBox,
+    QSpinBox, QDialog, QDialogButtonBox, QComboBox, QFormLayout, QHeaderView, QAbstractItemView,
+    QProgressBar, QMenu, QApplication)
+from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtGui import QAction, QKeySequence
 from services.product_service import ProductService
 from services.category_service import CategoryService
 from utils.helpers import create_table, show_info_message, show_error_message, format_price
@@ -99,6 +100,7 @@ class ProductView(QWidget):
         search_layout = QHBoxLayout()
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Search products...")
+        self.search_input.returnPressed.connect(self.search_products)
         search_button = QPushButton("Search")
         search_button.clicked.connect(self.search_products)
         search_layout.addWidget(self.search_input)
@@ -121,12 +123,15 @@ class ProductView(QWidget):
         self.product_table.setSortingEnabled(True)
         self.product_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.product_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.product_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.product_table.customContextMenuRequested.connect(self.show_context_menu)
         layout.addWidget(self.product_table)
 
         # Buttons
         button_layout = QHBoxLayout()
         add_button = QPushButton("Add Product")
         add_button.clicked.connect(self.add_product)
+        add_button.setToolTip("Add a new product (Ctrl+N)")
         manage_categories_button = QPushButton("Manage Categories")
         manage_categories_button.clicked.connect(self.manage_categories)
         button_layout.addWidget(add_button)
@@ -142,10 +147,24 @@ class ProductView(QWidget):
 
         self.load_products()
 
+        # Set up shortcuts
+        self.setup_shortcuts()
+
         # Connect to event system
         event_system.product_added.connect(self.load_products)
         event_system.product_updated.connect(self.load_products)
         event_system.product_deleted.connect(self.load_products)
+
+    def setup_shortcuts(self):
+        add_shortcut = QAction("Add Product", self)
+        add_shortcut.setShortcut(QKeySequence("Ctrl+N"))
+        add_shortcut.triggered.connect(self.add_product)
+        self.addAction(add_shortcut)
+
+        refresh_shortcut = QAction("Refresh", self)
+        refresh_shortcut.setShortcut(QKeySequence("F5"))
+        refresh_shortcut.triggered.connect(self.load_products)
+        self.addAction(refresh_shortcut)
 
     @ui_operation(show_dialog=True)
     def on_category_changed(self, index):
@@ -164,10 +183,14 @@ class ProductView(QWidget):
     def load_products(self):
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
-        products = self.product_service.get_all_products()
-        self.filter_products(products)
-        self.progress_bar.setValue(100)
-        self.progress_bar.setVisible(False)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            products = self.product_service.get_all_products()
+            QTimer.singleShot(0, lambda: self.filter_products(products))
+        finally:
+            QApplication.restoreOverrideCursor()
+            self.progress_bar.setValue(100)
+            QTimer.singleShot(1000, lambda: self.progress_bar.setVisible(False))
 
     @ui_operation(show_dialog=True)
     def update_product_table(self, products: List[Product]):
@@ -189,10 +212,12 @@ class ProductView(QWidget):
             edit_button = QPushButton("Edit")
             edit_button.setFixedWidth(80)
             edit_button.clicked.connect(lambda _, p=product: self.edit_product(p))
+            edit_button.setToolTip("Edit this product")
 
             delete_button = QPushButton("Delete")
             delete_button.setFixedWidth(80)
             delete_button.clicked.connect(lambda _, p=product: self.delete_product(p))
+            delete_button.setToolTip("Delete this product")
 
             actions_layout.addWidget(edit_button)
             actions_layout.addWidget(delete_button)
@@ -235,7 +260,7 @@ class ProductView(QWidget):
             f'Are you sure you want to delete product {product.name}?',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
             QMessageBox.StandardButton.No
-            )
+        )
         if reply == QMessageBox.StandardButton.Yes:
             self.product_service.delete_product(product.id)
             self.load_products()
@@ -264,9 +289,10 @@ class ProductView(QWidget):
                 not search_term or 
                 search_term in p.name.lower() or 
                 (p.description and search_term in p.description.lower())
-                ) and (self.current_category_id is None or 
+            ) and (
+                self.current_category_id is None or 
                 (p.category and p.category.id == self.current_category_id)
-                )
+            )
         ]
 
         self.update_product_table(filtered_products)
@@ -280,3 +306,46 @@ class ProductView(QWidget):
         if dialog.exec():
             self.load_categories()
             self.load_products()
+
+    def show_context_menu(self, position):
+        menu = QMenu()
+        edit_action = menu.addAction("Edit")
+        delete_action = menu.addAction("Delete")
+        
+        action = menu.exec(self.product_table.mapToGlobal(position))
+        if action:
+            row = self.product_table.rowAt(position.y())
+            product_id = int(self.product_table.item(row, 0).text())
+            product = self.product_service.get_product(product_id)
+            
+            if product is not None:
+                if action == edit_action:
+                    self.edit_product(product)
+                elif action == delete_action:
+                    self.delete_product(product)
+            else:
+                show_error_message("Error", f"Product with ID {product_id} not found.")
+
+    @ui_operation(show_dialog=True)
+    def export_products(self):
+        # TODO: Implement export functionality
+        # TODO: This is a placeholder for future implementation
+        show_info_message("Info", "Export functionality not implemented yet.")
+
+    @ui_operation(show_dialog=True)
+    def import_products(self):
+        # TODO: Implement import functionality
+        # TODO: This is a placeholder for future implementation
+        show_info_message("Info", "Import functionality not implemented yet.")
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Delete:
+            selected_rows = self.product_table.selectionModel().selectedRows()
+            if selected_rows:
+                row = selected_rows[0].row()
+                product_id = int(self.product_table.item(row, 0).text())
+                product = self.product_service.get_product(product_id)
+                if product:
+                    self.delete_product(product)
+        else:
+            super().keyPressEvent(event)

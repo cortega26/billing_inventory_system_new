@@ -1,9 +1,11 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
                                QPushButton, QTableWidget, QTableWidgetItem, QMessageBox,
-                               QDialog, QDialogButtonBox, QFormLayout)
-from PySide6.QtCore import Qt, Signal
+                               QDialog, QDialogButtonBox, QFormLayout, QHeaderView,
+                               QMenu, QApplication)
+from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtGui import QAction, QKeySequence
 from services.customer_service import CustomerService
-from utils.helpers import create_table, show_error_message, format_price
+from utils.helpers import create_table, show_error_message, show_info_message, format_price
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
 from utils.validation.validators import validate_9digit_identifier, validate_3or4digit_identifier
 from utils.decorators import ui_operation
@@ -52,25 +54,11 @@ class CustomerView(QWidget):
     def setup_ui(self):
         layout = QVBoxLayout(self)
 
-        # Input fields
-        input_layout = QHBoxLayout()
-        self.identifier_9_input = QLineEdit()
-        self.identifier_3or4_input = QLineEdit()
-        input_layout.addWidget(QLabel("9-digit Identifier:"))
-        input_layout.addWidget(self.identifier_9_input)
-        input_layout.addWidget(QLabel("3 or 4-digit Identifier:"))
-        input_layout.addWidget(self.identifier_3or4_input)
-        
-        add_button = QPushButton("Add Customer")
-        add_button.clicked.connect(self.add_customer)
-        input_layout.addWidget(add_button)
-
-        layout.addLayout(input_layout)
-
         # Search field
         search_layout = QHBoxLayout()
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Search customers...")
+        self.search_input.returnPressed.connect(self.search_customers)
         search_button = QPushButton("Search")
         search_button.clicked.connect(self.search_customers)
         search_layout.addWidget(self.search_input)
@@ -81,14 +69,41 @@ class CustomerView(QWidget):
         self.customer_table = create_table(["ID", "9-digit Identifier", "3 or 4-digit Identifier", "Total Purchases", "Total Amount", "Actions"])
         self.customer_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.customer_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.customer_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.customer_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customer_table.customContextMenuRequested.connect(self.show_context_menu)
         layout.addWidget(self.customer_table)
+
+        # Add customer button
+        add_button = QPushButton("Add Customer")
+        add_button.clicked.connect(self.add_customer)
+        add_button.setToolTip("Add a new customer (Ctrl+N)")
+        layout.addWidget(add_button)
 
         self.load_customers()
 
+        # Set up shortcuts
+        self.setup_shortcuts()
+
+    def setup_shortcuts(self):
+        add_shortcut = QAction("Add Customer", self)
+        add_shortcut.setShortcut(QKeySequence("Ctrl+N"))
+        add_shortcut.triggered.connect(self.add_customer)
+        self.addAction(add_shortcut)
+
+        refresh_shortcut = QAction("Refresh", self)
+        refresh_shortcut.setShortcut(QKeySequence("F5"))
+        refresh_shortcut.triggered.connect(self.load_customers)
+        self.addAction(refresh_shortcut)
+
     @ui_operation(show_dialog=True)
     def load_customers(self):
-        customers = self.customer_service.get_all_customers()
-        self.populate_customer_table(customers)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            customers = self.customer_service.get_all_customers()
+            QTimer.singleShot(0, lambda: self.populate_customer_table(customers))
+        finally:
+            QApplication.restoreOverrideCursor()
 
     @ui_operation(show_dialog=True)
     def populate_customer_table(self, customers):
@@ -108,10 +123,12 @@ class CustomerView(QWidget):
             edit_button = QPushButton("Edit")
             edit_button.setFixedWidth(50)
             edit_button.clicked.connect(lambda _, c=customer: self.edit_customer(c))
+            edit_button.setToolTip("Edit this customer")
             
             delete_button = QPushButton("Delete")
             delete_button.setFixedWidth(50)
             delete_button.clicked.connect(lambda _, c=customer: self.delete_customer(c))
+            delete_button.setToolTip("Delete this customer")
             
             actions_layout.addWidget(edit_button)
             actions_layout.addWidget(delete_button)
@@ -127,24 +144,32 @@ class CustomerView(QWidget):
             customer_id = self.customer_service.create_customer(identifier_9, identifier_3or4)
             if customer_id is not None:
                 self.load_customers()
-                QMessageBox.information(self, "Success", "Customer added successfully.")
+                show_info_message("Success", "Customer added successfully.")
                 self.customer_updated.emit()
             else:
                 show_error_message("Error", "Failed to add customer.")
 
     @ui_operation(show_dialog=True)
-    def edit_customer(self, customer: Customer):
+    def edit_customer(self, customer: Optional[Customer]):
+        if customer is None:
+            show_error_message("Error", "No customer selected for editing.")
+            return
+        
         dialog = EditCustomerDialog(customer, self)
         if dialog.exec():
             new_identifier_9 = dialog.identifier_9_input.text().strip()
             new_identifier_3or4 = dialog.identifier_3or4_input.text().strip() or None
             self.customer_service.update_customer(customer.id, new_identifier_9, new_identifier_3or4)
             self.load_customers()
-            QMessageBox.information(self, "Success", "Customer updated successfully.")
+            show_info_message("Success", "Customer updated successfully.")
             self.customer_updated.emit()
 
     @ui_operation(show_dialog=True)
-    def delete_customer(self, customer: Customer):
+    def delete_customer(self, customer: Optional[Customer]):
+        if customer is None:
+            show_error_message("Error", "No customer selected for deletion.")
+            return
+        
         reply = QMessageBox.question(self, 'Delete Customer', 
                                      f'Are you sure you want to delete customer {customer.identifier_9}?',
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
@@ -152,7 +177,7 @@ class CustomerView(QWidget):
         if reply == QMessageBox.StandardButton.Yes:
             self.customer_service.delete_customer(customer.id)
             self.load_customers()
-            QMessageBox.information(self, "Success", "Customer deleted successfully.")
+            show_info_message("Success", "Customer deleted successfully.")
             self.customer_updated.emit()
 
     @ui_operation(show_dialog=True)
@@ -164,5 +189,21 @@ class CustomerView(QWidget):
         else:
             self.load_customers()
 
-    def refresh(self):
-        self.load_customers()
+    def show_context_menu(self, position):
+        menu = QMenu()
+        edit_action = menu.addAction("Edit")
+        delete_action = menu.addAction("Delete")
+        
+        action = menu.exec(self.customer_table.mapToGlobal(position))
+        if action:
+            row = self.customer_table.rowAt(position.y())
+            customer_id = self.customer_table.item(row, 0).text()
+            customer = self.customer_service.get_customer(int(customer_id))
+            
+            if customer is not None:
+                if action == edit_action:
+                    self.edit_customer(customer)
+                elif action == delete_action:
+                    self.delete_customer(customer)
+            else:
+                show_error_message("Error", f"Customer with ID {customer_id} not found.")

@@ -1,16 +1,16 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTableWidgetItem,
     QMessageBox, QHeaderView, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFormLayout,
-    QDoubleSpinBox, QProgressBar, QAbstractItemView
-)
+    QDoubleSpinBox, QProgressBar, QAbstractItemView, QMenu, QApplication)
 from PySide6.QtCore import Qt, QDate, QTimer, Signal
+from PySide6.QtGui import QAction, QKeySequence
 from services.purchase_service import PurchaseService
 from services.product_service import ProductService
 from models.purchase import Purchase
-from utils.helpers import create_table, show_info_message, format_price
+from utils.helpers import create_table, show_info_message, show_error_message, format_price
 from utils.system.event_system import event_system
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
-from typing import List
+from typing import List, Optional
 from utils.decorators import ui_operation, validate_input
 
 class PurchaseItemDialog(QDialog):
@@ -86,6 +86,7 @@ class PurchaseView(QWidget):
         search_layout = QHBoxLayout()
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Search purchases...")
+        self.search_input.returnPressed.connect(self.search_purchases)
         search_button = QPushButton("Search")
         search_button.clicked.connect(self.search_purchases)
         search_layout.addWidget(self.search_input)
@@ -99,6 +100,7 @@ class PurchaseView(QWidget):
         self.date_input = QDateEdit()
         self.date_input.setDate(QDate.currentDate())
         self.date_input.setCalendarPopup(True)
+        self.date_input.setFixedWidth(150)
 
         input_layout.addWidget(QLabel("Supplier:"))
         input_layout.addWidget(self.supplier_input)
@@ -107,16 +109,19 @@ class PurchaseView(QWidget):
 
         add_button = QPushButton("Add Purchase")
         add_button.clicked.connect(self.add_purchase)
+        add_button.setToolTip("Add a new purchase (Ctrl+N)")
         input_layout.addWidget(add_button)
 
         layout.addLayout(input_layout)
 
         # Purchase table
         self.purchase_table = create_table(["ID", "Supplier", "Date", "Total Amount", "Actions"])
-        self.purchase_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.purchase_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.purchase_table.setSortingEnabled(True)
         self.purchase_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.purchase_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.purchase_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.purchase_table.customContextMenuRequested.connect(self.show_context_menu)
         layout.addWidget(self.purchase_table)
 
         # Progress bar
@@ -126,14 +131,32 @@ class PurchaseView(QWidget):
 
         self.load_purchases()
 
+        # Set up shortcuts
+        self.setup_shortcuts()
+
+    def setup_shortcuts(self):
+        add_shortcut = QAction("Add Purchase", self)
+        add_shortcut.setShortcut(QKeySequence("Ctrl+N"))
+        add_shortcut.triggered.connect(self.add_purchase)
+        self.addAction(add_shortcut)
+
+        refresh_shortcut = QAction("Refresh", self)
+        refresh_shortcut.setShortcut(QKeySequence("F5"))
+        refresh_shortcut.triggered.connect(self.load_purchases)
+        self.addAction(refresh_shortcut)
+
     @ui_operation(show_dialog=True)
     def load_purchases(self):
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
-        purchases = self.purchase_service.get_all_purchases()
-        self.update_purchase_table(purchases)
-        self.progress_bar.setValue(100)
-        QTimer.singleShot(1000, lambda: self.progress_bar.setVisible(False))
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            purchases = self.purchase_service.get_all_purchases()
+            QTimer.singleShot(0, lambda: self.update_purchase_table(purchases))
+        finally:
+            QApplication.restoreOverrideCursor()
+            self.progress_bar.setValue(100)
+            QTimer.singleShot(1000, lambda: self.progress_bar.setVisible(False))
 
     @ui_operation(show_dialog=True)
     def update_purchase_table(self, purchases: List[Purchase]):
@@ -150,10 +173,12 @@ class PurchaseView(QWidget):
 
             view_button = QPushButton("View")
             view_button.clicked.connect(lambda _, p=purchase: self.view_purchase(p))
+            view_button.setToolTip("View purchase details")
             actions_layout.addWidget(view_button)
 
             delete_button = QPushButton("Delete")
             delete_button.clicked.connect(lambda _, p=purchase: self.delete_purchase(p))
+            delete_button.setToolTip("Delete this purchase")
             actions_layout.addWidget(delete_button)
 
             self.purchase_table.setCellWidget(row, 4, actions_widget)
@@ -236,3 +261,34 @@ class PurchaseView(QWidget):
 
     def refresh(self):
         self.load_purchases()
+
+    def show_context_menu(self, position):
+        menu = QMenu()
+        view_action = menu.addAction("View")
+        delete_action = menu.addAction("Delete")
+        
+        action = menu.exec(self.purchase_table.mapToGlobal(position))
+        if action:
+            row = self.purchase_table.rowAt(position.y())
+            purchase_id = int(self.purchase_table.item(row, 0).text())
+            purchase = self.purchase_service.get_purchase(purchase_id)
+            
+            if purchase is not None:
+                if action == view_action:
+                    self.view_purchase(purchase)
+                elif action == delete_action:
+                    self.delete_purchase(purchase)
+            else:
+                show_error_message("Error", f"Purchase with ID {purchase_id} not found.")
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Delete:
+            selected_rows = self.purchase_table.selectionModel().selectedRows()
+            if selected_rows:
+                row = selected_rows[0].row()
+                purchase_id = int(self.purchase_table.item(row, 0).text())
+                purchase = self.purchase_service.get_purchase(purchase_id)
+                if purchase:
+                    self.delete_purchase(purchase)
+        else:
+            super().keyPressEvent(event)

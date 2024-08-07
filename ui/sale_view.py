@@ -1,9 +1,9 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTableWidget, QTableWidgetItem,
     QMessageBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFormLayout, QDoubleSpinBox, QProgressBar,
-    QHeaderView
-)
+    QHeaderView, QMenu, QApplication)
 from PySide6.QtCore import Qt, QDate, QTimer, Signal
+from PySide6.QtGui import QAction, QKeySequence
 from services.sale_service import SaleService
 from services.customer_service import CustomerService
 from services.product_service import ProductService
@@ -132,6 +132,7 @@ class SaleView(QWidget):
         search_layout = QHBoxLayout()
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Search sales...")
+        self.search_input.returnPressed.connect(self.search_sales)
         search_button = QPushButton("Search")
         search_button.clicked.connect(self.search_sales)
         search_layout.addWidget(self.search_input)
@@ -158,6 +159,7 @@ class SaleView(QWidget):
         
         add_button = QPushButton("Add Sale")
         add_button.clicked.connect(self.add_sale)
+        add_button.setToolTip("Add a new sale (Ctrl+N)")
         input_layout.addWidget(add_button)
 
         layout.addLayout(input_layout)
@@ -167,6 +169,8 @@ class SaleView(QWidget):
         self.sale_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.sale_table.setSortingEnabled(True)
         self.sale_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.sale_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.sale_table.customContextMenuRequested.connect(self.show_context_menu)
         layout.addWidget(self.sale_table)
 
         # Progress bar
@@ -176,15 +180,33 @@ class SaleView(QWidget):
 
         self.load_sales()
 
+        # Set up shortcuts
+        self.setup_shortcuts()
+
+    def setup_shortcuts(self):
+        add_shortcut = QAction("Add Sale", self)
+        add_shortcut.setShortcut(QKeySequence("Ctrl+N"))
+        add_shortcut.triggered.connect(self.add_sale)
+        self.addAction(add_shortcut)
+
+        refresh_shortcut = QAction("Refresh", self)
+        refresh_shortcut.setShortcut(QKeySequence("F5"))
+        refresh_shortcut.triggered.connect(self.load_sales)
+        self.addAction(refresh_shortcut)
+
     @ui_operation(show_dialog=True)
     def load_sales(self):
         logger.debug("Loading sales")
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
-        sales = self.sale_service.get_all_sales()
-        self.update_sale_table(sales)
-        self.progress_bar.setValue(100)
-        QTimer.singleShot(1000, lambda: self.progress_bar.setVisible(False))
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            sales = self.sale_service.get_all_sales()
+            QTimer.singleShot(0, lambda: self.update_sale_table(sales))
+        finally:
+            QApplication.restoreOverrideCursor()
+            self.progress_bar.setValue(100)
+            QTimer.singleShot(1000, lambda: self.progress_bar.setVisible(False))
 
     @ui_operation(show_dialog=True)
     def update_sale_table(self, sales: List[Sale]):
@@ -207,10 +229,12 @@ class SaleView(QWidget):
 
             view_button = QPushButton("View")
             view_button.clicked.connect(lambda _, s=sale: self.view_sale(s))
+            view_button.setToolTip("View sale details")
             actions_layout.addWidget(view_button)
 
             delete_button = QPushButton("Delete")
             delete_button.clicked.connect(lambda _, s=sale: self.delete_sale(s))
+            delete_button.setToolTip("Delete this sale")
             actions_layout.addWidget(delete_button)
 
             self.sale_table.setCellWidget(row, 4, actions_widget)
@@ -302,16 +326,13 @@ class SaleView(QWidget):
         message += "</pre>"
         
         show_info_message("Sale Details", message)
-        
-        show_info_message("Sale Details", message)
 
     @ui_operation(show_dialog=True)
     def delete_sale(self, sale: Sale):
         reply = QMessageBox.question(
             self, 'Delete Sale', 
             f'Are you sure you want to delete this sale?',
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No
-            )
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
         if reply == QMessageBox.StandardButton.Yes:
             self.sale_service.delete_sale(sale.id)
             self.load_sales()
@@ -344,3 +365,34 @@ class SaleView(QWidget):
 
     def refresh(self):
         self.load_sales()
+
+    def show_context_menu(self, position):
+        menu = QMenu()
+        view_action = menu.addAction("View")
+        delete_action = menu.addAction("Delete")
+        
+        action = menu.exec(self.sale_table.mapToGlobal(position))
+        if action:
+            row = self.sale_table.rowAt(position.y())
+            sale_id = int(self.sale_table.item(row, 0).text())
+            sale = self.sale_service.get_sale(sale_id)
+            
+            if sale is not None:
+                if action == view_action:
+                    self.view_sale(sale)
+                elif action == delete_action:
+                    self.delete_sale(sale)
+            else:
+                show_error_message("Error", f"Sale with ID {sale_id} not found.")
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Delete:
+            selected_rows = self.sale_table.selectionModel().selectedRows()
+            if selected_rows:
+                row = selected_rows[0].row()
+                sale_id = int(self.sale_table.item(row, 0).text())
+                sale = self.sale_service.get_sale(sale_id)
+                if sale:
+                    self.delete_sale(sale)
+        else:
+            super().keyPressEvent(event)

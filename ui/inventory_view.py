@@ -1,7 +1,9 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QInputDialog,
                                QPushButton, QTableWidgetItem, QDoubleSpinBox, QComboBox, QDialog,
-                               QFormLayout, QDialogButtonBox, QHeaderView, QProgressBar)
-from PySide6.QtCore import Qt, Signal
+                               QFormLayout, QDialogButtonBox, QHeaderView, QProgressBar, QMenu,
+                               QApplication)
+from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtGui import QAction, QKeySequence
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
 from services.category_service import CategoryService
@@ -77,6 +79,7 @@ class InventoryView(QWidget):
         search_layout = QHBoxLayout()
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Search inventory...")
+        self.search_input.returnPressed.connect(self.search_inventory)
         search_button = QPushButton("Search")
         search_button.clicked.connect(self.search_inventory)
         self.category_filter = QComboBox()
@@ -92,6 +95,8 @@ class InventoryView(QWidget):
         # Inventory table
         self.inventory_table = create_table(["ID", "Product Name", "Category", "Quantity", "Actions"])
         self.inventory_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.inventory_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.inventory_table.customContextMenuRequested.connect(self.show_context_menu)
         layout.addWidget(self.inventory_table)
 
         # Low stock alert button
@@ -105,6 +110,15 @@ class InventoryView(QWidget):
         layout.addWidget(self.progress_bar)
 
         self.load_inventory()
+
+        # Set up shortcuts
+        self.setup_shortcuts()
+
+    def setup_shortcuts(self):
+        refresh_shortcut = QAction("Refresh", self)
+        refresh_shortcut.setShortcut(QKeySequence("F5"))
+        refresh_shortcut.triggered.connect(self.load_inventory)
+        self.addAction(refresh_shortcut)
 
     def connect_signals(self):
         event_system.product_added.connect(self.on_product_added)
@@ -128,11 +142,15 @@ class InventoryView(QWidget):
     def load_inventory(self):
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
-        inventory_items = self.inventory_service.get_all_inventory()
-        self.current_inventory = inventory_items
-        self.update_inventory_table(inventory_items)
-        self.progress_bar.setValue(100)
-        self.progress_bar.setVisible(False)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            inventory_items = self.inventory_service.get_all_inventory()
+            self.current_inventory = inventory_items
+            QTimer.singleShot(0, lambda: self.update_inventory_table(inventory_items))
+        finally:
+            QApplication.restoreOverrideCursor()
+            self.progress_bar.setValue(100)
+            QTimer.singleShot(1000, lambda: self.progress_bar.setVisible(False))
 
     @ui_operation(show_dialog=True)
     def update_inventory_table(self, inventory_items: List[Dict[str, Any]]):
@@ -149,6 +167,7 @@ class InventoryView(QWidget):
             
             edit_button = QPushButton("Edit")
             edit_button.clicked.connect(lambda _, i=item: self.edit_inventory(i))
+            edit_button.setToolTip("Edit inventory for this product")
             
             actions_layout.addWidget(edit_button)
             self.inventory_table.setCellWidget(row, 4, actions_widget)
@@ -217,3 +236,25 @@ class InventoryView(QWidget):
 
     def refresh(self):
         self.load_inventory()
+
+    def show_context_menu(self, position):
+        menu = QMenu()
+        edit_action = menu.addAction("Edit")
+        
+        action = menu.exec(self.inventory_table.mapToGlobal(position))
+        if action:
+            row = self.inventory_table.rowAt(position.y())
+            product_id = int(self.inventory_table.item(row, 0).text())
+            item = next((item for item in self.current_inventory if item['product_id'] == product_id), None)
+            
+            if item is not None:
+                if action == edit_action:
+                    self.edit_inventory(item)
+            else:
+                show_error_message("Error", f"Inventory item for product ID {product_id} not found.")
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_F5:
+            self.refresh()
+        else:
+            super().keyPressEvent(event)

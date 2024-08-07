@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (QMainWindow, QTabWidget, QVBoxLayout, QWidget, QMessageBox,
                                QStatusBar, QMenuBar, QMenu)
 from PySide6.QtCore import Qt, QSettings, QSize, QPoint
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QKeySequence
 from ui.customer_view import CustomerView
 from ui.dashboard_view import DashboardView
 from ui.product_view import ProductView
@@ -28,7 +28,6 @@ class MainWindow(QMainWindow):
 
     @ui_operation(show_dialog=True)
     def setup_ui(self):
-
         # Handle window size
         size = self.settings.value("WindowSize")
         if isinstance(size, QSize):
@@ -62,24 +61,21 @@ class MainWindow(QMainWindow):
         self.setMenuBar(menu_bar)
 
         file_menu = self.create_menu("&File", [
-            ("E&xit", "Ctrl+Q", self.close)
+            ("&Export Data", "Ctrl+E", self.export_data),
+            ("&Import Data", "Ctrl+I", self.import_data),
+            ("E&xit", QKeySequence.StandardKey.Quit, self.close)
+        ])
+        view_menu = self.create_menu("&View", [
+            ("&Refresh", QKeySequence.StandardKey.Refresh, self.refresh_current_tab)
         ])
         help_menu = self.create_menu("&Help", [
+            ("&User Guide", QKeySequence.StandardKey.HelpContents, self.show_user_guide),
             ("&About", None, self.show_about_dialog)
         ])
 
         menu_bar.addMenu(file_menu)
+        menu_bar.addMenu(view_menu)
         menu_bar.addMenu(help_menu)
-
-    def create_menu(self, name: str, actions: list) -> QMenu:
-        menu = QMenu(name, self)
-        for action_name, shortcut, callback in actions:
-            action = QAction(action_name, self)
-            if shortcut:
-                action.setShortcut(shortcut)
-            action.triggered.connect(callback)
-            menu.addAction(action)
-        return menu
 
     def setup_status_bar(self):
         self.status_bar = QStatusBar(self)
@@ -135,7 +131,7 @@ class MainWindow(QMainWindow):
             f"{APP_NAME} v{APP_VERSION}\n\n"
             f"Developed by {COMPANY_NAME}\n\n"
             "An inventory and billing management system."
-            )
+        )
 
     @ui_operation(show_dialog=True)
     def closeEvent(self, event):
@@ -143,7 +139,7 @@ class MainWindow(QMainWindow):
             self, 'Exit', 'Are you sure you want to exit?',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
             QMessageBox.StandardButton.No
-            )
+        )
 
         if reply == QMessageBox.StandardButton.Yes:
             self.settings.setValue("WindowSize", self.size())
@@ -189,3 +185,42 @@ class MainWindow(QMainWindow):
             if hasattr(widget, 'refresh') and callable(getattr(widget, 'refresh')):
                 refreshable_widget = cast(RefreshableWidget, widget)
                 refreshable_widget.refresh()
+
+    def create_menu(self, name: str, actions: list) -> QMenu:
+        menu = QMenu(name, self)
+        for action_name, shortcut, callback in actions:
+            action = QAction(action_name, self)
+            if shortcut:
+                if isinstance(shortcut, QKeySequence.StandardKey):
+                    action.setShortcut(QKeySequence(shortcut))
+                else:
+                    action.setShortcut(shortcut)
+            action.triggered.connect(callback)
+            menu.addAction(action)
+        return menu
+
+    @ui_operation(show_dialog=True)
+    def export_data(self):
+        # Implement export data functionality
+        self.show_status_message("Data export initiated")
+        # TODO: Implement actual data export logic
+
+    @ui_operation(show_dialog=True)
+    def import_data(self):
+        # Implement import data functionality
+        self.show_status_message("Data import initiated")
+        # TODO: Implement actual data import logic
+
+    @ui_operation(show_dialog=True)
+    def refresh_current_tab(self):
+        current_widget = self.tab_widget.currentWidget()
+        if hasattr(current_widget, 'refresh') and callable(getattr(current_widget, 'refresh')):
+            refreshable_widget = cast(RefreshableWidget, current_widget)
+            refreshable_widget.refresh()
+        self.show_status_message("View refreshed")
+
+    @ui_operation(show_dialog=True)
+    def show_user_guide(self):
+        # Implement user guide functionality
+        QMessageBox.information(self, "User Guide", "User guide content goes here.")
+        # TODO: Implement actual user guide content or link to documentation

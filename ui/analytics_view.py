@@ -1,11 +1,11 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QPushButton, QSpinBox, 
                                QTableWidgetItem, QDateEdit, QComboBox, QLineEdit,
-                               QFormLayout, QProgressBar, QHBoxLayout)
+                               QFormLayout, QProgressBar, QHBoxLayout, QMenu, QApplication)
 from PySide6.QtCore import Qt, QDate, QTimer
-from PySide6.QtGui import QPainter
+from PySide6.QtGui import QPainter, QAction, QKeySequence
 from PySide6.QtCharts import QChart, QChartView, QBarSeries, QBarSet, QValueAxis, QBarCategoryAxis, QLineSeries, QDateTimeAxis, QPieSeries
 from services.analytics_service import AnalyticsService
-from utils.helpers import create_table, show_error_message, format_price
+from utils.helpers import create_table, show_error_message, show_info_message, format_price
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem, PercentageTableWidgetItem
 from typing import List, Dict, Any
 from utils.decorators import ui_operation
@@ -81,6 +81,15 @@ class AnalyticsView(QWidget):
         self.summary_text.setReadOnly(True)
         layout.addWidget(self.summary_text)
 
+        # Set up shortcuts
+        self.setup_shortcuts()
+
+    def setup_shortcuts(self):
+        refresh_shortcut = QAction("Refresh", self)
+        refresh_shortcut.setShortcut(QKeySequence("F5"))
+        refresh_shortcut.triggered.connect(self.generate_analytics)
+        self.addAction(refresh_shortcut)
+
     def setup_update_timer(self):
         self.update_timer = QTimer(self)
         self.update_timer.timeout.connect(self.update_analytics)
@@ -94,20 +103,24 @@ class AnalyticsView(QWidget):
         end_date = self.end_date.date().toString("yyyy-MM-dd")
         top_n = self.top_n_spinbox.value()
 
-        analytics_functions = {
-            "Loyal Customers": self.show_loyal_customers,
-            "Sales by Weekday": lambda: self.show_sales_by_weekday(start_date, end_date),
-            "Top Selling Products": lambda: self.show_top_selling_products(start_date, end_date, top_n),
-            "Sales Trend": lambda: self.show_sales_trend(start_date, end_date),
-            "Category Performance": lambda: self.show_category_performance(start_date, end_date),
-            "Inventory Turnover": lambda: self.show_inventory_turnover(start_date, end_date),
-            "Customer Retention Rate": lambda: self.show_customer_retention_rate(start_date, end_date)
-        }
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            analytics_functions = {
+                "Loyal Customers": self.show_loyal_customers,
+                "Sales by Weekday": lambda: self.show_sales_by_weekday(start_date, end_date),
+                "Top Selling Products": lambda: self.show_top_selling_products(start_date, end_date, top_n),
+                "Sales Trend": lambda: self.show_sales_trend(start_date, end_date),
+                "Category Performance": lambda: self.show_category_performance(start_date, end_date),
+                "Inventory Turnover": lambda: self.show_inventory_turnover(start_date, end_date),
+                "Customer Retention Rate": lambda: self.show_customer_retention_rate(start_date, end_date)
+            }
 
-        if analytics_type in analytics_functions:
-            analytics_functions[analytics_type]()
-        else:
-            show_error_message("Error", f"Unknown analytics type: {analytics_type}")
+            if analytics_type in analytics_functions:
+                QTimer.singleShot(0, analytics_functions[analytics_type])
+            else:
+                show_error_message("Error", f"Unknown analytics type: {analytics_type}")
+        finally:
+            QApplication.restoreOverrideCursor()
 
         self.progress_bar.setValue(100)
 
@@ -249,3 +262,24 @@ class AnalyticsView(QWidget):
 
     def refresh(self):
         self.generate_analytics()
+
+    def show_context_menu(self, position):
+        menu = QMenu()
+        refresh_action = menu.addAction("Refresh")
+        export_action = menu.addAction("Export to CSV")
+        
+        action = menu.exec(self.result_table.mapToGlobal(position))
+        if action == refresh_action:
+            self.refresh()
+        elif action == export_action:
+            self.export_to_csv()
+
+    def export_to_csv(self):
+        # TODO: Implement CSV export functionality
+        show_info_message("Export", "CSV export functionality not implemented yet.")
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_F5:
+            self.refresh()
+        else:
+            super().keyPressEvent(event)

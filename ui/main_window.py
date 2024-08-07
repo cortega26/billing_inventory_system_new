@@ -9,11 +9,15 @@ from ui.sale_view import SaleView
 from ui.purchase_view import PurchaseView
 from ui.inventory_view import InventoryView
 from ui.analytics_view import AnalyticsView
-from typing import Dict, Type
+from typing import Protocol, Dict, Type, cast
 from utils.system.logger import logger
 from config import APP_NAME, APP_VERSION, COMPANY_NAME
 from utils.system.event_system import event_system
 from utils.decorators import ui_operation
+
+class RefreshableWidget(Protocol):
+    def refresh(self) -> None:
+        ...
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -24,17 +28,18 @@ class MainWindow(QMainWindow):
 
     @ui_operation(show_dialog=True)
     def setup_ui(self):
+
         # Handle window size
-        size_value = self.settings.value("WindowSize")
-        if isinstance(size_value, QSize):
-            self.resize(size_value)
+        size = self.settings.value("WindowSize")
+        if isinstance(size, QSize):
+            self.resize(size)
         else:
             self.resize(QSize(1200, 800))
 
         # Handle window position
-        pos_value = self.settings.value("WindowPosition")
-        if isinstance(pos_value, QPoint):
-            self.move(pos_value)
+        pos = self.settings.value("WindowPosition")
+        if isinstance(pos, QPoint):
+            self.move(pos)
         else:
             self.move(QPoint(100, 100))
 
@@ -56,22 +61,25 @@ class MainWindow(QMainWindow):
         menu_bar = QMenuBar(self)
         self.setMenuBar(menu_bar)
 
-        # File menu
-        file_menu = QMenu("&File", self)
+        file_menu = self.create_menu("&File", [
+            ("E&xit", "Ctrl+Q", self.close)
+        ])
+        help_menu = self.create_menu("&Help", [
+            ("&About", None, self.show_about_dialog)
+        ])
+
         menu_bar.addMenu(file_menu)
-
-        exit_action = QAction("E&xit", self)
-        exit_action.setShortcut("Ctrl+Q")
-        exit_action.triggered.connect(self.close)
-        file_menu.addAction(exit_action)
-
-        # Help menu
-        help_menu = QMenu("&Help", self)
         menu_bar.addMenu(help_menu)
 
-        about_action = QAction("&About", self)
-        about_action.triggered.connect(self.show_about_dialog)
-        help_menu.addAction(about_action)
+    def create_menu(self, name: str, actions: list) -> QMenu:
+        menu = QMenu(name, self)
+        for action_name, shortcut, callback in actions:
+            action = QAction(action_name, self)
+            if shortcut:
+                action.setShortcut(shortcut)
+            action.triggered.connect(callback)
+            menu.addAction(action)
+        return menu
 
     def setup_status_bar(self):
         self.status_bar = QStatusBar(self)
@@ -95,17 +103,19 @@ class MainWindow(QMainWindow):
             self.tab_widget.addTab(view, tab_name)
             logger.info(f"Added {tab_name} tab successfully")
 
-        # Restore the last selected tab
+        self.restore_last_tab()
+        self.tab_widget.currentChanged.connect(self.on_tab_changed)
+
+        self.connect_to_events()
+
+    def restore_last_tab(self):
         last_tab_index = self.settings.value("LastTabIndex", 0)
         if isinstance(last_tab_index, int) and 0 <= last_tab_index < self.tab_widget.count():
             self.tab_widget.setCurrentIndex(last_tab_index)
         else:
             self.tab_widget.setCurrentIndex(0)
 
-        # Connect tab change signal
-        self.tab_widget.currentChanged.connect(self.on_tab_changed)
-
-        # Connect to global events
+    def connect_to_events(self):
         event_system.product_added.connect(self.on_product_added)
         event_system.product_updated.connect(self.on_product_updated)
         event_system.product_deleted.connect(self.on_product_deleted)
@@ -136,7 +146,6 @@ class MainWindow(QMainWindow):
             )
 
         if reply == QMessageBox.StandardButton.Yes:
-            # Save window state
             self.settings.setValue("WindowSize", self.size())
             self.settings.setValue("WindowPosition", self.pos())
             
@@ -177,17 +186,6 @@ class MainWindow(QMainWindow):
     def refresh_relevant_views(self):
         for i in range(self.tab_widget.count()):
             widget = self.tab_widget.widget(i)
-            if isinstance(widget, ProductView):
-                widget.load_products()
-            elif isinstance(widget, SaleView):
-                widget.load_sales()
-            elif isinstance(widget, PurchaseView):
-                widget.load_purchases()
-            elif isinstance(widget, InventoryView):
-                widget.load_inventory()
-            elif isinstance(widget, CustomerView):
-                widget.load_customers()
-            elif isinstance(widget, DashboardView):
-                widget.update_dashboard()
-            elif isinstance(widget, AnalyticsView):
-                widget.generate_analytics()
+            if hasattr(widget, 'refresh') and callable(getattr(widget, 'refresh')):
+                refreshable_widget = cast(RefreshableWidget, widget)
+                refreshable_widget.refresh()

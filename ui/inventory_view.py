@@ -1,11 +1,11 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QInputDialog,
                                QPushButton, QTableWidgetItem, QDoubleSpinBox, QComboBox, QDialog,
-                               QFormLayout, QDialogButtonBox, QHeaderView)
-from PySide6.QtCore import Qt
+                               QFormLayout, QDialogButtonBox, QHeaderView, QProgressBar)
+from PySide6.QtCore import Qt, Signal
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
 from services.category_service import CategoryService
-from utils.helpers import create_table, show_info_message, format_price
+from utils.helpers import create_table, show_info_message, show_error_message, format_price
 from utils.system.event_system import event_system
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
 from typing import List, Dict, Any, Optional
@@ -59,6 +59,8 @@ class EditInventoryDialog(QDialog):
         return self.reason_input.text().strip()
 
 class InventoryView(QWidget):
+    inventory_updated = Signal()
+
     def __init__(self):
         super().__init__()
         self.inventory_service = InventoryService()
@@ -66,11 +68,7 @@ class InventoryView(QWidget):
         self.category_service = CategoryService()
         self.current_inventory = []
         self.setup_ui()
-        event_system.product_added.connect(self.on_product_added)
-        event_system.product_updated.connect(self.load_inventory)
-        event_system.product_deleted.connect(self.load_inventory)
-        event_system.sale_added.connect(self.load_inventory)
-        event_system.purchase_added.connect(self.load_inventory)
+        self.connect_signals()
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
@@ -93,6 +91,7 @@ class InventoryView(QWidget):
 
         # Inventory table
         self.inventory_table = create_table(["ID", "Product Name", "Category", "Quantity", "Actions"])
+        self.inventory_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.inventory_table)
 
         # Low stock alert button
@@ -100,7 +99,19 @@ class InventoryView(QWidget):
         low_stock_button.clicked.connect(self.show_low_stock_alert)
         layout.addWidget(low_stock_button)
 
+        # Progress bar
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setVisible(False)
+        layout.addWidget(self.progress_bar)
+
         self.load_inventory()
+
+    def connect_signals(self):
+        event_system.product_added.connect(self.on_product_added)
+        event_system.product_updated.connect(self.load_inventory)
+        event_system.product_deleted.connect(self.load_inventory)
+        event_system.sale_added.connect(self.load_inventory)
+        event_system.purchase_added.connect(self.load_inventory)
 
     @ui_operation(show_dialog=True)
     def load_categories(self):
@@ -115,16 +126,16 @@ class InventoryView(QWidget):
 
     @ui_operation(show_dialog=True)
     def load_inventory(self):
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setValue(0)
         inventory_items = self.inventory_service.get_all_inventory()
         self.current_inventory = inventory_items
         self.update_inventory_table(inventory_items)
+        self.progress_bar.setValue(100)
+        self.progress_bar.setVisible(False)
 
     @ui_operation(show_dialog=True)
     def update_inventory_table(self, inventory_items: List[Dict[str, Any]]):
-        current_sort_column = self.inventory_table.horizontalHeader().sortIndicatorSection()
-        current_sort_order = self.inventory_table.horizontalHeader().sortIndicatorOrder()
-        
-        self.inventory_table.setSortingEnabled(False)  # Disable sorting temporarily
         self.inventory_table.setRowCount(len(inventory_items))
         for row, item in enumerate(inventory_items):
             self.inventory_table.setItem(row, 0, NumericTableWidgetItem(item['product_id']))
@@ -141,9 +152,6 @@ class InventoryView(QWidget):
             
             actions_layout.addWidget(edit_button)
             self.inventory_table.setCellWidget(row, 4, actions_widget)
-
-        self.inventory_table.setSortingEnabled(True)  # Re-enable sorting
-        self.inventory_table.sortItems(current_sort_column, current_sort_order)  # Restore the previous sort
 
     @ui_operation(show_dialog=True)
     def edit_inventory(self, item: Dict[str, Any]):
@@ -169,6 +177,7 @@ class InventoryView(QWidget):
             self.update_inventory_table(self.current_inventory)
             
             show_info_message("Success", "Inventory updated successfully.")
+            self.inventory_updated.emit()
 
     @ui_operation(show_dialog=True)
     def show_low_stock_alert(self):
@@ -205,3 +214,6 @@ class InventoryView(QWidget):
                (category_id is None or item['category_id'] == category_id)
         ]
         self.update_inventory_table(filtered_items)
+
+    def refresh(self):
+        self.load_inventory()

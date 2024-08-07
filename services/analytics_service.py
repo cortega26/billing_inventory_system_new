@@ -3,6 +3,7 @@ from database import DatabaseManager
 from config import LOYALTY_THRESHOLD
 from functools import lru_cache
 from utils.decorators import db_operation
+from utils.exceptions import ValidationException
 
 class AnalyticsService:
     @staticmethod
@@ -23,6 +24,7 @@ class AnalyticsService:
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
     def get_sales_by_weekday(start_date: str, end_date: str) -> List[Dict[str, Any]]:
+        AnalyticsService._validate_date_range(start_date, end_date)
         query = '''
             SELECT 
                 CASE CAST(strftime('%w', date) AS INTEGER)
@@ -46,6 +48,7 @@ class AnalyticsService:
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
     def get_top_selling_products(start_date: str, end_date: str, limit: int = 10) -> List[Dict[str, Any]]:
+        AnalyticsService._validate_date_range(start_date, end_date)
         query = '''
             SELECT p.id, p.name, SUM(si.quantity) as total_quantity, SUM(si.quantity * si.price) as total_revenue
             FROM products p
@@ -62,6 +65,7 @@ class AnalyticsService:
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
     def get_sales_trend(start_date: str, end_date: str) -> List[Dict[str, Any]]:
+        AnalyticsService._validate_date_range(start_date, end_date)
         query = '''
             SELECT date, SUM(total_amount) as daily_sales
             FROM sales
@@ -75,6 +79,7 @@ class AnalyticsService:
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
     def get_inventory_turnover(start_date: str, end_date: str) -> List[Dict[str, Any]]:
+        AnalyticsService._validate_date_range(start_date, end_date)
         query = '''
             SELECT 
                 p.id, 
@@ -99,6 +104,7 @@ class AnalyticsService:
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
     def get_category_performance(start_date: str, end_date: str) -> List[Dict[str, Any]]:
+        AnalyticsService._validate_date_range(start_date, end_date)
         query = '''
             SELECT 
                 c.name as category,
@@ -118,6 +124,7 @@ class AnalyticsService:
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
     def get_profit_margin(start_date: str, end_date: str) -> List[Dict[str, Any]]:
+        AnalyticsService._validate_date_range(start_date, end_date)
         query = '''
             SELECT 
                 p.id, 
@@ -143,6 +150,7 @@ class AnalyticsService:
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
     def get_customer_retention_rate(start_date: str, end_date: str) -> Dict[str, Any]:
+        AnalyticsService._validate_date_range(start_date, end_date)
         query = '''
         WITH customers_in_period AS (
             SELECT DISTINCT customer_id
@@ -194,3 +202,8 @@ class AnalyticsService:
         AnalyticsService.get_category_performance.cache_clear()
         AnalyticsService.get_profit_margin.cache_clear()
         AnalyticsService.get_customer_retention_rate.cache_clear()
+
+    @staticmethod
+    def _validate_date_range(start_date: str, end_date: str):
+        if start_date > end_date:
+            raise ValidationException("Start date must be before or equal to end date")

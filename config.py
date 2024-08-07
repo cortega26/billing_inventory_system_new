@@ -19,6 +19,7 @@ LOYALTY_THRESHOLD: int = 5  # Number of purchases to be considered a loyal custo
 
 # Debug Level
 class DebugLevel(IntEnum):
+    """Enum representing different debug levels for the application."""
     CRITICAL = 1
     ERROR = 2
     WARNING = 3

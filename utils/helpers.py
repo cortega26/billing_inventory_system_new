@@ -1,7 +1,9 @@
-from PySide6.QtWidgets import QTableWidget, QHeaderView, QMessageBox
-from typing import List, Any, Optional, Union
+from PySide6.QtWidgets import QTableWidget, QHeaderView, QMessageBox, QWidget
+from typing import List, Any, Optional, Union, Callable, TypeVar
 from decimal import Decimal
 import datetime
+
+T = TypeVar('T')
 
 def create_table(headers: List[str]) -> QTableWidget:
     """
@@ -23,6 +25,21 @@ def create_table(headers: List[str]) -> QTableWidget:
     table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
     return table
 
+def show_message(title: str, message: str, icon: QMessageBox.Icon = QMessageBox.Icon.Information) -> None:
+    """
+    Display a message box with the specified title, message, and icon.
+
+    Args:
+        title (str): The title of the message box.
+        message (str): The message to be displayed.
+        icon (QMessageBox.Icon): The icon to be displayed in the message box.
+    """
+    msg_box = QMessageBox()
+    msg_box.setIcon(icon)
+    msg_box.setWindowTitle(title)
+    msg_box.setText(message)
+    msg_box.exec()
+
 def show_error_message(title: str, message: str) -> None:
     """
     Display an error message box with the specified title and message.
@@ -31,11 +48,7 @@ def show_error_message(title: str, message: str) -> None:
         title (str): The title of the error message box.
         message (str): The detailed error message to be displayed.
     """
-    error_box = QMessageBox()
-    error_box.setIcon(QMessageBox.Icon.Critical)
-    error_box.setWindowTitle(title)
-    error_box.setText(message)
-    error_box.exec()
+    show_message(title, message, QMessageBox.Icon.Critical)
 
 def show_info_message(title: str, message: str) -> None:
     """
@@ -45,11 +58,7 @@ def show_info_message(title: str, message: str) -> None:
         title (str): The title of the information message box.
         message (str): The detailed information message to be displayed.
     """
-    info_box = QMessageBox()
-    info_box.setIcon(QMessageBox.Icon.Information)
-    info_box.setWindowTitle(title)
-    info_box.setText(message)
-    info_box.exec()
+    show_message(title, message, QMessageBox.Icon.Information)
 
 def validate_integer_input(value: str, field_name: str, min_value: Optional[int] = None, max_value: Optional[int] = None) -> int:
     """
@@ -77,17 +86,17 @@ def validate_integer_input(value: str, field_name: str, min_value: Optional[int]
     except ValueError:
         raise ValueError(f"{field_name} must be a valid integer.")
 
-def safe_convert(value: Any, target_type: type, default: Any = None) -> Any:
+def safe_convert(value: Any, target_type: Callable[[Any], T], default: T) -> T:
     """
     Safely convert a value to a target type, returning a default value if conversion fails.
 
     Args:
         value (Any): The value to be converted.
-        target_type (type): The type to convert the value to.
-        default (Any, optional): The default value to return if conversion fails. Defaults to None.
+        target_type (Callable[[Any], T]): The type to convert the value to.
+        default (T): The default value to return if conversion fails.
 
     Returns:
-        Any: The converted value or the default value if conversion fails.
+        T: The converted value or the default value if conversion fails.
     """
     try:
         return target_type(value)
@@ -126,5 +135,36 @@ def truncate_string(text: str, max_length: int, ellipsis: str = "...") -> str:
 def format_price(amount: Union[int, float, Decimal]) -> str:
     """
     Format a price with dot as thousand separator and no decimals.
+
+    Args:
+        amount (Union[int, float, Decimal]): The price amount to format.
+
+    Returns:
+        str: The formatted price string.
     """
     return f"{int(amount):,}".replace(',', '.')
+
+def confirm_action(parent: Optional[QWidget], title: str, message: str) -> bool:
+    """
+    Display a confirmation dialog and return the user's choice.
+
+    Args:
+        parent (Optional[QWidget]): The parent widget for the dialog.
+        title (str): The title of the confirmation dialog.
+        message (str): The message to display in the confirmation dialog.
+
+    Returns:
+        bool: True if the user confirms, False otherwise.
+    """
+    # Create a QMessageBox instance instead of using the static method
+    msg_box = QMessageBox(parent) if parent else QMessageBox()
+    msg_box.setWindowTitle(title)
+    msg_box.setText(message)
+    msg_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+    msg_box.setDefaultButton(QMessageBox.StandardButton.No)
+    
+    # Use exec() to show the dialog and get the result
+    result = msg_box.exec()
+    
+    # Compare the result with QMessageBox.StandardButton.Yes
+    return result == QMessageBox.StandardButton.Yes

@@ -1,43 +1,49 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
                                QPushButton, QTableWidget, QTableWidgetItem, QMessageBox,
-                               QDialog, QDialogButtonBox)
-from PySide6.QtCore import Qt
+                               QDialog, QDialogButtonBox, QFormLayout)
+from PySide6.QtCore import Qt, Signal
 from services.customer_service import CustomerService
 from utils.helpers import create_table, show_error_message, format_price
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
 from utils.validation.validators import validate_9digit_identifier, validate_3or4digit_identifier
-from utils.system.logger import logger
 from utils.decorators import ui_operation
+from models.customer import Customer
+from typing import Optional
 
 class EditCustomerDialog(QDialog):
-    def __init__(self, customer, parent=None):
+    def __init__(self, customer: Optional[Customer], parent=None):
         super().__init__(parent)
         self.customer = customer
-        self.setWindowTitle("Edit Customer")
-        self.setModal(True)
-        layout = QVBoxLayout(self)
+        self.setWindowTitle("Edit Customer" if customer else "Add Customer")
+        self.setup_ui()
+
+    def setup_ui(self):
+        layout = QFormLayout(self)
         
-        self.identifier_9_input = QLineEdit(customer.identifier_9)
-        self.identifier_3or4_input = QLineEdit(customer.identifier_3or4 or "")
+        self.identifier_9_input = QLineEdit(self.customer.identifier_9 if self.customer else "")
+        self.identifier_3or4_input = QLineEdit(self.customer.identifier_3or4 or "" if self.customer else "")
         
-        layout.addWidget(QLabel("9-digit Identifier:"))
-        layout.addWidget(self.identifier_9_input)
-        layout.addWidget(QLabel("3 or 4-digit Identifier:"))
-        layout.addWidget(self.identifier_3or4_input)
+        layout.addRow("9-digit Identifier:", self.identifier_9_input)
+        layout.addRow("3 or 4-digit Identifier:", self.identifier_3or4_input)
         
         self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         self.button_box.accepted.connect(self.validate_and_accept)
         self.button_box.rejected.connect(self.reject)
-        layout.addWidget(self.button_box)
+        layout.addRow(self.button_box)
 
     @ui_operation(show_dialog=True)
     def validate_and_accept(self):
-        validate_9digit_identifier(self.identifier_9_input.text())
-        if self.identifier_3or4_input.text():
-            validate_3or4digit_identifier(self.identifier_3or4_input.text())
-        self.accept()
+        try:
+            validate_9digit_identifier(self.identifier_9_input.text())
+            if self.identifier_3or4_input.text():
+                validate_3or4digit_identifier(self.identifier_3or4_input.text())
+            self.accept()
+        except ValueError as e:
+            show_error_message("Validation Error", str(e))
 
 class CustomerView(QWidget):
+    customer_updated = Signal()
+
     def __init__(self):
         super().__init__()
         self.customer_service = CustomerService()
@@ -113,24 +119,21 @@ class CustomerView(QWidget):
 
     @ui_operation(show_dialog=True)
     def add_customer(self):
-        identifier_9 = self.identifier_9_input.text().strip()
-        identifier_3or4 = self.identifier_3or4_input.text().strip() or None
+        dialog = EditCustomerDialog(None, self)
+        if dialog.exec():
+            identifier_9 = dialog.identifier_9_input.text().strip()
+            identifier_3or4 = dialog.identifier_3or4_input.text().strip() or None
 
-        validate_9digit_identifier(identifier_9)
-        if identifier_3or4:
-            validate_3or4digit_identifier(identifier_3or4)
-
-        customer_id = self.customer_service.create_customer(identifier_9, identifier_3or4)
-        if customer_id is not None:
-            self.load_customers()
-            self.identifier_9_input.clear()
-            self.identifier_3or4_input.clear()
-            QMessageBox.information(self, "Success", "Customer added successfully.")
-        else:
-            raise ValueError("Failed to add customer.")
+            customer_id = self.customer_service.create_customer(identifier_9, identifier_3or4)
+            if customer_id is not None:
+                self.load_customers()
+                QMessageBox.information(self, "Success", "Customer added successfully.")
+                self.customer_updated.emit()
+            else:
+                show_error_message("Error", "Failed to add customer.")
 
     @ui_operation(show_dialog=True)
-    def edit_customer(self, customer):
+    def edit_customer(self, customer: Customer):
         dialog = EditCustomerDialog(customer, self)
         if dialog.exec():
             new_identifier_9 = dialog.identifier_9_input.text().strip()
@@ -138,9 +141,10 @@ class CustomerView(QWidget):
             self.customer_service.update_customer(customer.id, new_identifier_9, new_identifier_3or4)
             self.load_customers()
             QMessageBox.information(self, "Success", "Customer updated successfully.")
+            self.customer_updated.emit()
 
     @ui_operation(show_dialog=True)
-    def delete_customer(self, customer):
+    def delete_customer(self, customer: Customer):
         reply = QMessageBox.question(self, 'Delete Customer', 
                                      f'Are you sure you want to delete customer {customer.identifier_9}?',
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
@@ -149,6 +153,7 @@ class CustomerView(QWidget):
             self.customer_service.delete_customer(customer.id)
             self.load_customers()
             QMessageBox.information(self, "Success", "Customer deleted successfully.")
+            self.customer_updated.emit()
 
     @ui_operation(show_dialog=True)
     def search_customers(self):
@@ -158,3 +163,6 @@ class CustomerView(QWidget):
             self.populate_customer_table(customers)
         else:
             self.load_customers()
+
+    def refresh(self):
+        self.load_customers()

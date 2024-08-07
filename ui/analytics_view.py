@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QPushButton, QSpinBox, 
                                QTableWidgetItem, QDateEdit, QComboBox, QLineEdit,
-                               QFormLayout, QProgressBar)
+                               QFormLayout, QProgressBar, QHBoxLayout)
 from PySide6.QtCore import Qt, QDate, QTimer
 from PySide6.QtGui import QPainter
 from PySide6.QtCharts import QChart, QChartView, QBarSeries, QBarSet, QValueAxis, QBarCategoryAxis, QLineSeries, QDateTimeAxis, QPieSeries
@@ -8,7 +8,6 @@ from services.analytics_service import AnalyticsService
 from utils.helpers import create_table, show_error_message, format_price
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem, PercentageTableWidgetItem
 from typing import List, Dict, Any
-from utils.system.logger import logger
 from utils.decorators import ui_operation
 
 class AnalyticsView(QWidget):
@@ -22,15 +21,17 @@ class AnalyticsView(QWidget):
         layout = QVBoxLayout(self)
 
         # Date range selection
-        date_layout = QFormLayout()
+        date_layout = QHBoxLayout()
         self.start_date = QDateEdit()
         self.start_date.setDate(QDate.currentDate().addDays(-30))
         self.start_date.setCalendarPopup(True)
         self.end_date = QDateEdit()
         self.end_date.setDate(QDate.currentDate())
         self.end_date.setCalendarPopup(True)
-        date_layout.addRow("Start Date:", self.start_date)
-        date_layout.addRow("End Date:", self.end_date)
+        date_layout.addWidget(QLabel("Start Date:"))
+        date_layout.addWidget(self.start_date)
+        date_layout.addWidget(QLabel("End Date:"))
+        date_layout.addWidget(self.end_date)
         layout.addLayout(date_layout)
 
         # Analytics type selection
@@ -93,20 +94,20 @@ class AnalyticsView(QWidget):
         end_date = self.end_date.date().toString("yyyy-MM-dd")
         top_n = self.top_n_spinbox.value()
 
-        if analytics_type == "Loyal Customers":
-            self.show_loyal_customers()
-        elif analytics_type == "Sales by Weekday":
-            self.show_sales_by_weekday(start_date, end_date)
-        elif analytics_type == "Top Selling Products":
-            self.show_top_selling_products(start_date, end_date, top_n)
-        elif analytics_type == "Sales Trend":
-            self.show_sales_trend(start_date, end_date)
-        elif analytics_type == "Category Performance":
-            self.show_category_performance(start_date, end_date)
-        elif analytics_type == "Inventory Turnover":
-            self.show_inventory_turnover(start_date, end_date)
-        elif analytics_type == "Customer Retention Rate":
-            self.show_customer_retention_rate(start_date, end_date)
+        analytics_functions = {
+            "Loyal Customers": self.show_loyal_customers,
+            "Sales by Weekday": lambda: self.show_sales_by_weekday(start_date, end_date),
+            "Top Selling Products": lambda: self.show_top_selling_products(start_date, end_date, top_n),
+            "Sales Trend": lambda: self.show_sales_trend(start_date, end_date),
+            "Category Performance": lambda: self.show_category_performance(start_date, end_date),
+            "Inventory Turnover": lambda: self.show_inventory_turnover(start_date, end_date),
+            "Customer Retention Rate": lambda: self.show_customer_retention_rate(start_date, end_date)
+        }
+
+        if analytics_type in analytics_functions:
+            analytics_functions[analytics_type]()
+        else:
+            show_error_message("Error", f"Unknown analytics type: {analytics_type}")
 
         self.progress_bar.setValue(100)
 
@@ -245,3 +246,6 @@ class AnalyticsView(QWidget):
         
         chart.setTitle(title)
         self.chart_view.setChart(chart)
+
+    def refresh(self):
+        self.generate_analytics()

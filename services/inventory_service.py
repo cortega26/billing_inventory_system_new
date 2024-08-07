@@ -3,7 +3,7 @@ from database import DatabaseManager
 from models.inventory import Inventory
 from utils.system.event_system import event_system
 from utils.decorators import db_operation, validate_input
-from utils.exceptions import ValidationException
+from utils.exceptions import ValidationException, NotFoundException
 from functools import lru_cache
 
 class InventoryService:
@@ -11,20 +11,17 @@ class InventoryService:
     @db_operation(show_dialog=True)
     @validate_input(show_dialog=True)
     def update_quantity(product_id: int, quantity_change: int) -> None:
-        query = 'SELECT * FROM inventory WHERE product_id = ?'
-        inventory = DatabaseManager.fetch_one(query, (product_id,))
+        inventory = InventoryService.get_inventory(product_id)
         
         if inventory:
-            new_quantity = inventory['quantity'] + quantity_change
+            new_quantity = inventory.quantity + quantity_change
             if new_quantity < 0:
-                raise ValidationException(f"Insufficient inventory for product ID {product_id}. Current: {inventory['quantity']}, Change: {quantity_change}")
-            query = 'UPDATE inventory SET quantity = ? WHERE product_id = ?'
-            DatabaseManager.execute_query(query, (new_quantity, product_id))
+                raise ValidationException(f"Insufficient inventory for product ID {product_id}. Current: {inventory.quantity}, Change: {quantity_change}")
+            InventoryService._update_inventory_quantity(product_id, new_quantity)
         else:
             if quantity_change < 0:
                 raise ValidationException(f"Cannot decrease quantity for non-existent inventory item. Product ID: {product_id}")
-            query = 'INSERT INTO inventory (product_id, quantity) VALUES (?, ?)'
-            DatabaseManager.execute_query(query, (product_id, quantity_change))
+            InventoryService._create_inventory_item(product_id, quantity_change)
         
         InventoryService.clear_cache()
         event_system.inventory_changed.emit(product_id)
@@ -56,8 +53,7 @@ class InventoryService:
     def set_quantity(product_id: int, quantity: int) -> None:
         if quantity < 0:
             raise ValidationException(f"Cannot set negative quantity for product ID {product_id}")
-        query = 'UPDATE inventory SET quantity = ? WHERE product_id = ?'
-        DatabaseManager.execute_query(query, (quantity, product_id))
+        InventoryService._update_inventory_quantity(product_id, quantity)
         InventoryService.clear_cache()
 
     @staticmethod
@@ -101,3 +97,15 @@ class InventoryService:
     @staticmethod
     def clear_cache():
         InventoryService.get_all_inventory.cache_clear()
+
+    @staticmethod
+    @db_operation(show_dialog=True)
+    def _update_inventory_quantity(product_id: int, new_quantity: int) -> None:
+        query = 'UPDATE inventory SET quantity = ? WHERE product_id = ?'
+        DatabaseManager.execute_query(query, (new_quantity, product_id))
+
+    @staticmethod
+    @db_operation(show_dialog=True)
+    def _create_inventory_item(product_id: int, quantity: int) -> None:
+        query = 'INSERT INTO inventory (product_id, quantity) VALUES (?, ?)'
+        DatabaseManager.execute_query(query, (product_id, quantity))

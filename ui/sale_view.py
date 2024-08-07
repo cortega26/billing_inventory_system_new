@@ -2,18 +2,19 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTableWidget, QTableWidgetItem,
     QMessageBox, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFormLayout, QDoubleSpinBox, QProgressBar,
     QHeaderView
-    )
-from PySide6.QtCore import Qt, QDate, QTimer
+)
+from PySide6.QtCore import Qt, QDate, QTimer, Signal
 from services.sale_service import SaleService
 from services.customer_service import CustomerService
 from services.product_service import ProductService
 from models.customer import Customer
 from models.sale import Sale
+from models.product import Product
 from utils.helpers import create_table, show_error_message, show_info_message, format_price
 from utils.system.logger import logger
 from utils.system.event_system import event_system
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
-from typing import List
+from typing import List, Optional
 from utils.decorators import ui_operation, validate_input
 
 class CustomerSelectionDialog(QDialog):
@@ -41,7 +42,7 @@ class CustomerSelectionDialog(QDialog):
         return self.customer_combo.currentData()
 
 class SaleItemDialog(QDialog):
-    def __init__(self, products, parent=None):
+    def __init__(self, products: List[Product], parent=None):
         super().__init__(parent)
         self.products = products
         self.setWindowTitle("Add Sale Item")
@@ -111,6 +112,8 @@ class SaleItemDialog(QDialog):
         }
 
 class SaleView(QWidget):
+    sale_updated = Signal()
+
     def __init__(self):
         super().__init__()
         self.sale_service = SaleService()
@@ -271,6 +274,7 @@ class SaleView(QWidget):
                 del self.selected_customer_id
                 show_info_message("Success", "Sale added successfully.")
                 event_system.sale_added.emit(sale_id)
+                self.sale_updated.emit()
             else:
                 raise ValueError("Failed to add sale.")
         else:
@@ -283,19 +287,21 @@ class SaleView(QWidget):
         customer_text = f"{customer.identifier_9} ({customer.identifier_3or4 or 'N/A'})" if customer else "Unknown Customer"
         
         message = f"<pre>"
-        message += f"{'Sale Details':=^60}\n\n"
-        message += f"Customer: {customer_text}\n"
-        message += f"Date: {sale.date.strftime('%Y-%m-%d')}\n"
-        message += f"{'':=^60}\n\n"
-        message += f"{'Item':<20}{'Quantity':>10}{'Unit Price':>15}{'Subtotal':>15}\n"
-        message += f"{'':-^60}\n"
+        message += f"{' Detalles de Venta ':=^64}\n\n"
+        message += f"Cliente: {customer_text}\n"
+        message += f"Fecha: {sale.date.strftime('%d-%m-%Y')}\n"
+        message += f"{'':=^64}\n\n"
+        message += f"{'Producto':<30}{'Cantidad':>10}{'P.Unitario':>12}{'Subtotal':>12}\n"
+        message += f"{'':-^64}\n"
         for item in items:
             product = self.product_service.get_product(item.product_id)
-            product_name = product.name if product else "Unknown Product"
-            message += f"{product_name[:20]:<20}{item.quantity:>10.2f}{format_price(item.unit_price):>15}{format_price(item.total_price()):>15}\n"
-        message += f"{'':-^60}\n"
-        message += f"{'Total Amount:':<45}{format_price(sale.total_amount):>15}\n"
+            product_name = product.name if product else "Producto desconocido"
+            message += f"{product_name[:30]:<30}{item.quantity:>10.2f}{format_price(item.unit_price):>12}{format_price(item.total_price()):>12}\n"
+        message += f"{'':-^64}\n"
+        message += f"{'Monto total:':<45}{format_price(sale.total_amount):>19}\n"
         message += "</pre>"
+        
+        show_info_message("Sale Details", message)
         
         show_info_message("Sale Details", message)
 
@@ -311,6 +317,7 @@ class SaleView(QWidget):
             self.load_sales()
             show_info_message("Success", "Sale deleted successfully.")
             event_system.sale_deleted.emit(sale.id)
+            self.sale_updated.emit()
 
     @ui_operation(show_dialog=True)
     def search_sales(self):
@@ -333,4 +340,7 @@ class SaleView(QWidget):
 
     @ui_operation(show_dialog=True)
     def on_product_deleted(self, product_id):
+        self.load_sales()
+
+    def refresh(self):
         self.load_sales()

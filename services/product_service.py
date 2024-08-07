@@ -3,7 +3,7 @@ from database import DatabaseManager
 from models.product import Product
 from utils.validation.validators import validate_string
 from utils.decorators import db_operation, validate_input
-from utils.exceptions import ValidationException
+from utils.exceptions import NotFoundException
 from functools import lru_cache
 
 class ProductService:
@@ -19,10 +19,7 @@ class ProductService:
         name = validate_string(name, "Product name", max_length=100)
         if description:
             description = validate_string(description, "Product description", max_length=500)
-        if cost_price is not None:
-            Product.validate_price(cost_price)
-        if sell_price is not None:
-            Product.validate_price(sell_price)
+        ProductService._validate_prices(cost_price, sell_price)
         
         query = 'INSERT INTO products (name, description, category_id, cost_price, sell_price) VALUES (?, ?, ?, ?, ?)'
         cursor = DatabaseManager.execute_query(query, (name, description, category_id, cost_price, sell_price))
@@ -62,14 +59,11 @@ class ProductService:
         name = validate_string(name, "Product name", max_length=100)
         if description is not None:
             description = validate_string(description, "Product description", max_length=500)
-        if cost_price is not None:
-            Product.validate_price(cost_price)
-        if sell_price is not None:
-            Product.validate_price(sell_price)
+        ProductService._validate_prices(cost_price, sell_price)
         
         current_product = ProductService.get_product(product_id)
         if not current_product:
-            raise ValidationException(f"No product found with ID: {product_id}")
+            raise NotFoundException(f"No product found with ID: {product_id}")
 
         query = 'UPDATE products SET name = ?, description = ?, category_id = ?, cost_price = ?, sell_price = ? WHERE id = ?'
         DatabaseManager.execute_query(query, (name, description, category_id, cost_price, sell_price, product_id))
@@ -150,3 +144,10 @@ class ProductService:
     @staticmethod
     def clear_cache():
         ProductService.get_all_products.cache_clear()
+
+    @staticmethod
+    def _validate_prices(cost_price: Optional[int], sell_price: Optional[int]) -> None:
+        if cost_price is not None:
+            Product.validate_price(cost_price)
+        if sell_price is not None:
+            Product.validate_price(sell_price)

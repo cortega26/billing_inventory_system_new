@@ -11,23 +11,16 @@ class SaleService:
     @db_operation(show_dialog=True)
     @validate_input(show_dialog=True)
     def create_sale(customer_id: int, date: str, items: List[Dict[str, Any]]) -> Optional[int]:
+        SaleService._validate_sale_items(items)
         total_amount = sum(item['quantity'] * item['sell_price'] for item in items)
         
-        query = 'INSERT INTO sales (customer_id, date, total_amount) VALUES (?, ?, ?)'
-        cursor = DatabaseManager.execute_query(query, (customer_id, date, total_amount))
-        sale_id = cursor.lastrowid
+        sale_id = SaleService._insert_sale(customer_id, date, total_amount)
         
         if sale_id is None:
             raise ValidationException("Failed to create sale record")
 
-        for item in items:
-            query = '''
-                INSERT INTO sale_items (sale_id, product_id, quantity, price)
-                VALUES (?, ?, ?, ?)
-            '''
-            DatabaseManager.execute_query(query, (sale_id, item['product_id'], item['quantity'], item['sell_price']))
-            
-            InventoryService.update_quantity(item['product_id'], -item['quantity'])
+        SaleService._insert_sale_items(sale_id, items)
+        SaleService._update_inventory(items)
         
         SaleService.clear_cache()
         return sale_id
@@ -66,8 +59,7 @@ class SaleService:
     def delete_sale(sale_id: int) -> None:
         items = SaleService.get_sale_items(sale_id)
         
-        for item in items:
-            InventoryService.update_quantity(item.product_id, item.quantity)
+        SaleService._revert_inventory(items)
         
         DatabaseManager.execute_query('DELETE FROM sale_items WHERE sale_id = ?', (sale_id,))
         DatabaseManager.execute_query('DELETE FROM sales WHERE id = ?', (sale_id,))
@@ -125,25 +117,16 @@ class SaleService:
     @db_operation(show_dialog=True)
     @validate_input(show_dialog=True)
     def update_sale(sale_id: int, customer_id: int, date: str, items: List[Dict[str, Any]]) -> None:
+        SaleService._validate_sale_items(items)
         old_items = SaleService.get_sale_items(sale_id)
         
-        for item in old_items:
-            InventoryService.update_quantity(item.product_id, item.quantity)
+        SaleService._revert_inventory(old_items)
         
         total_amount = sum(item['price'] * item['quantity'] for item in items)
         
-        query = 'UPDATE sales SET customer_id = ?, date = ?, total_amount = ? WHERE id = ?'
-        DatabaseManager.execute_query(query, (customer_id, date, total_amount, sale_id))
-        
-        DatabaseManager.execute_query('DELETE FROM sale_items WHERE sale_id = ?', (sale_id,))
-        
-        for item in items:
-            query = '''
-                INSERT INTO sale_items (sale_id, product_id, quantity, price)
-                VALUES (?, ?, ?, ?)
-            '''
-            DatabaseManager.execute_query(query, (sale_id, item['product_id'], item['quantity'], item['price']))
-            InventoryService.update_quantity(item['product_id'], -item['quantity'])
+        SaleService._update_sale(sale_id, customer_id, date, total_amount)
+        SaleService._update_sale_items(sale_id, items)
+        SaleService._update_inventory(items)
         
         SaleService.clear_cache()
 
@@ -181,3 +164,50 @@ class SaleService:
     @staticmethod
     def clear_cache():
         SaleService.get_all_sales.cache_clear()
+
+    @staticmethod
+    def _validate_sale_items(items: List[Dict[str, Any]]) -> None:
+        if not items:
+            raise ValidationException("Sale must have at least one item")
+        for item in items:
+            if item['quantity'] <= 0 or item['sell_price'] <= 0:
+                raise ValidationException("Item quantity and sell price must be positive")
+
+    @staticmethod
+    @db_operation(show_dialog=True)
+    def _insert_sale(customer_id: int, date: str, total_amount: float) -> Optional[int]:
+        query = 'INSERT INTO sales (customer_id, date, total_amount) VALUES (?, ?, ?)'
+        cursor = DatabaseManager.execute_query(query, (customer_id, date, total_amount))
+        return cursor.lastrowid
+
+    @staticmethod
+    @db_operation(show_dialog=True)
+    def _insert_sale_items(sale_id: int, items: List[Dict[str, Any]]) -> None:
+        for item in items:
+            query = '''
+                INSERT INTO sale_items (sale_id, product_id, quantity, price)
+                VALUES (?, ?, ?, ?)
+            '''
+            DatabaseManager.execute_query(query, (sale_id, item['product_id'], item['quantity'], item['sell_price']))
+
+    @staticmethod
+    def _update_inventory(items: List[Dict[str, Any]]) -> None:
+        for item in items:
+            InventoryService.update_quantity(item['product_id'], -item['quantity'])
+
+    @staticmethod
+    def _revert_inventory(items: List[SaleItem]) -> None:
+        for item in items:
+            InventoryService.update_quantity(item.product_id, item.quantity)
+
+    @staticmethod
+    @db_operation(show_dialog=True)
+    def _update_sale(sale_id: int, customer_id: int, date: str, total_amount: float) -> None:
+        query = 'UPDATE sales SET customer_id = ?, date = ?, total_amount = ? WHERE id = ?'
+        DatabaseManager.execute_query(query, (customer_id, date, total_amount, sale_id))
+
+    @staticmethod
+    @db_operation(show_dialog=True)
+    def _update_sale_items(sale_id: int, items: List[Dict[str, Any]]) -> None:
+        DatabaseManager.execute_query('DELETE FROM sale_items WHERE sale_id = ?', (sale_id,))
+        SaleService._insert_sale_items(sale_id, items)

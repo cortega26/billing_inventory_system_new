@@ -2,13 +2,12 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTableWidgetItem,
     QMessageBox, QHeaderView, QComboBox, QDateEdit, QDialog, QDialogButtonBox, QFormLayout,
     QDoubleSpinBox, QProgressBar, QAbstractItemView
-    )
-from PySide6.QtCore import Qt, QDate, QTimer
+)
+from PySide6.QtCore import Qt, QDate, QTimer, Signal
 from services.purchase_service import PurchaseService
 from services.product_service import ProductService
 from models.purchase import Purchase
 from utils.helpers import create_table, show_info_message, format_price
-from utils.system.logger import logger
 from utils.system.event_system import event_system
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
 from typing import List
@@ -72,6 +71,8 @@ class PurchaseItemDialog(QDialog):
         }
 
 class PurchaseView(QWidget):
+    purchase_updated = Signal()
+
     def __init__(self):
         super().__init__()
         self.purchase_service = PurchaseService()
@@ -175,7 +176,7 @@ class PurchaseView(QWidget):
                     self, "Add Another Item", "Do you want to add another item?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
                     QMessageBox.StandardButton.No
-                    )
+                )
                 if reply == QMessageBox.StandardButton.No:
                     break
             else:
@@ -188,6 +189,7 @@ class PurchaseView(QWidget):
                 self.supplier_input.clear()
                 show_info_message("Success", "Purchase added successfully.")
                 event_system.purchase_added.emit(purchase_id)
+                self.purchase_updated.emit()
             else:
                 raise ValueError("Failed to add purchase.")
         else:
@@ -211,12 +213,13 @@ class PurchaseView(QWidget):
             f'Are you sure you want to delete this purchase from {purchase.supplier}?',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
             QMessageBox.StandardButton.No
-            )
+        )
         if reply == QMessageBox.StandardButton.Yes:
             self.purchase_service.delete_purchase(purchase.id)
             self.load_purchases()
             show_info_message("Success", "Purchase deleted successfully.")
             event_system.purchase_deleted.emit(purchase.id)
+            self.purchase_updated.emit()
 
     @ui_operation(show_dialog=True)
     def search_purchases(self):
@@ -230,3 +233,6 @@ class PurchaseView(QWidget):
             self.update_purchase_table(filtered_purchases)
         else:
             self.load_purchases()
+
+    def refresh(self):
+        self.load_purchases()

@@ -35,3 +35,4 @@ if __name__ == "__main__":
     except AppException as e:
         logger.critical(f"An unhandled error occurred: {e}")
         sys.exit(1)
+

@@ -5,7 +5,6 @@ from pathlib import Path
 import yaml
 import sys
 from typing import Any, Dict
-
 from config import DEBUG_LEVEL, APP_NAME
 
 

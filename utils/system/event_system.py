@@ -26,9 +26,7 @@ class EventSystem(QObject):
     sale_deleted = Signal(int)  # Emits the ID of the deleted sale
 
     # Inventory-related signals
-    inventory_changed = Signal(
-        int
-    )  # Emits the ID of the product whose inventory changed
+    inventory_changed = Signal(int)  # Emits the ID of the product whose inventory changed
 
     # Customer-related signals
     customer_added = Signal(int)  # Emits the ID of the added customer
@@ -41,15 +39,9 @@ class EventSystem(QObject):
     category_deleted = Signal(int)  # Emits the ID of the deleted category
 
     # General application signals
-    app_settings_changed = Signal(
-        Dict[str, Any]
-    )  # Emits a dictionary of changed settings
-    data_import_completed = Signal(
-        bool
-    )  # Emits True if import was successful, False otherwise
-    data_export_completed = Signal(
-        bool
-    )  # Emits True if export was successful, False otherwise
+    app_settings_changed = Signal(Dict[str, Any])  # Emits a dictionary of changed settings
+    data_import_completed = Signal(bool)  # Emits True if import was successful, False otherwise
+    data_export_completed = Signal(bool)  # Emits True if export was successful, False otherwise
 
     def __init__(self):
         super().__init__()

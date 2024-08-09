@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import datetime
 from utils.exceptions import ValidationException
 from utils.decorators import validate_input
@@ -12,6 +12,7 @@ class SaleItem:
     product_id: int
     quantity: int
     unit_price: float
+    product_name: Optional[str] = None
 
     @classmethod
     def from_db_row(cls, row: Dict[str, Any]) -> "SaleItem":
@@ -21,6 +22,7 @@ class SaleItem:
             product_id=row["product_id"],
             quantity=row["quantity"],
             unit_price=float(row["price"]),
+            product_name=row.get("product_name")
         )
 
     def total_price(self) -> float:
@@ -33,6 +35,7 @@ class Sale:
     customer_id: int
     date: datetime
     total_amount: float
+    receipt_id: Optional[str] = None
     items: List[SaleItem] = field(default_factory=list)
 
     @classmethod
@@ -42,6 +45,7 @@ class Sale:
             customer_id=row["customer_id"],
             date=datetime.fromisoformat(row["date"]),
             total_amount=float(row["total_amount"]),
+            receipt_id=row.get("receipt_id")
         )
 
     @validate_input(show_dialog=True)

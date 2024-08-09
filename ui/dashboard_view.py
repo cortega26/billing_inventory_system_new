@@ -53,7 +53,7 @@ class MetricWidget(QFrame):
         event_system.inventory_changed.connect(self.update_value)
 
     @ui_operation()
-    def update_value(self):
+    def update_value(self, *args):
         value = self.value_func()
         self.value_widget.setText(str(value))
 
@@ -219,7 +219,7 @@ class DashboardView(QWidget):
         return chart_view
 
     @ui_operation()
-    def update_dashboard(self):
+    def update_dashboard(self, *args):
         self.end_date = datetime.now()
         self.start_date = self.end_date - timedelta(days=30)
 

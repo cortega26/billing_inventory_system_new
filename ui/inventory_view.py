@@ -156,6 +156,11 @@ class InventoryView(QWidget):
         event_system.product_deleted.connect(self.load_inventory)
         event_system.sale_added.connect(self.load_inventory)
         event_system.purchase_added.connect(self.load_inventory)
+        event_system.inventory_changed.connect(self.on_inventory_changed) # Added
+
+    @ui_operation(show_dialog=True)
+    def on_inventory_changed(self, product_id):
+        self.load_inventory()
 
     @ui_operation(show_dialog=True)
     def load_categories(self):

@@ -155,6 +155,7 @@ def init_db():
                 customer_id INTEGER,
                 date TEXT NOT NULL,
                 total_amount REAL NOT NULL,
+                receipt_id TEXT,
                 FOREIGN KEY (customer_id) REFERENCES customers (id)
             )
             """

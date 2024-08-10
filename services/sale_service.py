@@ -11,24 +11,25 @@ from reportlab.lib.pagesizes import letter
 
 
 class SaleService:
-    @staticmethod
     @db_operation(show_dialog=True)
     @validate_input(show_dialog=True)
-    def create_sale(
-        customer_id: int, date: str, items: List[Dict[str, Any]]
-    ) -> Optional[int]:
+    def create_sale(self, customer_id: int, date: str, items: List[Dict[str, Any]]) -> Optional[int]:
         SaleService._validate_sale_items(items)
         total_amount = sum(item["quantity"] * item["sell_price"] for item in items)
 
-        sale_id = SaleService._insert_sale(customer_id, date, total_amount)
+        receipt_id = self.generate_receipt_id(datetime.fromisoformat(date))
+
+        query = "INSERT INTO sales (customer_id, date, total_amount, receipt_id) VALUES (?, ?, ?, ?)"
+        cursor = DatabaseManager.execute_query(query, (customer_id, date, total_amount, receipt_id))
+        sale_id = cursor.lastrowid
 
         if sale_id is None:
             raise ValidationException("Failed to create sale record")
 
-        SaleService._insert_sale_items(sale_id, items)
-        SaleService._update_inventory(items)
+        self._insert_sale_items(sale_id, items)
+        self._update_inventory(items)
 
-        SaleService.clear_cache()
+        self.clear_cache()
         return sale_id
 
     @db_operation(show_dialog=True)

@@ -1,50 +1,26 @@
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QPushButton,
-    QTableWidgetItem,
-    QMessageBox,
-    QSpinBox,
-    QDialog,
-    QDialogButtonBox,
-    QComboBox,
-    QFormLayout,
-    QHeaderView,
-    QAbstractItemView,
-    QProgressBar,
-    QMenu,
-    QApplication,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, 
+    QTableWidgetItem, QMessageBox, QDoubleSpinBox, QDialog, QDialogButtonBox, 
+    QComboBox, QFormLayout, QHeaderView, QAbstractItemView, QProgressBar, 
+    QMenu, QApplication
 )
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QAction, QKeySequence
 from services.product_service import ProductService
 from services.category_service import CategoryService
-from utils.helpers import (
-    create_table,
-    show_info_message,
-    show_error_message,
-    format_price,
-)
+from utils.helpers import create_table, show_info_message, show_error_message, format_price
 from utils.system.event_system import event_system
 from ui.category_management_dialog import CategoryManagementDialog
-from utils.ui.table_items import (
-    NumericTableWidgetItem,
-    PercentageTableWidgetItem,
-    PriceTableWidgetItem,
-)
+from utils.ui.table_items import NumericTableWidgetItem, PercentageTableWidgetItem, PriceTableWidgetItem
 from typing import Optional, List
 from models.product import Product
 from models.category import Category
 from utils.decorators import ui_operation, validate_input
-
+from utils.validation.validators import is_non_empty_string, is_positive, has_length
+from utils.system.logger import logger
 
 class EditProductDialog(QDialog):
-    def __init__(
-        self, product: Optional[Product], categories: List[Category], parent=None
-    ):
+    def __init__(self, product: Optional[Product], categories: List[Category], parent=None):
         super().__init__(parent)
         self.product = product
         self.categories = categories
@@ -55,9 +31,7 @@ class EditProductDialog(QDialog):
         layout = QFormLayout(self)
 
         self.name_input = QLineEdit(self.product.name if self.product else "")
-        self.description_input = QLineEdit(
-            self.product.description or "" if self.product else ""
-        )
+        self.description_input = QLineEdit(self.product.description or "" if self.product else "")
 
         self.category_combo = QComboBox()
         self.category_combo.addItem("Uncategorized", None)
@@ -68,17 +42,13 @@ class EditProductDialog(QDialog):
             if index >= 0:
                 self.category_combo.setCurrentIndex(index)
 
-        self.cost_price_input = QSpinBox()
+        self.cost_price_input = QDoubleSpinBox()
         self.cost_price_input.setMaximum(1000000000)
-        self.cost_price_input.setValue(
-            self.product.cost_price or 0 if self.product else 0
-        )
+        self.cost_price_input.setValue(self.product.cost_price or 0 if self.product else 0)
 
-        self.sell_price_input = QSpinBox()
+        self.sell_price_input = QDoubleSpinBox()
         self.sell_price_input.setMaximum(1000000000)
-        self.sell_price_input.setValue(
-            self.product.sell_price or 0 if self.product else 0
-        )
+        self.sell_price_input.setValue(self.product.sell_price or 0 if self.product else 0)
 
         layout.addRow("Name:", self.name_input)
         layout.addRow("Description:", self.description_input)
@@ -86,14 +56,12 @@ class EditProductDialog(QDialog):
         layout.addRow("Cost Price:", self.cost_price_input)
         layout.addRow("Sell Price:", self.sell_price_input)
 
-        self.button_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
+        self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         self.button_box.accepted.connect(self.validate_and_accept)
         self.button_box.rejected.connect(self.reject)
         layout.addRow(self.button_box)
 
-    @validate_input(show_dialog=True)
+    @validate_input([is_non_empty_string, has_length(1, 100)], "Product name must be between 1 and 100 characters")
     def validate_and_accept(self):
         name = self.name_input.text().strip()
         description = self.description_input.text().strip()
@@ -101,14 +69,10 @@ class EditProductDialog(QDialog):
         cost_price = self.cost_price_input.value()
         sell_price = self.sell_price_input.value()
 
-        if not name:
-            raise ValueError("Product name cannot be empty.")
-        if len(name) > 100:
-            raise ValueError("Product name cannot exceed 100 characters.")
-        if description and len(description) > 500:
-            raise ValueError("Product description cannot exceed 500 characters.")
-        if cost_price < 0 or sell_price < 0:
-            raise ValueError("Prices cannot be negative.")
+        if not is_positive(cost_price):
+            raise ValueError("Cost price must be positive")
+        if not is_positive(sell_price):
+            raise ValueError("Sell price must be positive")
 
         self.product_data = {
             "name": name,
@@ -118,7 +82,6 @@ class EditProductDialog(QDialog):
             "sell_price": sell_price,
         }
         self.accept()
-
 
 class ProductView(QWidget):
     product_updated = Signal()
@@ -167,13 +130,9 @@ class ProductView(QWidget):
                 "Actions",
             ]
         )
-        self.product_table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.Interactive
-        )
+        self.product_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.product_table.setSortingEnabled(True)
-        self.product_table.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows
-        )
+        self.product_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.product_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.product_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.product_table.customContextMenuRequested.connect(self.show_context_menu)
@@ -251,20 +210,10 @@ class ProductView(QWidget):
             profit_margin = self.product_service.get_product_profit_margin(product.id)
             self.product_table.setItem(row, 0, NumericTableWidgetItem(product.id))
             self.product_table.setItem(row, 1, QTableWidgetItem(product.name))
-            self.product_table.setItem(
-                row, 2, QTableWidgetItem(product.description or "")
-            )
-            self.product_table.setItem(
-                row,
-                3,
-                QTableWidgetItem(product.category.name if product.category else ""),
-            )
-            self.product_table.setItem(
-                row, 4, PriceTableWidgetItem(product.cost_price, format_price)
-            )
-            self.product_table.setItem(
-                row, 5, PriceTableWidgetItem(product.sell_price, format_price)
-            )
+            self.product_table.setItem(row, 2, QTableWidgetItem(product.description or ""))
+            self.product_table.setItem(row, 3, QTableWidgetItem(product.category.name if product.category else ""))
+            self.product_table.setItem(row, 4, PriceTableWidgetItem(product.cost_price, format_price))
+            self.product_table.setItem(row, 5, PriceTableWidgetItem(product.sell_price, format_price))
             self.product_table.setItem(row, 6, PercentageTableWidgetItem(profit_margin))
 
             actions_widget = QWidget()
@@ -286,9 +235,7 @@ class ProductView(QWidget):
             self.product_table.setCellWidget(row, 7, actions_widget)
 
         self.product_table.resizeColumnsToContents()
-        self.product_table.horizontalHeader().setSectionResizeMode(
-            7, QHeaderView.ResizeMode.Stretch
-        )
+        self.product_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
 
     @ui_operation(show_dialog=True)
     def add_product(self):
@@ -296,14 +243,19 @@ class ProductView(QWidget):
         dialog = EditProductDialog(None, categories, self)
         if dialog.exec():
             product_data = dialog.product_data
-            product_id = self.product_service.create_product(**product_data)
-            if product_id is not None:
-                self.load_products()
-                show_info_message("Success", "Product added successfully.")
-                event_system.product_added.emit(product_id)
-                self.product_updated.emit()
-            else:
-                show_error_message("Error", "Failed to add product.")
+            try:
+                product_id = self.product_service.create_product(**product_data)
+                if product_id is not None:
+                    self.load_products()
+                    show_info_message("Success", "Product added successfully.")
+                    event_system.product_added.emit(product_id)
+                    self.product_updated.emit()
+                    logger.info("Product added successfully", product_id=product_id)
+                else:
+                    raise ValueError("Failed to add product.")
+            except Exception as e:
+                show_error_message("Error", str(e))
+                logger.error("Failed to add product", error=str(e))
 
     @ui_operation(show_dialog=True)
     def edit_product(self, product: Product):
@@ -311,11 +263,16 @@ class ProductView(QWidget):
         dialog = EditProductDialog(product, categories, self)
         if dialog.exec():
             product_data = dialog.product_data
-            self.product_service.update_product(product.id, **product_data)
-            self.load_products()
-            show_info_message("Success", "Product updated successfully.")
-            event_system.product_updated.emit(product.id)
-            self.product_updated.emit()
+            try:
+                self.product_service.update_product(product.id, **product_data)
+                self.load_products()
+                show_info_message("Success", "Product updated successfully.")
+                event_system.product_updated.emit(product.id)
+                self.product_updated.emit()
+                logger.info("Product updated successfully", product_id=product.id)
+            except Exception as e:
+                show_error_message("Error", str(e))
+                logger.error("Failed to update product", error=str(e), product_id=product.id)
 
     @ui_operation(show_dialog=True)
     def delete_product(self, product: Product):
@@ -327,11 +284,16 @@ class ProductView(QWidget):
             QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
-            self.product_service.delete_product(product.id)
-            self.load_products()
-            show_info_message("Success", "Product deleted successfully.")
-            event_system.product_deleted.emit(product.id)
-            self.product_updated.emit()
+            try:
+                self.product_service.delete_product(product.id)
+                self.load_products()
+                show_info_message("Success", "Product deleted successfully.")
+                event_system.product_deleted.emit(product.id)
+                self.product_updated.emit()
+                logger.info("Product deleted successfully", product_id=product.id)
+            except Exception as e:
+                show_error_message("Error", str(e))
+                logger.error("Failed to delete product", error=str(e), product_id=product.id)
 
     @ui_operation(show_dialog=True)
     def search_products(self):
@@ -339,11 +301,7 @@ class ProductView(QWidget):
         self.filter_products(search_term=search_term)
 
     @ui_operation(show_dialog=True)
-    def filter_products(
-        self,
-        products: Optional[List[Product]] = None,
-        search_term: Optional[str] = None,
-    ):
+    def filter_products(self, products: Optional[List[Product]] = None, search_term: Optional[str] = None):
         if products is None:
             products = self.product_service.get_all_products() or []
 
@@ -353,17 +311,9 @@ class ProductView(QWidget):
         search_term = search_term.lower()
 
         filtered_products = [
-            p
-            for p in products
-            if (
-                not search_term
-                or search_term in p.name.lower()
-                or (p.description and search_term in p.description.lower())
-            )
-            and (
-                self.current_category_id is None
-                or (p.category and p.category.id == self.current_category_id)
-            )
+            p for p in products
+            if (not search_term or search_term in p.name.lower() or (p.description and search_term in p.description.lower()))
+            and (self.current_category_id is None or (p.category and p.category.id == self.current_category_id))
         ]
 
         self.update_product_table(filtered_products)
@@ -400,13 +350,11 @@ class ProductView(QWidget):
     @ui_operation(show_dialog=True)
     def export_products(self):
         # TODO: Implement export functionality
-        # TODO: This is a placeholder for future implementation
         show_info_message("Info", "Export functionality not implemented yet.")
 
     @ui_operation(show_dialog=True)
     def import_products(self):
         # TODO: Implement import functionality
-        # TODO: This is a placeholder for future implementation
         show_info_message("Info", "Import functionality not implemented yet.")
 
     def keyPressEvent(self, event):

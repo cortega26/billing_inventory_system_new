@@ -1,19 +1,45 @@
+# utils/logger.py
+
 import logging
 import logging.config
 import os
 from pathlib import Path
 import yaml
 import sys
-from typing import Any, Dict
+from typing import Any
 from config import DEBUG_LEVEL, APP_NAME
+import json
 
+class StructuredLogger:
+    def __init__(self, name: str):
+        self.logger = logging.getLogger(name)
+        self.logger.setLevel(DEBUG_LEVEL)
 
-def setup_logger() -> logging.Logger:
+    def _log(self, level: int, message: str, **kwargs):
+        extra = json.dumps(kwargs) if kwargs else ""
+        self.logger.log(level, f"{message} {extra}")
+
+    def debug(self, message: str, **kwargs):
+        self._log(logging.DEBUG, message, **kwargs)
+
+    def info(self, message: str, **kwargs):
+        self._log(logging.INFO, message, **kwargs)
+
+    def warning(self, message: str, **kwargs):
+        self._log(logging.WARNING, message, **kwargs)
+
+    def error(self, message: str, **kwargs):
+        self._log(logging.ERROR, message, **kwargs)
+
+    def critical(self, message: str, **kwargs):
+        self._log(logging.CRITICAL, message, **kwargs)
+
+def setup_logger() -> StructuredLogger:
     """
     Set up and configure the logger for the application.
 
     Returns:
-        logging.Logger: Configured logger instance.
+        StructuredLogger: Configured logger instance.
     """
     config_path = Path(__file__).resolve().parent / "logging_config.yaml"
 
@@ -22,10 +48,7 @@ def setup_logger() -> logging.Logger:
     else:
         setup_default_logger()
 
-    logger = logging.getLogger(APP_NAME)
-
-    return logger
-
+    return StructuredLogger(APP_NAME)
 
 def setup_logger_from_yaml(config_path: Path) -> None:
     """
@@ -43,7 +66,6 @@ def setup_logger_from_yaml(config_path: Path) -> None:
         print("Falling back to default configuration.")
         setup_default_logger()
 
-
 def setup_default_logger() -> None:
     """Set up a default logger configuration."""
     logging.basicConfig(
@@ -55,7 +77,6 @@ def setup_default_logger() -> None:
         ],
     )
 
-
 def log_exception(exc_type: type, exc_value: Exception, exc_traceback: Any) -> None:
     """
     Log an exception with full traceback.
@@ -65,34 +86,16 @@ def log_exception(exc_type: type, exc_value: Exception, exc_traceback: Any) -> N
         exc_value (Exception): The exception instance.
         exc_traceback (Any): The traceback object.
     """
-    logger = logging.getLogger(APP_NAME)
-    logger.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
-
-
-class LoggerAdapter(logging.LoggerAdapter):
-    """
-    A custom LoggerAdapter that adds contextual information to log records.
-    """
-
-    def __init__(self, logger: logging.Logger, extra: Dict[str, Any] | None = None):
-        super().__init__(logger, extra or {})
-
-    def process(self, msg: str, kwargs: Dict[str, Any]) -> tuple[str, Dict[str, Any]]:
-        extra = kwargs.get("extra", {})
-        if self.extra:
-            extra.update(self.extra)
-        kwargs["extra"] = extra
-        return msg, kwargs
-
+    logger = StructuredLogger(APP_NAME)
+    logger.error("Uncaught exception", 
+                 exc_info={
+                     "type": str(exc_type),
+                     "value": str(exc_value),
+                     "traceback": str(exc_traceback)
+                 })
 
 # Set up the logger
 logger = setup_logger()
 
-# Create a LoggerAdapter instance
-logger_adapter = LoggerAdapter(logger, {"app_name": APP_NAME})
-
 # Set the exception hook to use our custom logger
 sys.excepthook = log_exception
-
-# Export the LoggerAdapter instance as 'logger'
-logger = logger_adapter

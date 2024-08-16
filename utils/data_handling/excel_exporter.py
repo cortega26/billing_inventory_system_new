@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import List, Dict, Any, Iterable
 import os
 import logging
-from utils.decorators import handle_external_service, validate_input
+from utils.decorators import handle_external_service #, validate_input
 from utils.exceptions import ExternalServiceException, ValidationException
 
 logger = logging.getLogger(__name__)
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class ExcelExporter:
     @staticmethod
     @handle_external_service(show_dialog=True)
-    @validate_input(show_dialog=True)
+    #@validate_input(show_dialog=True)
     def export_to_excel(
         data: List[Dict[str, Any]],
         headers: List[str],
@@ -79,7 +79,7 @@ class ExcelExporter:
 
     @staticmethod
     @handle_external_service(show_dialog=True)
-    @validate_input(show_dialog=True)
+    #@validate_input(show_dialog=True)
     def export_large_dataset(
         data_generator: Iterable[Dict[str, Any]],
         headers: List[str],

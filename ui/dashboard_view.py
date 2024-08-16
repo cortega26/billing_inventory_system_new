@@ -27,7 +27,6 @@ from utils.system.logger import logger
 from utils.decorators import ui_operation
 from typing import Callable, Union
 
-
 class MetricWidget(QFrame):
     def __init__(self, label: str, value_func: Callable[[], Union[str, int, float]]):
         super().__init__()
@@ -57,7 +56,6 @@ class MetricWidget(QFrame):
         value = self.value_func()
         self.value_widget.setText(str(value))
 
-
 class DashboardView(QWidget):
     def __init__(self):
         super().__init__()
@@ -82,15 +80,9 @@ class DashboardView(QWidget):
         # Top row with key metrics
         metrics_layout = QHBoxLayout()
         metrics_layout.addWidget(MetricWidget("Total Sales", self.get_total_sales))
-        metrics_layout.addWidget(
-            MetricWidget("Total Purchases", self.get_total_purchases)
-        )
-        metrics_layout.addWidget(
-            MetricWidget("Inventory Value", self.get_inventory_value)
-        )
-        metrics_layout.addWidget(
-            MetricWidget("Total Customers", self.get_total_customers)
-        )
+        metrics_layout.addWidget(MetricWidget("Total Purchases", self.get_total_purchases))
+        metrics_layout.addWidget(MetricWidget("Inventory Value", self.get_inventory_value))
+        metrics_layout.addWidget(MetricWidget("Total Customers", self.get_total_customers))
         layout.addLayout(metrics_layout)
 
         # Charts row
@@ -99,12 +91,8 @@ class DashboardView(QWidget):
         self.customers_chart_view = self.create_top_customers_chart()
 
         # Set fixed size policies for both charts
-        self.sales_chart_view.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
-        )
-        self.customers_chart_view.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
-        )
+        self.sales_chart_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.customers_chart_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         # Add charts to the layout with a 1:1 ratio
         self.charts_layout.addWidget(self.sales_chart_view, 1)
@@ -123,9 +111,7 @@ class DashboardView(QWidget):
 
     @ui_operation()
     def get_total_purchases(self) -> str:
-        purchases = self.purchase_service.get_purchase_stats(
-            self.start_date.strftime("%Y-%m-%d"), self.end_date.strftime("%Y-%m-%d")
-        )
+        purchases = self.purchase_service.get_purchase_stats(self.start_date.strftime("%Y-%m-%d"), self.end_date.strftime("%Y-%m-%d"))
         return f"${purchases['total_amount']:,.2f}"
 
     @ui_operation()
@@ -146,21 +132,10 @@ class DashboardView(QWidget):
         top_products = self.sale_service.get_top_selling_products(
             self.start_date.strftime("%Y-%m-%d"),
             self.end_date.strftime("%Y-%m-%d"),
-            limit=5,
+            limit=5
         )
 
-        colors = [
-            "#FF6B6B",
-            "#4ECDC4",
-            "#45B7D1",
-            "#FFA07A",
-            "#98D8C8",
-            "#F06292",
-            "#AED581",
-            "#7986CB",
-            "#FFD54F",
-            "#4DB6AC",
-        ]
+        colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8"]
 
         for i, product in enumerate(top_products):
             slice = series.append(product["name"], product["total_revenue"])
@@ -191,9 +166,7 @@ class DashboardView(QWidget):
             group_id = customer.identifier_3or4 or "Unknown"
             grouped_totals[group_id] = grouped_totals.get(group_id, 0) + total
 
-        top_groups = sorted(grouped_totals.items(), key=lambda x: x[1], reverse=True)[
-            :5
-        ]
+        top_groups = sorted(grouped_totals.items(), key=lambda x: x[1], reverse=True)[:5]
 
         bar_set = QBarSet("Purchase Amount")
         categories = []
@@ -236,12 +209,8 @@ class DashboardView(QWidget):
         new_customers_chart = self.create_top_customers_chart()
 
         # Set fixed size policies for new charts
-        new_sales_chart.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
-        )
-        new_customers_chart.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
-        )
+        new_sales_chart.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        new_customers_chart.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         self.charts_layout.replaceWidget(self.sales_chart_view, new_sales_chart)
         self.charts_layout.replaceWidget(self.customers_chart_view, new_customers_chart)
@@ -253,3 +222,6 @@ class DashboardView(QWidget):
         self.customers_chart_view = new_customers_chart
 
         logger.info("Dashboard updated successfully")
+
+    def refresh(self):
+        self.update_dashboard()

@@ -20,7 +20,7 @@ class Category:
         return {"id": self.id, "name": self.name}
 
     @staticmethod
-    @validate_input(show_dialog=True)
+    #@validate_input(show_dialog=True)
     def validate_name(name: str) -> None:
         if not name or len(name.strip()) == 0:
             raise ValidationException("Category name cannot be empty")

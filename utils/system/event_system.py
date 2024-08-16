@@ -1,6 +1,6 @@
 from PySide6.QtCore import QObject, Signal
-from typing import Any, Dict, Callable, Optional, List
-
+from typing import Any, Callable, Optional, List
+from utils.system.logger import logger
 
 class EventSystem(QObject):
     """
@@ -39,7 +39,7 @@ class EventSystem(QObject):
     category_deleted = Signal(int)  # Emits the ID of the deleted category
 
     # General application signals
-    app_settings_changed = Signal(Dict[str, Any])  # Emits a dictionary of changed settings
+    app_settings_changed = Signal(dict)  # Emits a dictionary of changed settings
     data_import_completed = Signal(bool)  # Emits True if import was successful, False otherwise
     data_export_completed = Signal(bool)  # Emits True if export was successful, False otherwise
 
@@ -80,7 +80,9 @@ class EventSystem(QObject):
         """
         if event_name in self._signal_map:
             self._signal_map[event_name].emit(*args)
+            logger.debug(f"Event emitted: {event_name}", args=args)
         else:
+            logger.error(f"Unknown event: {event_name}")
             raise ValueError(f"Unknown event: {event_name}")
 
     def connect_to_event(self, event_name: str, slot: Callable[..., None]) -> None:
@@ -96,7 +98,9 @@ class EventSystem(QObject):
         """
         if event_name in self._signal_map:
             self._signal_map[event_name].connect(slot)
+            logger.debug(f"Connected to event: {event_name}", slot=slot.__name__)
         else:
+            logger.error(f"Unknown event: {event_name}")
             raise ValueError(f"Unknown event: {event_name}")
 
     def disconnect_from_event(
@@ -115,9 +119,12 @@ class EventSystem(QObject):
         if event_name in self._signal_map:
             if slot is None:
                 self._signal_map[event_name].disconnect()
+                logger.debug(f"Disconnected all slots from event: {event_name}")
             else:
                 self._signal_map[event_name].disconnect(slot)
+                logger.debug(f"Disconnected from event: {event_name}", slot=slot.__name__)
         else:
+            logger.error(f"Unknown event: {event_name}")
             raise ValueError(f"Unknown event: {event_name}")
 
     def get_available_events(self) -> List[str]:
@@ -129,6 +136,13 @@ class EventSystem(QObject):
         """
         return list(self._signal_map.keys())
 
+    def clear_all_connections(self) -> None:
+        """
+        Clear all event connections.
+        """
+        for signal in self._signal_map.values():
+            signal.disconnect()
+        logger.info("All event connections cleared")
 
 # Global instance of the event system
 event_system = EventSystem()

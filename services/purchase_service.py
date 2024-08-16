@@ -2,19 +2,24 @@ from typing import List, Dict, Any, Optional
 from database import DatabaseManager
 from models.purchase import Purchase, PurchaseItem
 from services.inventory_service import InventoryService
-from utils.decorators import db_operation, validate_input
-from utils.exceptions import ValidationException, NotFoundException
+from utils.validation.validators import is_non_empty_string, has_length
+from utils.sanitizers import sanitize_html
+from utils.decorators import db_operation, handle_exceptions
+from utils.exceptions import ValidationException, NotFoundException, DatabaseException
+from utils.system.logger import logger
 from functools import lru_cache
-
+from datetime import datetime
 
 class PurchaseService:
     @staticmethod
     @db_operation(show_dialog=True)
-    @validate_input(show_dialog=True)
+    #@validate_input([is_non_empty_string, has_length(1, 100)], "Invalid supplier name")
+    @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def create_purchase(
         supplier: str, date: str, items: List[Dict[str, Any]]
     ) -> Optional[int]:
         PurchaseService._validate_purchase_items(items)
+        supplier = sanitize_html(supplier)
         total_amount = sum(item["quantity"] * item["cost_price"] for item in items)
 
         purchase_id = PurchaseService._insert_purchase(supplier, date, total_amount)
@@ -25,33 +30,41 @@ class PurchaseService:
         PurchaseService._insert_purchase_items(purchase_id, items)
         PurchaseService._update_inventory(items)
 
+        logger.info("Purchase created", purchase_id=purchase_id, supplier=supplier, total_amount=total_amount)
         PurchaseService.clear_cache()
         return purchase_id
 
     @staticmethod
     @db_operation(show_dialog=True)
+    @handle_exceptions(NotFoundException, DatabaseException, show_dialog=True)
     def get_purchase(purchase_id: int) -> Optional[Purchase]:
         query = "SELECT * FROM purchases WHERE id = ?"
         row = DatabaseManager.fetch_one(query, (purchase_id,))
         if row:
             purchase = Purchase.from_db_row(row)
             purchase.items = PurchaseService.get_purchase_items(purchase_id)
+            logger.info("Purchase retrieved", purchase_id=purchase_id)
             return purchase
-        return None
+        else:
+            logger.warning("Purchase not found", purchase_id=purchase_id)
+            raise NotFoundException(f"Purchase with ID {purchase_id} not found")
 
     @staticmethod
     @lru_cache(maxsize=1)
     @db_operation(show_dialog=True)
+    @handle_exceptions(DatabaseException, show_dialog=True)
     def get_all_purchases() -> List[Purchase]:
         query = "SELECT * FROM purchases ORDER BY date DESC"
         rows = DatabaseManager.fetch_all(query)
         purchases = [Purchase.from_db_row(row) for row in rows]
         for purchase in purchases:
             purchase.items = PurchaseService.get_purchase_items(purchase.id)
+        logger.info("All purchases retrieved", count=len(purchases))
         return purchases
 
     @staticmethod
     @db_operation(show_dialog=True)
+    @handle_exceptions(DatabaseException, show_dialog=True)
     def get_purchase_items(purchase_id: int) -> List[PurchaseItem]:
         query = "SELECT * FROM purchase_items WHERE purchase_id = ?"
         rows = DatabaseManager.fetch_all(query, (purchase_id,))
@@ -59,6 +72,7 @@ class PurchaseService:
 
     @staticmethod
     @db_operation(show_dialog=True)
+    @handle_exceptions(DatabaseException, show_dialog=True)
     def delete_purchase(purchase_id: int) -> None:
         items = PurchaseService.get_purchase_items(purchase_id)
 
@@ -71,23 +85,29 @@ class PurchaseService:
         DatabaseManager.execute_query(
             "DELETE FROM purchases WHERE id = ?", (purchase_id,)
         )
+        logger.info("Purchase deleted", purchase_id=purchase_id)
         PurchaseService.clear_cache()
 
     @staticmethod
     @lru_cache(maxsize=1)
     @db_operation(show_dialog=True)
+    @handle_exceptions(DatabaseException, show_dialog=True)
     def get_suppliers() -> List[str]:
         query = "SELECT DISTINCT supplier FROM purchases"
         rows = DatabaseManager.fetch_all(query)
-        return [row["supplier"] for row in rows]
+        suppliers = [row["supplier"] for row in rows]
+        logger.info("Suppliers retrieved", count=len(suppliers))
+        return suppliers
 
     @staticmethod
     @db_operation(show_dialog=True)
-    @validate_input(show_dialog=True)
+    #@validate_input([is_non_empty_string, has_length(1, 100)], "Invalid supplier name")
+    @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def update_purchase(
         purchase_id: int, supplier: str, date: str, items: List[Dict[str, Any]]
     ) -> None:
         PurchaseService._validate_purchase_items(items)
+        supplier = sanitize_html(supplier)
         old_items = PurchaseService.get_purchase_items(purchase_id)
 
         PurchaseService._revert_inventory(old_items)
@@ -98,10 +118,12 @@ class PurchaseService:
         PurchaseService._update_purchase_items(purchase_id, items)
         PurchaseService._update_inventory(items)
 
+        logger.info("Purchase updated", purchase_id=purchase_id, supplier=supplier, total_amount=total_amount)
         PurchaseService.clear_cache()
 
     @staticmethod
     @db_operation(show_dialog=True)
+    @handle_exceptions(DatabaseException, show_dialog=True)
     def get_purchase_stats(start_date: str, end_date: str) -> Dict[str, Any]:
         query = """
         SELECT 
@@ -113,25 +135,20 @@ class PurchaseService:
         WHERE p.date BETWEEN ? AND ?
         """
         result = DatabaseManager.fetch_one(query, (start_date, end_date))
-        return {
+        stats = {
             "total_purchases": result["total_purchases"] if result else 0,
-            "total_amount": (
-                float(result["total_amount"])
-                if result and result["total_amount"]
-                else 0.0
-            ),
-            "average_purchase_amount": (
-                float(result["average_purchase_amount"])
-                if result and result["average_purchase_amount"]
-                else 0.0
-            ),
+            "total_amount": float(result["total_amount"]) if result and result["total_amount"] else 0.0,
+            "average_purchase_amount": float(result["average_purchase_amount"]) if result and result["average_purchase_amount"] else 0.0,
             "unique_suppliers": result["unique_suppliers"] if result else 0,
         }
+        logger.info("Purchase stats retrieved", start_date=start_date, end_date=end_date)
+        return stats
 
     @staticmethod
     def clear_cache():
         PurchaseService.get_all_purchases.cache_clear()
         PurchaseService.get_suppliers.cache_clear()
+        logger.debug("Purchase cache cleared")
 
     @staticmethod
     def _validate_purchase_items(items: List[Dict[str, Any]]) -> None:
@@ -185,9 +202,7 @@ class PurchaseService:
     def _update_purchase(
         purchase_id: int, supplier: str, date: str, total_amount: float
     ) -> None:
-        query = (
-            "UPDATE purchases SET supplier = ?, date = ?, total_amount = ? WHERE id = ?"
-        )
+        query = "UPDATE purchases SET supplier = ?, date = ?, total_amount = ? WHERE id = ?"
         DatabaseManager.execute_query(
             query, (supplier, date, total_amount, purchase_id)
         )

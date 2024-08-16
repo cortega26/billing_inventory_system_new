@@ -32,7 +32,7 @@ from utils.validation.validators import (
 from utils.decorators import ui_operation
 from models.customer import Customer
 from typing import Optional
-
+from utils.system.event_system import event_system
 
 class EditCustomerDialog(QDialog):
     def __init__(self, customer: Optional[Customer], parent=None):
@@ -70,7 +70,6 @@ class EditCustomerDialog(QDialog):
             self.accept()
         except ValueError as e:
             show_error_message("Validation Error", str(e))
-
 
 class CustomerView(QWidget):
     customer_updated = Signal()
@@ -127,6 +126,11 @@ class CustomerView(QWidget):
         # Set up shortcuts
         self.setup_shortcuts()
 
+        # Connect to event system
+        event_system.customer_added.connect(self.load_customers)
+        event_system.customer_updated.connect(self.load_customers)
+        event_system.customer_deleted.connect(self.load_customers)
+
     def setup_shortcuts(self):
         add_shortcut = QAction("Add Customer", self)
         add_shortcut.setShortcut(QKeySequence("Ctrl+N"))
@@ -143,7 +147,8 @@ class CustomerView(QWidget):
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
             customers = self.customer_service.get_all_customers()
-            QTimer.singleShot(0, lambda: self.populate_customer_table(customers))
+            #QTimer.singleShot(0, lambda: self.populate_customer_table(customers))
+            self.populate_customer_table(customers)
         finally:
             QApplication.restoreOverrideCursor()
 
@@ -189,15 +194,19 @@ class CustomerView(QWidget):
             identifier_9 = dialog.identifier_9_input.text().strip()
             identifier_3or4 = dialog.identifier_3or4_input.text().strip() or None
 
-            customer_id = self.customer_service.create_customer(
-                identifier_9, identifier_3or4
-            )
-            if customer_id is not None:
-                self.load_customers()
-                show_info_message("Success", "Customer added successfully.")
-                self.customer_updated.emit()
-            else:
-                show_error_message("Error", "Failed to add customer.")
+            try:
+                customer_id = self.customer_service.create_customer(
+                    identifier_9, identifier_3or4
+                )
+                if customer_id is not None:
+                    self.load_customers()
+                    show_info_message("Success", "Customer added successfully.")
+                    event_system.customer_added.emit(customer_id)
+                    self.customer_updated.emit()
+                else:
+                    show_error_message("Error", "Failed to add customer.")
+            except Exception as e:
+                show_error_message("Error", str(e))
 
     @ui_operation(show_dialog=True)
     def edit_customer(self, customer: Optional[Customer]):
@@ -209,12 +218,16 @@ class CustomerView(QWidget):
         if dialog.exec():
             new_identifier_9 = dialog.identifier_9_input.text().strip()
             new_identifier_3or4 = dialog.identifier_3or4_input.text().strip() or None
-            self.customer_service.update_customer(
-                customer.id, new_identifier_9, new_identifier_3or4
-            )
-            self.load_customers()
-            show_info_message("Success", "Customer updated successfully.")
-            self.customer_updated.emit()
+            try:
+                self.customer_service.update_customer(
+                    customer.id, new_identifier_9, new_identifier_3or4
+                )
+                self.load_customers()
+                show_info_message("Success", "Customer updated successfully.")
+                event_system.customer_updated.emit(customer.id)
+                self.customer_updated.emit()
+            except Exception as e:
+                show_error_message("Error", str(e))
 
     @ui_operation(show_dialog=True)
     def delete_customer(self, customer: Optional[Customer]):
@@ -233,6 +246,7 @@ class CustomerView(QWidget):
             self.customer_service.delete_customer(customer.id)
             self.load_customers()
             show_info_message("Success", "Customer deleted successfully.")
+            event_system.customer_deleted.emit(customer.id)
             self.customer_updated.emit()
 
     @ui_operation(show_dialog=True)
@@ -264,3 +278,18 @@ class CustomerView(QWidget):
                 show_error_message(
                     "Error", f"Customer with ID {customer_id} not found."
                 )
+
+    def refresh(self):
+        self.load_customers()
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Delete:
+            selected_rows = self.customer_table.selectionModel().selectedRows()
+            if selected_rows:
+                row = selected_rows[0].row()
+                customer_id = int(self.customer_table.item(row, 0).text())
+                customer = self.customer_service.get_customer(customer_id)
+                if customer:
+                    self.delete_customer(customer)
+        else:
+            super().keyPressEvent(event)

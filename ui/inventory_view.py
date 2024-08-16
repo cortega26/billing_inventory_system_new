@@ -31,7 +31,7 @@ from utils.helpers import (
 from utils.system.event_system import event_system
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
 from typing import List, Dict, Any, Optional
-from utils.decorators import ui_operation, validate_input
+from utils.decorators import ui_operation #, validate_input
 
 
 class EditInventoryDialog(QDialog):
@@ -68,7 +68,7 @@ class EditInventoryDialog(QDialog):
         buttons.rejected.connect(self.reject)
         layout.addRow(buttons)
 
-    @validate_input(show_dialog=True)
+    #@validate_input(show_dialog=True)
     def validate_and_accept(self):
         if self.adjustment_input.value() != 0 and not self.reason_input.text().strip():
             raise ValueError("Please provide a reason for the adjustment.")

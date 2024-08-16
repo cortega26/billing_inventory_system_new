@@ -1,41 +1,50 @@
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from database import DatabaseManager
 from models.product import Product
-from utils.validation.validators import validate_string
-from utils.decorators import db_operation, validate_input
-from utils.exceptions import NotFoundException
+from utils.validation.validators import validate, is_non_empty_string, is_positive, has_length
+from utils.sanitizers import sanitize_html, sanitize_sql
+from utils.decorators import db_operation, handle_exceptions
+from utils.exceptions import NotFoundException, ValidationException, DatabaseException
+from utils.system.logger import logger
 from functools import lru_cache
 
-
 class ProductService:
-    @staticmethod
     @db_operation(show_dialog=True)
-    @validate_input(show_dialog=True)
+    #@validate_input([is_non_empty_string, has_length(1, 100)], "Invalid product name")
+    @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def create_product(
+        self,
         name: str,
         description: Optional[str] = None,
         category_id: Optional[int] = None,
-        cost_price: Optional[int] = None,
-        sell_price: Optional[int] = None,
+        cost_price: Optional[float] = None,
+        sell_price: Optional[float] = None,
     ) -> Optional[int]:
-        name = validate_string(name, "Product name", max_length=100)
+        name = sanitize_html(name)
         if description:
-            description = validate_string(
-                description, "Product description", max_length=500
-            )
-        ProductService._validate_prices(cost_price, sell_price)
+            description = sanitize_html(description)
+        
+        if cost_price is not None:
+            validate(cost_price, [is_positive], "Cost price must be positive")
+        if sell_price is not None:
+            validate(sell_price, [is_positive], "Sell price must be positive")
 
         query = "INSERT INTO products (name, description, category_id, cost_price, sell_price) VALUES (?, ?, ?, ?, ?)"
-        cursor = DatabaseManager.execute_query(
-            query, (name, description, category_id, cost_price, sell_price)
-        )
-        product_id = cursor.lastrowid
-        ProductService.clear_cache()
-        return product_id
+        params = (name, description, category_id, cost_price, sell_price)
+        
+        try:
+            cursor = DatabaseManager.execute_query(query, params)
+            product_id = cursor.lastrowid
+            logger.info("Product created", product_id=product_id, name=name)
+            self.clear_cache()
+            return product_id
+        except Exception as e:
+            logger.error("Failed to create product", error=str(e), name=name)
+            raise DatabaseException(f"Failed to create product: {str(e)}")
 
-    @staticmethod
     @db_operation(show_dialog=True)
-    def get_product(product_id: int) -> Optional[Product]:
+    @handle_exceptions(NotFoundException, DatabaseException, show_dialog=True)
+    def get_product(self, product_id: int) -> Optional[Product]:
         query = """
         SELECT p.*, c.name as category_name 
         FROM products p
@@ -43,12 +52,17 @@ class ProductService:
         WHERE p.id = ?
         """
         row = DatabaseManager.fetch_one(query, (product_id,))
-        return Product.from_db_row(row) if row else None
+        if row:
+            logger.info("Product retrieved", product_id=product_id)
+            return Product.from_db_row(row)
+        else:
+            logger.warning("Product not found", product_id=product_id)
+            raise NotFoundException(f"Product with ID {product_id} not found")
 
-    @staticmethod
     @lru_cache(maxsize=1)
     @db_operation(show_dialog=True)
-    def get_all_products() -> List[Product]:
+    @handle_exceptions(DatabaseException, show_dialog=True)
+    def get_all_products(self) -> List[Product]:
         query = """
         SELECT p.*, c.name as category_name 
         FROM products p
@@ -56,59 +70,61 @@ class ProductService:
         ORDER BY p.name
         """
         rows = DatabaseManager.fetch_all(query)
-        return [Product.from_db_row(row) for row in rows]
+        products = [Product.from_db_row(row) for row in rows]
+        logger.info("All products retrieved", count=len(products))
+        return products
 
-    @staticmethod
     @db_operation(show_dialog=True)
-    @validate_input(show_dialog=True)
+    #@validate_input([is_non_empty_string, has_length(1, 100)], "Invalid product name")
+    @handle_exceptions(NotFoundException, ValidationException, DatabaseException, show_dialog=True)
     def update_product(
+        self,
         product_id: int,
         name: str,
         description: Optional[str],
         category_id: Optional[int],
-        cost_price: Optional[int],
-        sell_price: Optional[int],
+        cost_price: Optional[float],
+        sell_price: Optional[float],
     ) -> None:
-        name = validate_string(name, "Product name", max_length=100)
+        name = sanitize_html(name)
         if description is not None:
-            description = validate_string(
-                description, "Product description", max_length=500
-            )
-        ProductService._validate_prices(cost_price, sell_price)
+            description = sanitize_html(description)
+        
+        if cost_price is not None:
+            validate(cost_price, [is_positive], "Cost price must be positive")
+        if sell_price is not None:
+            validate(sell_price, [is_positive], "Sell price must be positive")
 
-        current_product = ProductService.get_product(product_id)
+        current_product = self.get_product(product_id)
         if not current_product:
             raise NotFoundException(f"No product found with ID: {product_id}")
 
         query = "UPDATE products SET name = ?, description = ?, category_id = ?, cost_price = ?, sell_price = ? WHERE id = ?"
-        DatabaseManager.execute_query(
-            query, (name, description, category_id, cost_price, sell_price, product_id)
-        )
-        ProductService.clear_cache()
+        params = (name, description, category_id, cost_price, sell_price, product_id)
+        
+        try:
+            DatabaseManager.execute_query(query, params)
+            logger.info("Product updated", product_id=product_id, name=name)
+            self.clear_cache()
+        except Exception as e:
+            logger.error("Failed to update product", error=str(e), product_id=product_id)
+            raise DatabaseException(f"Failed to update product: {str(e)}")
 
-    @staticmethod
     @db_operation(show_dialog=True)
-    def delete_product(product_id: int) -> None:
+    @handle_exceptions(DatabaseException, show_dialog=True)
+    def delete_product(self, product_id: int) -> None:
         query = "DELETE FROM products WHERE id = ?"
-        DatabaseManager.execute_query(query, (product_id,))
-        ProductService.clear_cache()
+        try:
+            DatabaseManager.execute_query(query, (product_id,))
+            logger.info("Product deleted", product_id=product_id)
+            self.clear_cache()
+        except Exception as e:
+            logger.error("Failed to delete product", error=str(e), product_id=product_id)
+            raise DatabaseException(f"Failed to delete product: {str(e)}")
 
-    @staticmethod
     @db_operation(show_dialog=True)
-    def get_average_purchase_price(product_id: int) -> float:
-        query = """
-            SELECT AVG(price) as avg_price
-            FROM purchase_items
-            WHERE product_id = ?
-        """
-        result = DatabaseManager.fetch_one(query, (product_id,))
-        return float(
-            result["avg_price"] if result and result["avg_price"] is not None else 0
-        )
-
-    @staticmethod
-    @db_operation(show_dialog=True)
-    def search_products(search_term: str) -> List[Product]:
+    @handle_exceptions(DatabaseException, show_dialog=True)
+    def search_products(self, search_term: str) -> List[Product]:
         query = """
         SELECT p.*, c.name as category_name 
         FROM products p
@@ -116,65 +132,25 @@ class ProductService:
         WHERE LOWER(CAST(p.name AS TEXT)) LIKE LOWER(?) OR LOWER(COALESCE(CAST(p.description AS TEXT), '')) LIKE LOWER(?)
         ORDER BY p.name
         """
-        search_pattern = f"%{search_term}%"
+        search_pattern = f"%{sanitize_sql(search_term)}%"
         rows = DatabaseManager.fetch_all(query, (search_pattern, search_pattern))
-        return [Product.from_db_row(row) for row in rows]
+        products = [Product.from_db_row(row) for row in rows]
+        logger.info("Products searched", search_term=search_term, count=len(products))
+        return products
 
-    @staticmethod
     @db_operation(show_dialog=True)
-    def get_product_sales_stats(product_id: int) -> Dict[str, Any]:
-        query = """
-        SELECT 
-            COUNT(si.id) as total_sales,
-            SUM(si.quantity) as total_quantity_sold,
-            SUM(si.quantity * si.price) as total_revenue
-        FROM sale_items si
-        WHERE si.product_id = ?
-        """
-        result = DatabaseManager.fetch_one(query, (product_id,))
-        return {
-            "total_sales": result["total_sales"] if result else 0,
-            "total_quantity_sold": result["total_quantity_sold"] if result else 0,
-            "total_revenue": (
-                float(result["total_revenue"])
-                if result and result["total_revenue"]
-                else 0.0
-            ),
-        }
-
-    @staticmethod
-    @db_operation(show_dialog=True)
-    def get_products_by_category(category_id: int) -> List[Product]:
-        query = """
-        SELECT p.*, c.name as category_name 
-        FROM products p
-        LEFT JOIN categories c ON p.category_id = c.id
-        WHERE p.category_id = ?
-        ORDER BY p.name
-        """
-        rows = DatabaseManager.fetch_all(query, (category_id,))
-        return [Product.from_db_row(row) for row in rows]
-
-    @staticmethod
-    def get_product_profit_margin(product_id: int) -> float:
-        product = ProductService.get_product(product_id)
+    @handle_exceptions(NotFoundException, DatabaseException, show_dialog=True)
+    def get_product_profit_margin(self, product_id: int) -> float:
+        product = self.get_product(product_id)
         if product is None:
-            return 0
-        if (
-            product.cost_price is not None
-            and product.sell_price is not None
-            and product.sell_price != 0
-        ):
-            return (product.sell_price - product.cost_price) / product.sell_price * 100
-        return 0
+            raise NotFoundException(f"Product with ID {product_id} not found")
+        
+        if product.cost_price is None or product.sell_price is None or product.sell_price == 0:
+            return 0.0
+        
+        profit_margin = (product.sell_price - product.cost_price) / product.sell_price * 100
+        return round(profit_margin, 2)
 
-    @staticmethod
-    def clear_cache():
-        ProductService.get_all_products.cache_clear()
-
-    @staticmethod
-    def _validate_prices(cost_price: Optional[int], sell_price: Optional[int]) -> None:
-        if cost_price is not None:
-            Product.validate_price(cost_price)
-        if sell_price is not None:
-            Product.validate_price(sell_price)
+    def clear_cache(self):
+        self.get_all_products.cache_clear()
+        logger.debug("Product cache cleared")

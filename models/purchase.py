@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any
 from datetime import datetime
 from utils.exceptions import ValidationException
-from utils.decorators import validate_input
+#from utils.decorators import validate_input
 
 
 @dataclass
@@ -56,12 +56,12 @@ class Purchase:
             date=datetime.fromisoformat(row["date"]),
         )
 
-    @validate_input(show_dialog=True)
+    #@validate_input(show_dialog=True)
     def add_item(self, item: PurchaseItem) -> None:
         self.items.append(item)
         self._total_amount += item.total_price()
 
-    @validate_input(show_dialog=True)
+    #@validate_input(show_dialog=True)
     def remove_item(self, item_id: int) -> None:
         item = next((item for item in self.items if item.id == item_id), None)
         if item:
@@ -92,7 +92,7 @@ class Purchase:
         return f"Purchase(id={self.id}, supplier='{self.supplier}', date='{self.date.isoformat()}', total_amount={self.total_amount:.2f})"
 
     @staticmethod
-    @validate_input(show_dialog=True)
+    #@validate_input(show_dialog=True)
     def validate_supplier(supplier: str) -> None:
         if not supplier or len(supplier.strip()) == 0:
             raise ValidationException("Supplier name cannot be empty")
@@ -100,7 +100,7 @@ class Purchase:
             raise ValidationException("Supplier name cannot exceed 100 characters")
 
     @staticmethod
-    @validate_input(show_dialog=True)
+    #@validate_input(show_dialog=True)
     def validate_date(date: datetime) -> None:
         if date > datetime.now():
             raise ValidationException("Purchase date cannot be in the future")

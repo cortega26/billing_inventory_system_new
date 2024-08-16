@@ -1,23 +1,8 @@
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QPushButton,
-    QTableWidgetItem,
-    QMessageBox,
-    QHeaderView,
-    QComboBox,
-    QDateEdit,
-    QDialog,
-    QDialogButtonBox,
-    QFormLayout,
-    QDoubleSpinBox,
-    QProgressBar,
-    QAbstractItemView,
-    QMenu,
-    QApplication,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, 
+    QTableWidgetItem, QMessageBox, QHeaderView, QComboBox, QDateEdit, 
+    QDialog, QDialogButtonBox, QFormLayout, QDoubleSpinBox, QProgressBar, 
+    QAbstractItemView, QMenu, QApplication
 )
 from PySide6.QtCore import Qt, QDate, QTimer, Signal
 from PySide6.QtGui import QAction, QKeySequence
@@ -25,16 +10,13 @@ from services.purchase_service import PurchaseService
 from services.product_service import ProductService
 from models.purchase import Purchase
 from utils.helpers import (
-    create_table,
-    show_info_message,
-    show_error_message,
-    format_price,
+    create_table, show_info_message, show_error_message, format_price
 )
 from utils.system.event_system import event_system
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
-from typing import List, Optional
+from typing import List
 from utils.decorators import ui_operation, validate_input
-
+from utils.validation.validators import is_positive
 
 class PurchaseItemDialog(QDialog):
     def __init__(self, products, parent=None):
@@ -79,7 +61,11 @@ class PurchaseItemDialog(QDialog):
         else:
             self.cost_price_input.setValue(0.00)
 
-    @validate_input(show_dialog=True)
+    @validate_input(
+        validators=[is_positive, is_positive],
+        error_message="Quantity and Cost Price must be positive numbers.",
+        show_dialog=True
+    )
     def validate_and_accept(self):
         if self.quantity_input.value() <= 0:
             raise ValueError("Quantity must be greater than 0.")
@@ -94,7 +80,6 @@ class PurchaseItemDialog(QDialog):
             "quantity": self.quantity_input.value(),
             "cost_price": self.cost_price_input.value(),
         }
-
 
 class PurchaseView(QWidget):
     purchase_updated = Signal()
@@ -267,9 +252,7 @@ class PurchaseView(QWidget):
         for item in items:
             product = self.product_service.get_product(item.product_id)
             product_name = product.name if product else "Unknown Product"
-            message += (
-                f"- {product_name}: {item.quantity:.2f} @ {format_price(item.price)}\n"
-            )
+            message += f"- {product_name}: {item.quantity:.2f} @ {format_price(item.price)}\n"
         message += f"\nTotal Amount: {format_price(purchase.total_amount)}"
         show_info_message("Purchase Details", message)
 
@@ -295,8 +278,7 @@ class PurchaseView(QWidget):
         if search_term:
             purchases = self.purchase_service.get_all_purchases()
             filtered_purchases = [
-                p
-                for p in purchases
+                p for p in purchases
                 if search_term in p.supplier.lower()
                 or search_term in p.date.strftime("%Y-%m-%d").lower()
             ]

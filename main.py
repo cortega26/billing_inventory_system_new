@@ -5,7 +5,7 @@ from database import init_db
 from utils.system.logger import logger
 from utils.exceptions import DatabaseException, AppException
 from utils.decorators import handle_exceptions
-
+from config import config, APP_NAME, APP_VERSION
 
 class Application:
     @staticmethod
@@ -14,6 +14,7 @@ class Application:
         logger.info("Initializing the application")
         try:
             init_db()
+            logger.info("Database initialized successfully")
         except DatabaseException as e:
             logger.critical(f"Failed to initialize database: {e}")
             raise AppException(f"Failed to initialize database: {e}")
@@ -22,11 +23,18 @@ class Application:
     @handle_exceptions(AppException, show_dialog=True)
     def run():
         app = QApplication(sys.argv)
+        app.setApplicationName(APP_NAME)
+        app.setApplicationVersion(APP_VERSION)
+
+        # Apply theme if set in config
+        theme = config.get('theme', 'default')
+        if theme != 'default':
+            app.setStyle(theme)
+
         window = MainWindow()
         window.show()
         logger.info("Application started")
         sys.exit(app.exec())
-
 
 if __name__ == "__main__":
     try:

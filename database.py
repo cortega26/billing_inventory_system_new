@@ -5,41 +5,32 @@ from config import DATABASE_PATH
 from utils.system.logger import logger
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import DatabaseException, ValidationException
-
-
-def validate_query_params(params: Any) -> None:
-    if params is None:
-        return
-    if isinstance(params, (tuple, list)):
-        for param in params:
-            if not isinstance(param, (str, int, float, type(None))):
-                raise ValidationException(f"Invalid parameter type: {type(param)}")
-    elif isinstance(params, dict):
-        for value in params.values():
-            if not isinstance(value, (str, int, float, type(None))):
-                raise ValidationException(f"Invalid parameter type: {type(value)}")
-    else:
-        raise ValidationException(f"Invalid params type: {type(params)}")
+import threading
 
 
 class DatabaseManager:
-    @staticmethod
+    _connection = None
+    _lock = threading.Lock()
+
+    @classmethod
     @contextmanager
     @handle_exceptions(DatabaseException)
-    def get_db_connection():
-        conn = None
+    def get_db_connection(cls):
+        if cls._connection is None:
+            try:
+                cls._connection = sqlite3.connect(DATABASE_PATH, timeout=20, check_same_thread=False)
+                cls._connection.row_factory = sqlite3.Row
+                logger.debug("New database connection established")
+            except sqlite3.Error as e:
+                logger.error(f"Database connection error: {e}")
+                raise DatabaseException(f"Database connection error: {e}")
+
         try:
-            conn = sqlite3.connect(DATABASE_PATH, timeout=20)
-            conn.row_factory = sqlite3.Row
-            logger.debug("Database connection established")
-            yield conn
+            with cls._lock:
+                yield cls._connection
         except sqlite3.Error as e:
-            logger.error(f"Database connection error: {e}")
-            raise DatabaseException(f"Database connection error: {e}")
-        finally:
-            if conn:
-                conn.close()
-                logger.debug("Database connection closed")
+            logger.error(f"Database operation error: {e}")
+            raise DatabaseException(f"Database operation error: {e}")
 
     @classmethod
     @db_operation(show_dialog=True)
@@ -48,7 +39,11 @@ class DatabaseManager:
     ) -> sqlite3.Cursor:
         logger.debug(f"Executing query: {query}")
         logger.debug(f"Query parameters: {params}")
-        validate_query_params(params)
+        logger.debug(f"Parameter types: {[type(p) for p in params] if isinstance(params, (tuple, list)) else type(params)}")
+        
+        if params is not None and not isinstance(params, (tuple, list, dict)):
+            raise ValidationException(f"Invalid params type: {type(params)}")
+
         with cls.get_db_connection() as conn:
             cursor = conn.cursor()
             try:
@@ -71,15 +66,20 @@ class DatabaseManager:
     ) -> Optional[Dict[str, Any]]:
         logger.debug(f"Fetching one row with query: {query}")
         logger.debug(f"Query parameters: {params}")
+        
         with cls.get_db_connection() as conn:
             cursor = conn.cursor()
-            if params:
-                cursor.execute(query, params)
-            else:
-                cursor.execute(query)
-            row = cursor.fetchone()
-            logger.debug(f"Fetched row: {row}")
-            return dict(row) if row else None
+            try:
+                if params:
+                    cursor.execute(query, params)
+                else:
+                    cursor.execute(query)
+                row = cursor.fetchone()
+                logger.debug(f"Fetched row: {row}")
+                return dict(row) if row else None
+            except sqlite3.Error as e:
+                logger.error(f"Error fetching one row: {e}")
+                raise DatabaseException(f"Error fetching one row: {e}")
 
     @classmethod
     @db_operation(show_dialog=True)
@@ -88,16 +88,67 @@ class DatabaseManager:
     ) -> List[Dict[str, Any]]:
         logger.debug(f"Fetching all rows with query: {query}")
         logger.debug(f"Query parameters: {params}")
+        
         with cls.get_db_connection() as conn:
             cursor = conn.cursor()
-            if params:
-                cursor.execute(query, params)
-            else:
-                cursor.execute(query)
-            rows = cursor.fetchall()
-            logger.debug(f"Fetched {len(rows)} rows")
-            return [dict(row) for row in rows]
+            try:
+                if params:
+                    cursor.execute(query, params)
+                else:
+                    cursor.execute(query)
+                rows = cursor.fetchall()
+                logger.debug(f"Fetched {len(rows)} rows")
+                return [dict(row) for row in rows]
+            except sqlite3.Error as e:
+                logger.error(f"Error fetching all rows: {e}")
+                raise DatabaseException(f"Error fetching all rows: {e}")
 
+    @classmethod
+    @db_operation(show_dialog=True)
+    def execute_many(
+        cls, query: str, params_list: List[Union[Tuple, List, Dict]]
+    ) -> None:
+        logger.debug(f"Executing many queries: {query}")
+        logger.debug(f"Number of parameter sets: {len(params_list)}")
+        
+        with cls.get_db_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.executemany(query, params_list)
+                conn.commit()
+                logger.debug("Queries executed successfully")
+            except sqlite3.Error as e:
+                conn.rollback()
+                logger.error(f"Error executing many queries: {e}")
+                raise DatabaseException(f"Error executing many queries: {e}")
+
+    @classmethod
+    def close_connection(cls):
+        if cls._connection:
+            cls._connection.close()
+            cls._connection = None
+            logger.debug("Database connection closed")
+
+    @classmethod
+    @db_operation(show_dialog=True)
+    def begin_transaction(cls):
+        with cls.get_db_connection() as conn:
+            conn.execute("BEGIN TRANSACTION")
+            logger.debug("Transaction begun")
+
+    @classmethod
+    @db_operation(show_dialog=True)
+    def commit_transaction(cls):
+        with cls.get_db_connection() as conn:
+            conn.commit()
+            logger.debug("Transaction committed")
+
+    @classmethod
+    @db_operation(show_dialog=True)
+    def rollback_transaction(cls):
+        with cls.get_db_connection() as conn:
+            conn.rollback()
+            logger.debug("Transaction rolled back")
 
 @db_operation(show_dialog=True)
 def init_db():
@@ -209,29 +260,21 @@ def init_db():
 
             # Add indexes
             cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_products_category_id ON products (category_id)"
-            )
+                "CREATE INDEX IF NOT EXISTS idx_products_category_id ON products (category_id)")
             cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_customers_identifier_9 ON customers (identifier_9)"
-            )
+                "CREATE INDEX IF NOT EXISTS idx_customers_identifier_9 ON customers (identifier_9)")
             cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_sales_customer_id ON sales (customer_id)"
-            )
+                "CREATE INDEX IF NOT EXISTS idx_sales_customer_id ON sales (customer_id)")
             cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items (sale_id)"
-            )
+                "CREATE INDEX IF NOT EXISTS idx_sale_items_sale_id ON sale_items (sale_id)")
             cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_sale_items_product_id ON sale_items (product_id)"
-            )
+                "CREATE INDEX IF NOT EXISTS idx_sale_items_product_id ON sale_items (product_id)")
             cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_purchase_items_purchase_id ON purchase_items (purchase_id)"
-            )
+                "CREATE INDEX IF NOT EXISTS idx_purchase_items_purchase_id ON purchase_items (purchase_id)")
             cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_purchase_items_product_id ON purchase_items (product_id)"
-            )
+                "CREATE INDEX IF NOT EXISTS idx_purchase_items_product_id ON purchase_items (product_id)")
             cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_inventory_product_id ON inventory (product_id)"
-            )
+                "CREATE INDEX IF NOT EXISTS idx_inventory_product_id ON inventory (product_id)")
 
             conn.commit()
             logger.info("Database initialized successfully")

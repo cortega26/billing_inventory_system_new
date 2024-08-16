@@ -19,14 +19,12 @@ from ui.inventory_view import InventoryView
 from ui.analytics_view import AnalyticsView
 from typing import Protocol, Dict, Type, cast
 from utils.system.logger import logger
-from config import APP_NAME, APP_VERSION, COMPANY_NAME
+from config import config, APP_NAME, APP_VERSION, COMPANY_NAME
 from utils.system.event_system import event_system
 from utils.decorators import ui_operation
 
-
 class RefreshableWidget(Protocol):
     def refresh(self) -> None: ...
-
 
 class MainWindow(QMainWindow):
     def __init__(self):

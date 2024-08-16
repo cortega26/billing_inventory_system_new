@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Dict, Any, Optional
 from utils.exceptions import ValidationException
-from utils.decorators import validate_input
+#from utils.decorators import validate_input
 
 
 @dataclass
@@ -22,7 +22,7 @@ class Inventory:
             max_stock_level=row.get("max_stock_level"),
         )
 
-    @validate_input(show_dialog=True)
+    #@validate_input(show_dialog=True)
     def update_quantity(self, change: int) -> None:
         new_quantity = self.quantity + change
         if new_quantity < 0:
@@ -35,7 +35,7 @@ class Inventory:
             )
         self.quantity = new_quantity
 
-    @validate_input(show_dialog=True)
+    #@validate_input(show_dialog=True)
     def set_quantity(self, new_quantity: int) -> None:
         if new_quantity < 0:
             raise ValidationException("Inventory quantity cannot be negative")

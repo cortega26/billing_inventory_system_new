@@ -1,20 +1,20 @@
+# utils/decorators.py
+
 import functools
 import logging
-from typing import Callable, Type, Optional, TypeVar, ParamSpec
+from typing import Callable, Type, Optional, TypeVar, ParamSpec, List, Any
 from PySide6.QtWidgets import QMessageBox, QWidget, QApplication
 from .exceptions import *
+from utils.system.logger import logger
+from utils.validation.validators import validate
 import time
-
-logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 P = ParamSpec("P")
 
-
 def log_exception(exc: Exception, func_name: str, error_message: str) -> None:
     """Helper function to log exceptions."""
-    logger.exception(f"{error_message} in {func_name}: {str(exc)}")
-
+    logger.error(f"{error_message} in {func_name}", error=str(exc))
 
 def show_error_dialog(
     title: str, message: str, parent: Optional[QWidget] = None
@@ -23,7 +23,6 @@ def show_error_dialog(
     if parent is None:
         parent = QApplication.activeWindow()
     QMessageBox.critical(parent, title, message)
-
 
 def handle_exceptions(
     *exception_types: Type[Exception], show_dialog: bool = False
@@ -54,7 +53,6 @@ def handle_exceptions(
 
     return decorator
 
-
 def db_operation(
     show_dialog: bool = False,
 ) -> Callable[[Callable[P, T]], Callable[P, T]]:
@@ -63,13 +61,27 @@ def db_operation(
         DatabaseException, NotFoundException, show_dialog=show_dialog
     )
 
-
 def validate_input(
+    validators: List[Callable[[Any], bool]], error_message: str,
     show_dialog: bool = False,
 ) -> Callable[[Callable[P, T]], Callable[P, T]]:
     """Decorator for input validation."""
-    return handle_exceptions(ValidationException, show_dialog=show_dialog)
-
+    def decorator(func: Callable[P, T]) -> Callable[P, T]:
+        @functools.wraps(func)
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+            try:
+                # Validate the first argument after 'self'
+                if len(args) > 1:
+                    validate(args[1], validators, error_message)
+                return func(*args, **kwargs)
+            except ValidationException as e:
+                log_exception(e, func.__name__, "Validation error")
+                if show_dialog:
+                    parent = args[0] if args and isinstance(args[0], QWidget) else None
+                    show_error_dialog("Validation Error", str(e), parent)
+                raise
+        return wrapper
+    return decorator
 
 def require_authorization(
     show_dialog: bool = True,
@@ -77,13 +89,11 @@ def require_authorization(
     """Decorator for operations requiring authorization."""
     return handle_exceptions(AuthorizationException, show_dialog=show_dialog)
 
-
 def handle_external_service(
     show_dialog: bool = False,
 ) -> Callable[[Callable[P, T]], Callable[P, T]]:
     """Decorator for external service interactions."""
     return handle_exceptions(ExternalServiceException, show_dialog=show_dialog)
-
 
 def handle_concurrency(
     show_dialog: bool = False,
@@ -91,20 +101,17 @@ def handle_concurrency(
     """Decorator for concurrency-sensitive operations."""
     return handle_exceptions(ConcurrencyException, show_dialog=show_dialog)
 
-
 def enforce_business_logic(
     show_dialog: bool = False,
 ) -> Callable[[Callable[P, T]], Callable[P, T]]:
     """Decorator for enforcing business logic rules."""
     return handle_exceptions(BusinessLogicException, show_dialog=show_dialog)
 
-
 def ui_operation(
     show_dialog: bool = True,
 ) -> Callable[[Callable[P, T]], Callable[P, T]]:
     """Decorator for UI operations."""
     return handle_exceptions(UIException, show_dialog=show_dialog)
-
 
 def retry(
     max_attempts: int = 3, delay: float = 1.0
@@ -146,7 +153,6 @@ def retry(
 
     return decorator
 
-
 def measure_performance(
     threshold: Optional[float] = None,
 ) -> Callable[[Callable[P, T]], Callable[P, T]]:
@@ -173,7 +179,6 @@ def measure_performance(
         return wrapper
 
     return decorator
-
 
 def cache_result(ttl: int = 300) -> Callable[[Callable[P, T]], Callable[P, T]]:
     """

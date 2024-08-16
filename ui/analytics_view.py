@@ -237,7 +237,7 @@ class AnalyticsView(QWidget):
             "date",
             "daily_sales",
             "Sales Trend",
-            chart_type="line",
+            chart_type="bar",
         )
         total_sales = sum(day["daily_sales"] for day in sales_trend)
         avg_daily_sales = total_sales / len(sales_trend) if sales_trend else 0

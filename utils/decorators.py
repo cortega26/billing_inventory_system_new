@@ -1,7 +1,4 @@
-# utils/decorators.py
-
 import functools
-import logging
 from typing import Callable, Type, Optional, TypeVar, ParamSpec, List, Any
 from PySide6.QtWidgets import QMessageBox, QWidget, QApplication
 from .exceptions import *
@@ -14,7 +11,7 @@ P = ParamSpec("P")
 
 def log_exception(exc: Exception, func_name: str, error_message: str) -> None:
     """Helper function to log exceptions."""
-    logger.error(f"{error_message} in {func_name}", error=str(exc))
+    logger.error(f"{error_message} in {func_name}", extra={"error": str(exc), "function": func_name})
 
 def show_error_dialog(
     title: str, message: str, parent: Optional[QWidget] = None
@@ -41,7 +38,7 @@ def handle_exceptions(
             try:
                 return func(*args, **kwargs)
             except exception_types as e:
-                error_message = f"Error in {func.__name__}"
+                error_message = f"Error in {func.__name__}: {str(e)}"
                 log_exception(e, func.__name__, error_message)
                 if show_dialog:
                     # Assuming the first argument might be self or cls in a class method
@@ -172,7 +169,8 @@ def measure_performance(
             logger.debug(f"{func.__name__} executed in {execution_time:.2f} seconds")
             if threshold and execution_time > threshold:
                 logger.warning(
-                    f"{func.__name__} exceeded threshold of {threshold} seconds"
+                    f"{func.__name__} exceeded threshold of {threshold} seconds",
+                    extra={"execution_time": execution_time, "threshold": threshold}
                 )
             return result
 
@@ -195,9 +193,11 @@ def cache_result(ttl: int = 300) -> Callable[[Callable[P, T]], Callable[P, T]]:
         def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
             key = str(args) + str(kwargs)
             if key in cache and time.time() - cache[key]["time"] < ttl:
+                logger.debug(f"Cache hit for {func.__name__}")
                 return cache[key]["result"]
             result = func(*args, **kwargs)
             cache[key] = {"result": result, "time": time.time()}
+            logger.debug(f"Cache miss for {func.__name__}, result cached")
             return result
 
         return wrapper

@@ -19,7 +19,9 @@ from utils.system.logger import logger
 from utils.system.event_system import event_system
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
 from typing import List, Optional
-from utils.decorators import ui_operation #, validate_input
+from utils.decorators import ui_operation, handle_exceptions
+from utils.exceptions import ValidationException, DatabaseException, UIException
+from utils.validation.validators import validate_integer, validate_float, validate_string, validate_date
 from datetime import datetime, timedelta
 
 class SaleItemDialog(QDialog):
@@ -75,13 +77,15 @@ class SaleItemDialog(QDialog):
         total = self.quantity_input.value() * self.price_input.value()
         self.total_label.setText(f"{total:.2f}")
 
-    #@validate_input(show_dialog=True)
+    @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, show_dialog=True)
     def validate_and_accept(self):
-        if self.quantity_input.value() <= 0:
-            raise ValueError("Quantity must be greater than 0.")
-        if self.price_input.value() <= 0:
-            raise ValueError("Price must be greater than 0.")
-        self.accept()
+        try:
+            quantity = validate_float(self.quantity_input.value(), min_value=0.01)
+            price = validate_float(self.price_input.value(), min_value=0.01)
+            self.accept()
+        except ValidationException as e:
+            raise ValidationException(str(e))
 
     def get_item_data(self):
         product = self.product_combo.currentData()
@@ -276,6 +280,7 @@ class SaleView(QWidget):
         self.addAction(refresh_shortcut)
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(DatabaseException, UIException, show_dialog=True)
     def load_sales(self):
         logger.debug("Loading sales")
         self.progress_bar.setVisible(True)
@@ -284,52 +289,62 @@ class SaleView(QWidget):
         try:
             sales = self.sale_service.get_all_sales()
             QTimer.singleShot(0, lambda: self.update_sale_table(sales))
+        except Exception as e:
+            logger.error(f"Error loading sales: {str(e)}")
+            raise DatabaseException(f"Failed to load sales: {str(e)}")
         finally:
             QApplication.restoreOverrideCursor()
             self.progress_bar.setValue(100)
             QTimer.singleShot(1000, lambda: self.progress_bar.setVisible(False))
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(UIException, show_dialog=True)
     def update_sale_table(self, sales: List[Sale]):
-        self.sale_table.setRowCount(len(sales))
-        for row, sale in enumerate(sales):
-            customer = self.customer_service.get_customer(sale.customer_id)
+        try:
+            self.sale_table.setRowCount(len(sales))
+            for row, sale in enumerate(sales):
+                customer = self.customer_service.get_customer(sale.customer_id)
 
-            self.sale_table.setItem(row, 0, NumericTableWidgetItem(sale.id))
+                self.sale_table.setItem(row, 0, NumericTableWidgetItem(sale.id))
 
-            customer_text = f"{customer.identifier_9} ({customer.identifier_3or4 or 'N/A'})" if customer else "Unknown Customer"
-            self.sale_table.setItem(row, 1, QTableWidgetItem(customer_text))
+                customer_text = f"{customer.identifier_9} ({customer.identifier_3or4 or 'N/A'})" if customer else "Unknown Customer"
+                self.sale_table.setItem(row, 1, QTableWidgetItem(customer_text))
 
-            self.sale_table.setItem(row, 2, QTableWidgetItem(sale.date.strftime("%Y-%m-%d")))
-            self.sale_table.setItem(row, 3, PriceTableWidgetItem(sale.total_amount, format_price))
-            self.sale_table.setItem(row, 4, QTableWidgetItem(sale.receipt_id or ""))
+                self.sale_table.setItem(row, 2, QTableWidgetItem(sale.date.strftime("%Y-%m-%d")))
+                self.sale_table.setItem(row, 3, PriceTableWidgetItem(sale.total_amount, format_price))
+                self.sale_table.setItem(row, 4, QTableWidgetItem(sale.receipt_id or ""))
 
-            actions_widget = QWidget()
-            actions_layout = QHBoxLayout(actions_widget)
-            actions_layout.setContentsMargins(0, 0, 0, 0)
+                actions_widget = QWidget()
+                actions_layout = QHBoxLayout(actions_widget)
+                actions_layout.setContentsMargins(0, 0, 0, 0)
 
-            view_button = QPushButton("View")
-            view_button.clicked.connect(lambda _, s=sale: self.view_sale(s))
-            view_button.setToolTip("View sale details")
-            actions_layout.addWidget(view_button)
+                view_button = QPushButton("View")
+                view_button.clicked.connect(lambda _, s=sale: self.view_sale(s))
+                view_button.setToolTip("View sale details")
+                actions_layout.addWidget(view_button)
 
-            edit_button = QPushButton("Edit")
-            edit_button.clicked.connect(lambda _, s=sale: self.edit_sale(s))
-            edit_button.setToolTip("Edit this sale")
-            actions_layout.addWidget(edit_button)
+                edit_button = QPushButton("Edit")
+                edit_button.clicked.connect(lambda _, s=sale: self.edit_sale(s))
+                edit_button.setToolTip("Edit this sale")
+                actions_layout.addWidget(edit_button)
 
-            delete_button = QPushButton("Delete")
-            delete_button.clicked.connect(lambda _, s=sale: self.delete_sale(s))
-            delete_button.setToolTip("Delete this sale")
-            actions_layout.addWidget(delete_button)
+                delete_button = QPushButton("Delete")
+                delete_button.clicked.connect(lambda _, s=sale: self.delete_sale(s))
+                delete_button.setToolTip("Delete this sale")
+                actions_layout.addWidget(delete_button)
 
-            self.sale_table.setCellWidget(row, 5, actions_widget)
+                self.sale_table.setCellWidget(row, 5, actions_widget)
+
+            logger.info(f"Sale table updated with {len(sales)} sales")
+        except Exception as e:
+            logger.error(f"Error updating sale table: {str(e)}")
+            raise UIException(f"Failed to update sale table: {str(e)}")
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
     def edit_sale(self, sale: Sale):
-        if datetime.now() - sale.date > timedelta(hours=48):
-            show_error_message("Edit not allowed", "Sales can only be edited within 48 hours of creation.")
-            return
+        if datetime.now() - sale.date > timedelta(hours=96):
+            raise ValidationException("Sales can only be edited within 96 hours of creation.")
 
         customers = self.customer_service.get_all_customers()
         products = self.product_service.get_all_products()
@@ -345,53 +360,64 @@ class SaleView(QWidget):
                 show_error_message("Error", str(e))
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
     def view_sale(self, sale: Sale):
-        items = self.sale_service.get_sale_items(sale.id)
-        customer = self.customer_service.get_customer(sale.customer_id)
-        customer_text = f"{customer.identifier_9} ({customer.identifier_3or4 or 'N/A'})" if customer else "Unknown Customer"
+        try:
+            items = self.sale_service.get_sale_items(sale.id)
+            customer = self.customer_service.get_customer(sale.customer_id)
+            customer_text = f"{customer.identifier_9} ({customer.identifier_3or4 or 'N/A'})" if customer else "Unknown Customer"
 
-        receipt_id = sale.receipt_id or self.sale_service.generate_receipt(sale.id)
+            receipt_id = sale.receipt_id or self.sale_service.generate_receipt(sale.id)
 
-        message = f"<pre>"
-        message += f"{'Receipt #' + receipt_id:^64}\n\n"
-        message += f"{' Sale Details ':=^64}\n\n"
-        message += f"Customer: {customer_text}\n"
-        message += f"Date: {sale.date.strftime('%d-%m-%Y')}\n"
-        message += f"{'':=^64}\n\n"
-        message += f"{'Product':<30}{'Quantity':>10}{'P.Unitario':>12}{'Subtotal':>12}\n"
-        message += f"{'':-^64}\n"
-        for item in items:
-            product = self.product_service.get_product(item.product_id)
-            product_name = product.name if product else "Unknown Product"
-            message += f"{product_name[:30]:<30}{item.quantity:>10.2f}{format_price(item.unit_price):>12}{format_price(item.total_price()):>12}\n"
-        message += f"{'':-^64}\n"
-        message += f"{'Total amount:':<45}{format_price(sale.total_amount):>19}\n"
-        message += "</pre>"
+            message = f"<pre>"
+            message += f"{'Receipt #' + receipt_id:^64}\n\n"
+            message += f"{' Sale Details ':=^64}\n\n"
+            message += f"Customer: {customer_text}\n"
+            message += f"Date: {sale.date.strftime('%d-%m-%Y')}\n"
+            message += f"{'':=^64}\n\n"
+            message += f"{'Product':<30}{'Quantity':>10}{'P.Unitario':>12}{'Subtotal':>12}\n"
+            message += f"{'':-^64}\n"
+            for item in items:
+                product = self.product_service.get_product(item.product_id)
+                product_name = product.name if product else "Unknown Product"
+                message += f"{product_name[:30]:<30}{item.quantity:>10.2f}{format_price(item.unit_price):>12}{format_price(item.total_price()):>12}\n"
+            message += f"{'':-^64}\n"
+            message += f"{'Total amount:':<45}{format_price(sale.total_amount):>19}\n"
+            message += "</pre>"
 
-        show_info_message("Sale Details", message)
+            show_info_message("Sale Details", message)
 
-        # Add options to save as PDF or send via WhatsApp
-        reply = QMessageBox.question(self, "Receipt Options", 
-                                     "Would you like to save the receipt as PDF or send via WhatsApp?",
-                                     QMessageBox.StandardButton.SaveAll | QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                                     QMessageBox.StandardButton.No)
+            # Add options to save as PDF or send via WhatsApp
+            reply = QMessageBox.question(self, "Receipt Options", 
+                                        "Would you like to save the receipt as PDF or send via WhatsApp?",
+                                        QMessageBox.StandardButton.SaveAll | QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                                        QMessageBox.StandardButton.No)
 
-        if reply == QMessageBox.StandardButton.SaveAll:
-            self.save_receipt_as_pdf(sale.id)
-        elif reply == QMessageBox.StandardButton.Yes:
-            self.send_receipt_via_whatsapp(sale.id)
+            if reply == QMessageBox.StandardButton.SaveAll:
+                self.save_receipt_as_pdf(sale.id)
+            elif reply == QMessageBox.StandardButton.Yes:
+                self.send_receipt_via_whatsapp(sale.id)
+
+            logger.info(f"Sale viewed: ID {sale.id}")
+        except Exception as e:
+            logger.error(f"Error viewing sale: {str(e)}")
+            raise UIException(f"Failed to view sale: {str(e)}")
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
     def save_receipt_as_pdf(self, sale_id: int):
         file_path, _ = QFileDialog.getSaveFileName(self, "Save Receipt", "", "PDF Files (*.pdf)")
         if file_path:
             try:
                 self.sale_service.save_receipt_as_pdf(sale_id, file_path)
                 show_info_message("Success", f"Receipt saved as {file_path}")
+                logger.info(f"Receipt saved as PDF: Sale ID {sale_id}, Path: {file_path}")
             except Exception as e:
-                show_error_message("Error", f"Failed to save receipt: {str(e)}")
+                logger.error(f"Error saving receipt as PDF: {str(e)}")
+                raise UIException(f"Failed to save receipt as PDF: {str(e)}")
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
     def send_receipt_via_whatsapp(self, sale_id: int):
         sale = self.sale_service.get_sale(sale_id)
         if sale:
@@ -401,16 +427,19 @@ class SaleView(QWidget):
                 try:
                     self.sale_service.send_receipt_via_whatsapp(sale_id, phone_number)
                     show_info_message("Success", f"Receipt sent to WhatsApp number {phone_number}")
+                    logger.info(f"Receipt sent via WhatsApp: Sale ID {sale_id}, Phone: {phone_number}")
                 except Exception as e:
-                    show_error_message("Error", f"Failed to send receipt via WhatsApp: {str(e)}")
+                    logger.error(f"Error sending receipt via WhatsApp: {str(e)}")
+                    raise UIException(f"Failed to send receipt via WhatsApp: {str(e)}")
             else:
-                show_error_message("Error", "Customer information not found")
+                raise ValidationException("Customer information not found")
         else:
-            show_error_message("Error", f"Sale with ID {sale_id} not found")
+            raise ValidationException(f"Sale with ID {sale_id} not found")
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
     def select_customer(self):
-        identifier = self.customer_input.text().strip()
+        identifier = validate_string(self.customer_input.text().strip(), max_length=9)
         logger.debug(f"Selecting customer with identifier: {identifier}")
         if len(identifier) == 9:
             customer = self.customer_service.get_customer_by_identifier_9(identifier)
@@ -424,13 +453,14 @@ class SaleView(QWidget):
             else:
                 customer = None
         else:
-            raise ValueError("Invalid identifier length")
+            raise ValidationException("Invalid identifier length")
 
         if customer:
             self.selected_customer_id = customer.id
             self.customer_input.setText(f"{customer.identifier_9} ({customer.identifier_3or4 or 'N/A'})")
+            logger.info(f"Customer selected: ID {customer.id}")
         else:
-            raise ValueError("No customer found with the given identifier.")
+            raise ValidationException("No customer found with the given identifier.")
 
     def show_customer_selection_dialog(self, customers: List[Customer]) -> Optional[Customer]:
         dialog = QDialog(self)
@@ -454,11 +484,12 @@ class SaleView(QWidget):
         return None
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
     def add_sale(self):
         if not hasattr(self, "selected_customer_id"):
-            raise ValueError("Please select a customer first.")
+            raise ValidationException("Please select a customer first.")
 
-        date = self.date_input.date().toString("yyyy-MM-dd")
+        date = validate_date(self.date_input.date().toString("yyyy-MM-dd"))
 
         products = self.product_service.get_all_products()
         items = []
@@ -479,21 +510,26 @@ class SaleView(QWidget):
                 break
 
         if items:
-            sale_id = self.sale_service.create_sale(self.selected_customer_id, date, items)
-            if sale_id is not None:
-                logger.info(f"Sale added successfully with ID: {sale_id}")
-                self.load_sales()
-                self.customer_input.clear()
-                del self.selected_customer_id
-                show_info_message("Success", "Sale added successfully.")
-                event_system.sale_added.emit(sale_id)
-                self.sale_updated.emit()
-            else:
-                raise ValueError("Failed to add sale.")
+            try:
+                sale_id = self.sale_service.create_sale(self.selected_customer_id, date, items)
+                if sale_id is not None:
+                    logger.info(f"Sale added successfully with ID: {sale_id}")
+                    self.load_sales()
+                    self.customer_input.clear()
+                    del self.selected_customer_id
+                    show_info_message("Success", "Sale added successfully.")
+                    event_system.sale_added.emit(sale_id)
+                    self.sale_updated.emit()
+                else:
+                    raise DatabaseException("Failed to add sale.")
+            except Exception as e:
+                logger.error(f"Error adding sale: {str(e)}")
+                raise
         else:
-            raise ValueError("No items added to the sale.")
+            raise ValidationException("No items added to the sale.")
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
     def delete_sale(self, sale: Sale):
         reply = QMessageBox.question(
             self,
@@ -503,35 +539,48 @@ class SaleView(QWidget):
             QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
-            self.sale_service.delete_sale(sale.id)
-            self.load_sales()
-            show_info_message("Success", "Sale deleted successfully.")
-            event_system.sale_deleted.emit(sale.id)
-            self.sale_updated.emit()
+            try:
+                self.sale_service.delete_sale(sale.id)
+                self.load_sales()
+                show_info_message("Success", "Sale deleted successfully.")
+                event_system.sale_deleted.emit(sale.id)
+                self.sale_updated.emit()
+                logger.info(f"Sale deleted: ID {sale.id}")
+            except Exception as e:
+                logger.error(f"Error deleting sale: {str(e)}")
+                raise DatabaseException(f"Failed to delete sale: {str(e)}")
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
     def search_sales(self):
-        search_term = self.search_input.text().strip().lower()
+        search_term = validate_string(self.search_input.text().strip(), max_length=100)
         if search_term:
-            sales = self.sale_service.get_all_sales()
-            filtered_sales = [
-                s for s in sales
-                if search_term in str(s.id).lower()
-                or search_term in s.date.strftime("%Y-%m-%d").lower()
-                or search_term in str(s.total_amount).lower()
-                or (s.receipt_id and search_term in s.receipt_id.lower())
-            ]
-            self.update_sale_table(filtered_sales)
+            try:
+                sales = self.sale_service.get_all_sales()
+                filtered_sales = [
+                    s for s in sales
+                    if search_term in str(s.id).lower()
+                    or search_term in s.date.strftime("%Y-%m-%d").lower()
+                    or search_term in str(s.total_amount).lower()
+                    or (s.receipt_id and search_term in s.receipt_id.lower())
+                ]
+                self.update_sale_table(filtered_sales)
+                logger.info(f"Sales searched: {len(filtered_sales)} results")
+            except Exception as e:
+                logger.error(f"Error searching sales: {str(e)}")
+                raise DatabaseException(f"Failed to search sales: {str(e)}")
         else:
             self.load_sales()
 
     @ui_operation(show_dialog=True)
     def on_product_updated(self, product_id):
         self.load_sales()
+        logger.info(f"Sales reloaded due to product update: Product ID {product_id}")
 
     @ui_operation(show_dialog=True)
     def on_product_deleted(self, product_id):
         self.load_sales()
+        logger.info(f"Sales reloaded due to product deletion: Product ID {product_id}")
 
     def refresh(self):
         self.load_sales()

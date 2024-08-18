@@ -15,8 +15,10 @@ from utils.helpers import (
 from utils.system.event_system import event_system
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
 from typing import List
-from utils.decorators import ui_operation, validate_input
-from utils.validation.validators import is_positive
+from utils.decorators import ui_operation, handle_exceptions
+from utils.exceptions import ValidationException, DatabaseException, UIException
+from utils.validation.validators import validate_string, validate_float, validate_date
+from utils.system.logger import logger
 
 class PurchaseItemDialog(QDialog):
     def __init__(self, products, parent=None):
@@ -61,17 +63,15 @@ class PurchaseItemDialog(QDialog):
         else:
             self.cost_price_input.setValue(0.00)
 
-    @validate_input(
-        validators=[is_positive, is_positive],
-        error_message="Quantity and Cost Price must be positive numbers.",
-        show_dialog=True
-    )
+    @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, show_dialog=True)
     def validate_and_accept(self):
-        if self.quantity_input.value() <= 0:
-            raise ValueError("Quantity must be greater than 0.")
-        if self.cost_price_input.value() <= 0:
-            raise ValueError("Cost price must be greater than 0.")
-        self.accept()
+        try:
+            quantity = validate_float(self.quantity_input.value(), min_value=0.01)
+            cost_price = validate_float(self.cost_price_input.value(), min_value=0.01)
+            self.accept()
+        except ValidationException as e:
+            raise ValidationException(str(e))
 
     def get_item_data(self):
         return {
@@ -165,6 +165,7 @@ class PurchaseView(QWidget):
         self.addAction(refresh_shortcut)
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(DatabaseException, UIException, show_dialog=True)
     def load_purchases(self):
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
@@ -172,47 +173,55 @@ class PurchaseView(QWidget):
         try:
             purchases = self.purchase_service.get_all_purchases()
             QTimer.singleShot(0, lambda: self.update_purchase_table(purchases))
+            logger.info(f"Loaded {len(purchases)} purchases")
+        except Exception as e:
+            logger.error(f"Error loading purchases: {str(e)}")
+            raise DatabaseException(f"Failed to load purchases: {str(e)}")
         finally:
             QApplication.restoreOverrideCursor()
             self.progress_bar.setValue(100)
             QTimer.singleShot(1000, lambda: self.progress_bar.setVisible(False))
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(UIException, show_dialog=True)
     def update_purchase_table(self, purchases: List[Purchase]):
-        self.purchase_table.setRowCount(len(purchases))
-        for row, purchase in enumerate(purchases):
-            self.purchase_table.setItem(row, 0, NumericTableWidgetItem(purchase.id))
-            self.purchase_table.setItem(row, 1, QTableWidgetItem(purchase.supplier))
-            self.purchase_table.setItem(
-                row, 2, QTableWidgetItem(purchase.date.strftime("%Y-%m-%d"))
-            )
-            self.purchase_table.setItem(
-                row, 3, PriceTableWidgetItem(purchase.total_amount, format_price)
-            )
+        try:
+            self.purchase_table.setRowCount(len(purchases))
+            for row, purchase in enumerate(purchases):
+                self.purchase_table.setItem(row, 0, NumericTableWidgetItem(purchase.id))
+                self.purchase_table.setItem(row, 1, QTableWidgetItem(purchase.supplier))
+                self.purchase_table.setItem(
+                    row, 2, QTableWidgetItem(purchase.date.strftime("%Y-%m-%d"))
+                )
+                self.purchase_table.setItem(
+                    row, 3, PriceTableWidgetItem(purchase.total_amount, format_price)
+                )
 
-            actions_widget = QWidget()
-            actions_layout = QHBoxLayout(actions_widget)
-            actions_layout.setContentsMargins(0, 0, 0, 0)
+                actions_widget = QWidget()
+                actions_layout = QHBoxLayout(actions_widget)
+                actions_layout.setContentsMargins(0, 0, 0, 0)
 
-            view_button = QPushButton("View")
-            view_button.clicked.connect(lambda _, p=purchase: self.view_purchase(p))
-            view_button.setToolTip("View purchase details")
-            actions_layout.addWidget(view_button)
+                view_button = QPushButton("View")
+                view_button.clicked.connect(lambda _, p=purchase: self.view_purchase(p))
+                view_button.setToolTip("View purchase details")
+                actions_layout.addWidget(view_button)
 
-            delete_button = QPushButton("Delete")
-            delete_button.clicked.connect(lambda _, p=purchase: self.delete_purchase(p))
-            delete_button.setToolTip("Delete this purchase")
-            actions_layout.addWidget(delete_button)
+                delete_button = QPushButton("Delete")
+                delete_button.clicked.connect(lambda _, p=purchase: self.delete_purchase(p))
+                delete_button.setToolTip("Delete this purchase")
+                actions_layout.addWidget(delete_button)
 
-            self.purchase_table.setCellWidget(row, 4, actions_widget)
+                self.purchase_table.setCellWidget(row, 4, actions_widget)
+            logger.info(f"Updated purchase table with {len(purchases)} purchases")
+        except Exception as e:
+            logger.error(f"Error updating purchase table: {str(e)}")
+            raise UIException(f"Failed to update purchase table: {str(e)}")
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
     def add_purchase(self):
-        supplier = self.supplier_input.text().strip()
-        date = self.date_input.date().toString("yyyy-MM-dd")
-
-        if not supplier:
-            raise ValueError("Supplier is required.")
+        supplier = validate_string(self.supplier_input.text().strip(), min_length=1, max_length=100)
+        date = validate_date(self.date_input.date().toString("yyyy-MM-dd"))
 
         products = self.product_service.get_all_products()
         items = []
@@ -233,30 +242,42 @@ class PurchaseView(QWidget):
                 break
 
         if items:
-            purchase_id = self.purchase_service.create_purchase(supplier, date, items)
-            if purchase_id is not None:
-                self.load_purchases()
-                self.supplier_input.clear()
-                show_info_message("Success", "Purchase added successfully.")
-                event_system.purchase_added.emit(purchase_id)
-                self.purchase_updated.emit()
-            else:
-                raise ValueError("Failed to add purchase.")
+            try:
+                purchase_id = self.purchase_service.create_purchase(supplier, date, items)
+                if purchase_id is not None:
+                    self.load_purchases()
+                    self.supplier_input.clear()
+                    show_info_message("Success", "Purchase added successfully.")
+                    event_system.purchase_added.emit(purchase_id)
+                    self.purchase_updated.emit()
+                    logger.info(f"Purchase added successfully: ID {purchase_id}")
+                else:
+                    raise DatabaseException("Failed to add purchase.")
+            except Exception as e:
+                logger.error(f"Error adding purchase: {str(e)}")
+                raise
         else:
-            raise ValueError("No items added to the purchase.")
+            raise ValidationException("No items added to the purchase.")
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
     def view_purchase(self, purchase):
-        items = self.purchase_service.get_purchase_items(purchase.id)
-        message = f"Purchase Details:\n\nSupplier: {purchase.supplier}\nDate: {purchase.date.strftime('%Y-%m-%d')}\n\nItems:\n"
-        for item in items:
-            product = self.product_service.get_product(item.product_id)
-            product_name = product.name if product else "Unknown Product"
-            message += f"- {product_name}: {item.quantity:.2f} @ {format_price(item.price)}\n"
-        message += f"\nTotal Amount: {format_price(purchase.total_amount)}"
-        show_info_message("Purchase Details", message)
+        try:
+            items = self.purchase_service.get_purchase_items(purchase.id)
+            message = f"Purchase Details:\n\nSupplier: {purchase.supplier}\nDate: {purchase.date.strftime('%Y-%m-%d')}\n\nItems:\n"
+            for item in items:
+                product = self.product_service.get_product(item.product_id)
+                product_name = product.name if product else "Unknown Product"
+                message += f"- {product_name}: {item.quantity:.2f} @ {format_price(item.price)}\n"
+            message += f"\nTotal Amount: {format_price(purchase.total_amount)}"
+            show_info_message("Purchase Details", message)
+            logger.info(f"Viewed purchase details: ID {purchase.id}")
+        except Exception as e:
+            logger.error(f"Error viewing purchase: {str(e)}")
+            raise UIException(f"Failed to view purchase: {str(e)}")
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
     def delete_purchase(self, purchase):
         reply = QMessageBox.question(
             self,
@@ -266,23 +287,34 @@ class PurchaseView(QWidget):
             QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
-            self.purchase_service.delete_purchase(purchase.id)
-            self.load_purchases()
-            show_info_message("Success", "Purchase deleted successfully.")
-            event_system.purchase_deleted.emit(purchase.id)
-            self.purchase_updated.emit()
+            try:
+                self.purchase_service.delete_purchase(purchase.id)
+                self.load_purchases()
+                show_info_message("Success", "Purchase deleted successfully.")
+                event_system.purchase_deleted.emit(purchase.id)
+                self.purchase_updated.emit()
+                logger.info(f"Purchase deleted: ID {purchase.id}")
+            except Exception as e:
+                logger.error(f"Error deleting purchase: {str(e)}")
+                raise DatabaseException(f"Failed to delete purchase: {str(e)}")
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
     def search_purchases(self):
-        search_term = self.search_input.text().strip().lower()
+        search_term = validate_string(self.search_input.text().strip(), max_length=100)
         if search_term:
-            purchases = self.purchase_service.get_all_purchases()
-            filtered_purchases = [
-                p for p in purchases
-                if search_term in p.supplier.lower()
-                or search_term in p.date.strftime("%Y-%m-%d").lower()
-            ]
-            self.update_purchase_table(filtered_purchases)
+            try:
+                purchases = self.purchase_service.get_all_purchases()
+                filtered_purchases = [
+                    p for p in purchases
+                    if search_term.lower() in p.supplier.lower()
+                    or search_term in p.date.strftime("%Y-%m-%d").lower()
+                ]
+                self.update_purchase_table(filtered_purchases)
+                logger.info(f"Searched purchases: {len(filtered_purchases)} results")
+            except Exception as e:
+                logger.error(f"Error searching purchases: {str(e)}")
+                raise DatabaseException(f"Failed to search purchases: {str(e)}")
         else:
             self.load_purchases()
 

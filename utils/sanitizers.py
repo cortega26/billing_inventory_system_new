@@ -1,6 +1,7 @@
 import html
 import re
-from typing import Any
+from typing import Union
+from decimal import Decimal
 
 def sanitize_html(value: str) -> str:
     """
@@ -50,41 +51,31 @@ def strip_tags(value: str) -> str:
     """
     return re.sub(r'<[^>]*>', '', value)
 
-def sanitize_integer(value: Any) -> int:
+def sanitize_number(value: Union[int, float, Decimal, str]) -> Union[int, float, Decimal]:
     """
-    Ensure the given value is a valid integer.
+    Ensure the given value is a valid number.
     
     Args:
-        value (Any): The value to sanitize.
+        value (Union[int, float, Decimal, str]): The value to sanitize.
     
     Returns:
-        int: The sanitized integer.
+        Union[int, float, Decimal]: The sanitized number.
     
     Raises:
-        ValueError: If the value cannot be converted to an integer.
+        ValueError: If the value cannot be converted to a number.
     """
+    if isinstance(value, (int, float, Decimal)):
+        return value
     try:
         return int(value)
     except ValueError:
-        raise ValueError(f"Cannot convert {value} to integer")
-
-def sanitize_float(value: Any) -> float:
-    """
-    Ensure the given value is a valid float.
-    
-    Args:
-        value (Any): The value to sanitize.
-    
-    Returns:
-        float: The sanitized float.
-    
-    Raises:
-        ValueError: If the value cannot be converted to a float.
-    """
-    try:
-        return float(value)
-    except ValueError:
-        raise ValueError(f"Cannot convert {value} to float")
+        try:
+            return float(value)
+        except ValueError:
+            try:
+                return Decimal(value)
+            except:
+                raise ValueError(f"Cannot convert {value} to a number")
 
 def truncate_string(value: str, max_length: int) -> str:
     """
@@ -99,4 +90,56 @@ def truncate_string(value: str, max_length: int) -> str:
     """
     return value[:max_length]
 
-# You can add more sanitization functions as needed
+def sanitize_email(value: str) -> str:
+    """
+    Sanitize and validate an email address.
+    
+    Args:
+        value (str): The email address to sanitize.
+    
+    Returns:
+        str: The sanitized email address.
+    
+    Raises:
+        ValueError: If the email address is invalid.
+    """
+    email = value.strip().lower()
+    if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
+        raise ValueError("Invalid email address")
+    return email
+
+def sanitize_phone(value: str) -> str:
+    """
+    Sanitize and validate a phone number.
+    
+    Args:
+        value (str): The phone number to sanitize.
+    
+    Returns:
+        str: The sanitized phone number.
+    
+    Raises:
+        ValueError: If the phone number is invalid.
+    """
+    phone = re.sub(r'\D', '', value)
+    if not 7 <= len(phone) <= 15:
+        raise ValueError("Invalid phone number")
+    return phone
+
+def sanitize_url(value: str) -> str:
+    """
+    Sanitize and validate a URL.
+    
+    Args:
+        value (str): The URL to sanitize.
+    
+    Returns:
+        str: The sanitized URL.
+    
+    Raises:
+        ValueError: If the URL is invalid.
+    """
+    url = value.strip()
+    if not re.match(r'^(http:\/\/www\.|https:\/\/www\.|http:\/\/|https:\/\/)?[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,5}(:[0-9]{1,5})?(\/.*)?$', url):
+        raise ValueError("Invalid URL")
+    return url

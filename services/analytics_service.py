@@ -2,15 +2,18 @@ from typing import List, Dict, Any
 from database import DatabaseManager
 from config import LOYALTY_THRESHOLD
 from functools import lru_cache
-from utils.decorators import db_operation
-from utils.exceptions import ValidationException
-
+from utils.decorators import db_operation, handle_exceptions
+from utils.exceptions import ValidationException, DatabaseException
+from utils.validation.validators import validate_integer, validate_date, validate_int_non_negative
+from utils.system.logger import logger
 
 class AnalyticsService:
     @staticmethod
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def get_loyal_customers(threshold: int = LOYALTY_THRESHOLD) -> List[Dict[str, Any]]:
+        threshold = validate_int_non_negative(threshold)
         query = """
             SELECT c.id, c.identifier_9, COUNT(DISTINCT s.id) as purchase_count
             FROM customers c
@@ -19,12 +22,17 @@ class AnalyticsService:
             HAVING purchase_count >= ?
             ORDER BY purchase_count DESC
         """
-        return DatabaseManager.fetch_all(query, (threshold,))
+        result = DatabaseManager.fetch_all(query, (threshold,))
+        logger.info("Loyal customers retrieved", extra={"threshold": threshold, "count": len(result)})
+        return result
 
     @staticmethod
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def get_sales_by_weekday(start_date: str, end_date: str) -> List[Dict[str, Any]]:
+        start_date = validate_date(start_date)
+        end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
         query = """
             SELECT 
@@ -43,14 +51,20 @@ class AnalyticsService:
             GROUP BY weekday
             ORDER BY CAST(strftime('%w', date) AS INTEGER)
         """
-        return DatabaseManager.fetch_all(query, (start_date, end_date))
+        result = DatabaseManager.fetch_all(query, (start_date, end_date))
+        logger.info("Sales by weekday retrieved", extra={"start_date": start_date, "end_date": end_date})
+        return result
 
     @staticmethod
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def get_top_selling_products(
         start_date: str, end_date: str, limit: int = 10
     ) -> List[Dict[str, Any]]:
+        start_date = validate_date(start_date)
+        end_date = validate_date(end_date)
+        limit = validate_integer(limit, min_value=1)
         AnalyticsService._validate_date_range(start_date, end_date)
         query = """
             SELECT p.id, p.name, SUM(si.quantity) as total_quantity, SUM(si.quantity * si.price) as total_revenue
@@ -62,12 +76,17 @@ class AnalyticsService:
             ORDER BY total_quantity DESC
             LIMIT ?
         """
-        return DatabaseManager.fetch_all(query, (start_date, end_date, limit))
+        result = DatabaseManager.fetch_all(query, (start_date, end_date, limit))
+        logger.info("Top selling products retrieved", extra={"start_date": start_date, "end_date": end_date, "limit": limit})
+        return result
 
     @staticmethod
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def get_sales_trend(start_date: str, end_date: str) -> List[Dict[str, Any]]:
+        start_date = validate_date(start_date)
+        end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
         query = """
             SELECT date, SUM(total_amount) as daily_sales
@@ -76,12 +95,17 @@ class AnalyticsService:
             GROUP BY date
             ORDER BY date
         """
-        return DatabaseManager.fetch_all(query, (start_date, end_date))
+        result = DatabaseManager.fetch_all(query, (start_date, end_date))
+        logger.info("Sales trend retrieved", extra={"start_date": start_date, "end_date": end_date})
+        return result
 
     @staticmethod
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def get_inventory_turnover(start_date: str, end_date: str) -> List[Dict[str, Any]]:
+        start_date = validate_date(start_date)
+        end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
         query = """
             SELECT 
@@ -101,14 +125,19 @@ class AnalyticsService:
             GROUP BY p.id
             ORDER BY turnover_ratio DESC
         """
-        return DatabaseManager.fetch_all(query, (start_date, end_date))
+        result = DatabaseManager.fetch_all(query, (start_date, end_date))
+        logger.info("Inventory turnover retrieved", extra={"start_date": start_date, "end_date": end_date})
+        return result
 
     @staticmethod
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def get_category_performance(
         start_date: str, end_date: str
     ) -> List[Dict[str, Any]]:
+        start_date = validate_date(start_date)
+        end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
         query = """
             SELECT 
@@ -123,12 +152,17 @@ class AnalyticsService:
             GROUP BY c.id
             ORDER BY total_sales DESC
         """
-        return DatabaseManager.fetch_all(query, (start_date, end_date))
+        result = DatabaseManager.fetch_all(query, (start_date, end_date))
+        logger.info("Category performance retrieved", extra={"start_date": start_date, "end_date": end_date})
+        return result
 
     @staticmethod
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def get_profit_margin(start_date: str, end_date: str) -> List[Dict[str, Any]]:
+        start_date = validate_date(start_date)
+        end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
         query = """
             SELECT 
@@ -149,12 +183,17 @@ class AnalyticsService:
             GROUP BY p.id
             ORDER BY profit_margin DESC
         """
-        return DatabaseManager.fetch_all(query, (start_date, end_date))
+        result = DatabaseManager.fetch_all(query, (start_date, end_date))
+        logger.info("Profit margin retrieved", extra={"start_date": start_date, "end_date": end_date})
+        return result
 
     @staticmethod
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def get_customer_retention_rate(start_date: str, end_date: str) -> Dict[str, Any]:
+        start_date = validate_date(start_date)
+        end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
         query = """
         WITH customers_in_period AS (
@@ -193,6 +232,7 @@ class AnalyticsService:
                 "retention_rate": 0.0,
             }
 
+        logger.info("Customer retention rate retrieved", extra={"start_date": start_date, "end_date": end_date})
         return {
             "total_customers": result["total_customers"],
             "returning_customers": result["returning_customers"],
@@ -209,6 +249,7 @@ class AnalyticsService:
         AnalyticsService.get_category_performance.cache_clear()
         AnalyticsService.get_profit_margin.cache_clear()
         AnalyticsService.get_customer_retention_rate.cache_clear()
+        logger.debug("Analytics cache cleared")
 
     @staticmethod
     def _validate_date_range(start_date: str, end_date: str):

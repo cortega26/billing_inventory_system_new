@@ -15,8 +15,9 @@ from utils.ui.table_items import NumericTableWidgetItem, PercentageTableWidgetIt
 from typing import Optional, List
 from models.product import Product
 from models.category import Category
-from utils.decorators import ui_operation, validate_input
-from utils.validation.validators import is_non_empty_string, is_positive, has_length
+from utils.decorators import ui_operation, handle_exceptions
+from utils.validation.validators import validate_string, validate_float, validate_integer
+from utils.exceptions import ValidationException, DatabaseException, UIException
 from utils.system.logger import logger
 
 class EditProductDialog(QDialog):
@@ -61,27 +62,26 @@ class EditProductDialog(QDialog):
         self.button_box.rejected.connect(self.reject)
         layout.addRow(self.button_box)
 
-    @validate_input([is_non_empty_string, has_length(1, 100)], "Product name must be between 1 and 100 characters")
+    @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, show_dialog=True)
     def validate_and_accept(self):
-        name = self.name_input.text().strip()
-        description = self.description_input.text().strip()
-        category_id = self.category_combo.currentData()
-        cost_price = self.cost_price_input.value()
-        sell_price = self.sell_price_input.value()
+        try:
+            name = validate_string(self.name_input.text().strip(), min_length=1, max_length=100)
+            description = validate_string(self.description_input.text().strip(), min_length=0, max_length=500)
+            category_id = self.category_combo.currentData()
+            cost_price = validate_float(self.cost_price_input.value(), min_value=0)
+            sell_price = validate_float(self.sell_price_input.value(), min_value=0)
 
-        if not is_positive(cost_price):
-            raise ValueError("Cost price must be positive")
-        if not is_positive(sell_price):
-            raise ValueError("Sell price must be positive")
-
-        self.product_data = {
-            "name": name,
-            "description": description,
-            "category_id": category_id,
-            "cost_price": cost_price,
-            "sell_price": sell_price,
-        }
-        self.accept()
+            self.product_data = {
+                "name": name,
+                "description": description,
+                "category_id": category_id,
+                "cost_price": cost_price,
+                "sell_price": sell_price,
+            }
+            self.accept()
+        except ValidationException as e:
+            raise ValidationException(str(e))
 
 class ProductView(QWidget):
     product_updated = Signal()
@@ -178,19 +178,31 @@ class ProductView(QWidget):
         self.addAction(refresh_shortcut)
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
     def on_category_changed(self, index):
-        self.current_category_id = self.category_filter.itemData(index)
-        self.filter_products()
+        try:
+            self.current_category_id = self.category_filter.itemData(index)
+            self.filter_products()
+        except Exception as e:
+            logger.error(f"Error changing category: {str(e)}")
+            raise UIException(f"Failed to change category: {str(e)}")
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(DatabaseException, UIException, show_dialog=True)
     def load_categories(self):
-        categories = self.category_service.get_all_categories()
-        self.category_filter.clear()
-        self.category_filter.addItem("All Categories", None)
-        for category in categories:
-            self.category_filter.addItem(category.name, category.id)
+        try:
+            categories = self.category_service.get_all_categories()
+            self.category_filter.clear()
+            self.category_filter.addItem("All Categories", None)
+            for category in categories:
+                self.category_filter.addItem(category.name, category.id)
+            logger.info("Categories loaded successfully")
+        except Exception as e:
+            logger.error(f"Error loading categories: {str(e)}")
+            raise DatabaseException(f"Failed to load categories: {str(e)}")
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(DatabaseException, UIException, show_dialog=True)
     def load_products(self):
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
@@ -198,46 +210,57 @@ class ProductView(QWidget):
         try:
             products = self.product_service.get_all_products()
             QTimer.singleShot(0, lambda: self.filter_products(products))
+            logger.info("Products loaded successfully")
+        except Exception as e:
+            logger.error(f"Error loading products: {str(e)}")
+            raise DatabaseException(f"Failed to load products: {str(e)}")
         finally:
             QApplication.restoreOverrideCursor()
             self.progress_bar.setValue(100)
             QTimer.singleShot(1000, lambda: self.progress_bar.setVisible(False))
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(UIException, show_dialog=True)
     def update_product_table(self, products: List[Product]):
-        self.product_table.setRowCount(len(products))
-        for row, product in enumerate(products):
-            profit_margin = self.product_service.get_product_profit_margin(product.id)
-            self.product_table.setItem(row, 0, NumericTableWidgetItem(product.id))
-            self.product_table.setItem(row, 1, QTableWidgetItem(product.name))
-            self.product_table.setItem(row, 2, QTableWidgetItem(product.description or ""))
-            self.product_table.setItem(row, 3, QTableWidgetItem(product.category.name if product.category else ""))
-            self.product_table.setItem(row, 4, PriceTableWidgetItem(product.cost_price, format_price))
-            self.product_table.setItem(row, 5, PriceTableWidgetItem(product.sell_price, format_price))
-            self.product_table.setItem(row, 6, PercentageTableWidgetItem(profit_margin))
+        try:
+            self.product_table.setRowCount(len(products))
+            for row, product in enumerate(products):
+                profit_margin = self.product_service.get_product_profit_margin(product.id)
+                self.product_table.setItem(row, 0, NumericTableWidgetItem(product.id))
+                self.product_table.setItem(row, 1, QTableWidgetItem(product.name))
+                self.product_table.setItem(row, 2, QTableWidgetItem(product.description or ""))
+                self.product_table.setItem(row, 3, QTableWidgetItem(product.category.name if product.category else ""))
+                self.product_table.setItem(row, 4, PriceTableWidgetItem(product.cost_price, format_price))
+                self.product_table.setItem(row, 5, PriceTableWidgetItem(product.sell_price, format_price))
+                self.product_table.setItem(row, 6, PercentageTableWidgetItem(profit_margin))
 
-            actions_widget = QWidget()
-            actions_layout = QHBoxLayout(actions_widget)
-            actions_layout.setContentsMargins(0, 0, 0, 0)
+                actions_widget = QWidget()
+                actions_layout = QHBoxLayout(actions_widget)
+                actions_layout.setContentsMargins(0, 0, 0, 0)
 
-            edit_button = QPushButton("Edit")
-            edit_button.setFixedWidth(80)
-            edit_button.clicked.connect(lambda _, p=product: self.edit_product(p))
-            edit_button.setToolTip("Edit this product")
+                edit_button = QPushButton("Edit")
+                edit_button.setFixedWidth(80)
+                edit_button.clicked.connect(lambda _, p=product: self.edit_product(p))
+                edit_button.setToolTip("Edit this product")
 
-            delete_button = QPushButton("Delete")
-            delete_button.setFixedWidth(80)
-            delete_button.clicked.connect(lambda _, p=product: self.delete_product(p))
-            delete_button.setToolTip("Delete this product")
+                delete_button = QPushButton("Delete")
+                delete_button.setFixedWidth(80)
+                delete_button.clicked.connect(lambda _, p=product: self.delete_product(p))
+                delete_button.setToolTip("Delete this product")
 
-            actions_layout.addWidget(edit_button)
-            actions_layout.addWidget(delete_button)
-            self.product_table.setCellWidget(row, 7, actions_widget)
+                actions_layout.addWidget(edit_button)
+                actions_layout.addWidget(delete_button)
+                self.product_table.setCellWidget(row, 7, actions_widget)
 
-        self.product_table.resizeColumnsToContents()
-        self.product_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
+            self.product_table.resizeColumnsToContents()
+            self.product_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
+            logger.info("Product table updated successfully")
+        except Exception as e:
+            logger.error(f"Error updating product table: {str(e)}")
+            raise UIException(f"Failed to update product table: {str(e)}")
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
     def add_product(self):
         categories = self.category_service.get_all_categories()
         dialog = EditProductDialog(None, categories, self)
@@ -250,14 +273,15 @@ class ProductView(QWidget):
                     show_info_message("Success", "Product added successfully.")
                     event_system.product_added.emit(product_id)
                     self.product_updated.emit()
-                    logger.info("Product added successfully", product_id=product_id)
+                    logger.info(f"Product added successfully: ID {product_id}")
                 else:
-                    raise ValueError("Failed to add product.")
+                    raise DatabaseException("Failed to add product.")
             except Exception as e:
-                show_error_message("Error", str(e))
-                logger.error("Failed to add product", error=str(e))
+                logger.error(f"Error adding product: {str(e)}")
+                raise
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
     def edit_product(self, product: Product):
         categories = self.category_service.get_all_categories()
         dialog = EditProductDialog(product, categories, self)
@@ -269,12 +293,13 @@ class ProductView(QWidget):
                 show_info_message("Success", "Product updated successfully.")
                 event_system.product_updated.emit(product.id)
                 self.product_updated.emit()
-                logger.info("Product updated successfully", product_id=product.id)
+                logger.info(f"Product updated successfully: ID {product.id}")
             except Exception as e:
-                show_error_message("Error", str(e))
-                logger.error("Failed to update product", error=str(e), product_id=product.id)
+                logger.error(f"Error updating product: {str(e)}")
+                raise
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
     def delete_product(self, product: Product):
         reply = QMessageBox.question(
             self,
@@ -290,17 +315,20 @@ class ProductView(QWidget):
                 show_info_message("Success", "Product deleted successfully.")
                 event_system.product_deleted.emit(product.id)
                 self.product_updated.emit()
-                logger.info("Product deleted successfully", product_id=product.id)
+                logger.info(f"Product deleted successfully: ID {product.id}")
             except Exception as e:
-                show_error_message("Error", str(e))
-                logger.error("Failed to delete product", error=str(e), product_id=product.id)
+                logger.error(f"Error deleting product: {str(e)}")
+                raise
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
     def search_products(self):
         search_term = self.search_input.text().strip()
+        search_term = validate_string(search_term, max_length=100)
         self.filter_products(search_term=search_term)
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
     def filter_products(self, products: Optional[List[Product]] = None, search_term: Optional[str] = None):
         if products is None:
             products = self.product_service.get_all_products() or []
@@ -317,16 +345,19 @@ class ProductView(QWidget):
         ]
 
         self.update_product_table(filtered_products)
+        logger.info(f"Products filtered: {len(filtered_products)} results")
 
     def refresh(self):
         self.load_products()
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(DatabaseException, UIException, show_dialog=True)
     def manage_categories(self):
         dialog = CategoryManagementDialog(self)
         if dialog.exec():
             self.load_categories()
             self.load_products()
+            logger.info("Categories managed successfully")
 
     def show_context_menu(self, position):
         menu = QMenu()
@@ -351,11 +382,13 @@ class ProductView(QWidget):
     def export_products(self):
         # TODO: Implement export functionality
         show_info_message("Info", "Export functionality not implemented yet.")
+        logger.info("Export products functionality not implemented")
 
     @ui_operation(show_dialog=True)
     def import_products(self):
         # TODO: Implement import functionality
         show_info_message("Info", "Import functionality not implemented yet.")
+        logger.info("Import products functionality not implemented")
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Delete:

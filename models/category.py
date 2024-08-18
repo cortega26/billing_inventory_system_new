@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from typing import Dict, Any
 from utils.exceptions import ValidationException
-from utils.decorators import validate_input
 
 
 @dataclass

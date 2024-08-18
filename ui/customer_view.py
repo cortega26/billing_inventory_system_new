@@ -1,38 +1,20 @@
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QLabel,
-    QLineEdit,
-    QPushButton,
-    QTableWidget,
-    QTableWidgetItem,
-    QMessageBox,
-    QDialog,
-    QDialogButtonBox,
-    QFormLayout,
-    QHeaderView,
-    QMenu,
-    QApplication,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, 
+    QTableWidget, QTableWidgetItem, QMessageBox, QDialog, QDialogButtonBox, 
+    QFormLayout, QHeaderView, QMenu, QApplication
 )
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QAction, QKeySequence
 from services.customer_service import CustomerService
-from utils.helpers import (
-    create_table,
-    show_error_message,
-    show_info_message,
-    format_price,
-)
+from utils.helpers import create_table, show_error_message, show_info_message, format_price
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
-from utils.validation.validators import (
-    validate_9digit_identifier,
-    validate_3or4digit_identifier,
-)
-from utils.decorators import ui_operation
+from utils.validation.validators import validate_9digit_identifier, validate_3or4digit_identifier, validate_string
+from utils.decorators import ui_operation, handle_exceptions
 from models.customer import Customer
 from typing import Optional
 from utils.system.event_system import event_system
+from utils.exceptions import ValidationException, DatabaseException, UIException
+from utils.system.logger import logger
 
 class EditCustomerDialog(QDialog):
     def __init__(self, customer: Optional[Customer], parent=None):
@@ -62,14 +44,15 @@ class EditCustomerDialog(QDialog):
         layout.addRow(self.button_box)
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, show_dialog=True)
     def validate_and_accept(self):
         try:
             validate_9digit_identifier(self.identifier_9_input.text())
             if self.identifier_3or4_input.text():
                 validate_3or4digit_identifier(self.identifier_3or4_input.text())
             self.accept()
-        except ValueError as e:
-            show_error_message("Validation Error", str(e))
+        except ValidationException as e:
+            raise ValidationException(str(e))
 
 class CustomerView(QWidget):
     customer_updated = Signal()
@@ -143,51 +126,60 @@ class CustomerView(QWidget):
         self.addAction(refresh_shortcut)
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(DatabaseException, UIException, show_dialog=True)
     def load_customers(self):
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
             customers = self.customer_service.get_all_customers()
-            #QTimer.singleShot(0, lambda: self.populate_customer_table(customers))
-            self.populate_customer_table(customers)
+            QTimer.singleShot(0, lambda: self.populate_customer_table(customers))
+        except Exception as e:
+            logger.error(f"Error loading customers: {str(e)}")
+            raise DatabaseException(f"Failed to load customers: {str(e)}")
         finally:
             QApplication.restoreOverrideCursor()
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(UIException, show_dialog=True)
     def populate_customer_table(self, customers):
-        self.customer_table.setRowCount(len(customers))
-        for row, customer in enumerate(customers):
-            total_purchases, total_amount = self.customer_service.get_customer_stats(
-                customer.id
-            )
-            self.customer_table.setItem(row, 0, NumericTableWidgetItem(customer.id))
-            self.customer_table.setItem(row, 1, QTableWidgetItem(customer.identifier_9))
-            self.customer_table.setItem(
-                row, 2, QTableWidgetItem(customer.identifier_3or4 or "N/A")
-            )
-            self.customer_table.setItem(row, 3, NumericTableWidgetItem(total_purchases))
-            self.customer_table.setItem(
-                row, 4, PriceTableWidgetItem(total_amount, format_price)
-            )
+        try:
+            self.customer_table.setRowCount(len(customers))
+            for row, customer in enumerate(customers):
+                total_purchases, total_amount = self.customer_service.get_customer_stats(
+                    customer.id
+                )
+                self.customer_table.setItem(row, 0, NumericTableWidgetItem(customer.id))
+                self.customer_table.setItem(row, 1, QTableWidgetItem(customer.identifier_9))
+                self.customer_table.setItem(
+                    row, 2, QTableWidgetItem(customer.identifier_3or4 or "N/A")
+                )
+                self.customer_table.setItem(row, 3, NumericTableWidgetItem(total_purchases))
+                self.customer_table.setItem(
+                    row, 4, PriceTableWidgetItem(total_amount, format_price)
+                )
 
-            actions_widget = QWidget()
-            actions_layout = QHBoxLayout(actions_widget)
-            actions_layout.setContentsMargins(0, 0, 0, 0)
+                actions_widget = QWidget()
+                actions_layout = QHBoxLayout(actions_widget)
+                actions_layout.setContentsMargins(0, 0, 0, 0)
 
-            edit_button = QPushButton("Edit")
-            edit_button.setFixedWidth(50)
-            edit_button.clicked.connect(lambda _, c=customer: self.edit_customer(c))
-            edit_button.setToolTip("Edit this customer")
+                edit_button = QPushButton("Edit")
+                edit_button.setFixedWidth(50)
+                edit_button.clicked.connect(lambda _, c=customer: self.edit_customer(c))
+                edit_button.setToolTip("Edit this customer")
 
-            delete_button = QPushButton("Delete")
-            delete_button.setFixedWidth(50)
-            delete_button.clicked.connect(lambda _, c=customer: self.delete_customer(c))
-            delete_button.setToolTip("Delete this customer")
+                delete_button = QPushButton("Delete")
+                delete_button.setFixedWidth(50)
+                delete_button.clicked.connect(lambda _, c=customer: self.delete_customer(c))
+                delete_button.setToolTip("Delete this customer")
 
-            actions_layout.addWidget(edit_button)
-            actions_layout.addWidget(delete_button)
-            self.customer_table.setCellWidget(row, 5, actions_widget)
+                actions_layout.addWidget(edit_button)
+                actions_layout.addWidget(delete_button)
+                self.customer_table.setCellWidget(row, 5, actions_widget)
+        except Exception as e:
+            logger.error(f"Error populating customer table: {str(e)}")
+            raise UIException(f"Failed to populate customer table: {str(e)}")
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
     def add_customer(self):
         dialog = EditCustomerDialog(None, self)
         if dialog.exec():
@@ -203,16 +195,18 @@ class CustomerView(QWidget):
                     show_info_message("Success", "Customer added successfully.")
                     event_system.customer_added.emit(customer_id)
                     self.customer_updated.emit()
+                    logger.info(f"Customer added successfully: ID {customer_id}")
                 else:
-                    show_error_message("Error", "Failed to add customer.")
+                    raise DatabaseException("Failed to add customer.")
             except Exception as e:
-                show_error_message("Error", str(e))
+                logger.error(f"Error adding customer: {str(e)}")
+                raise
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
     def edit_customer(self, customer: Optional[Customer]):
         if customer is None:
-            show_error_message("Error", "No customer selected for editing.")
-            return
+            raise ValidationException("No customer selected for editing.")
 
         dialog = EditCustomerDialog(customer, self)
         if dialog.exec():
@@ -226,14 +220,16 @@ class CustomerView(QWidget):
                 show_info_message("Success", "Customer updated successfully.")
                 event_system.customer_updated.emit(customer.id)
                 self.customer_updated.emit()
+                logger.info(f"Customer updated successfully: ID {customer.id}")
             except Exception as e:
-                show_error_message("Error", str(e))
+                logger.error(f"Error updating customer: {str(e)}")
+                raise
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
     def delete_customer(self, customer: Optional[Customer]):
         if customer is None:
-            show_error_message("Error", "No customer selected for deletion.")
-            return
+            raise ValidationException("No customer selected for deletion.")
 
         reply = QMessageBox.question(
             self,
@@ -243,18 +239,30 @@ class CustomerView(QWidget):
             QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
-            self.customer_service.delete_customer(customer.id)
-            self.load_customers()
-            show_info_message("Success", "Customer deleted successfully.")
-            event_system.customer_deleted.emit(customer.id)
-            self.customer_updated.emit()
+            try:
+                self.customer_service.delete_customer(customer.id)
+                self.load_customers()
+                show_info_message("Success", "Customer deleted successfully.")
+                event_system.customer_deleted.emit(customer.id)
+                self.customer_updated.emit()
+                logger.info(f"Customer deleted successfully: ID {customer.id}")
+            except Exception as e:
+                logger.error(f"Error deleting customer: {str(e)}")
+                raise
 
     @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
     def search_customers(self):
         search_term = self.search_input.text().strip()
+        search_term = validate_string(search_term, max_length=50)
         if search_term:
-            customers = self.customer_service.search_customers(search_term)
-            self.populate_customer_table(customers)
+            try:
+                customers = self.customer_service.search_customers(search_term)
+                self.populate_customer_table(customers)
+                logger.info(f"Customer search performed: '{search_term}'")
+            except Exception as e:
+                logger.error(f"Error searching customers: {str(e)}")
+                raise
         else:
             self.load_customers()
 

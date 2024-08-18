@@ -2,7 +2,7 @@ from typing import List, Dict, Any, Optional
 from database import DatabaseManager
 from models.sale import Sale, SaleItem
 from services.inventory_service import InventoryService
-from utils.validation.validators import validate_integer, validate_string, validate_date
+from utils.validation.validators import validate_integer, validate_string, validate_date, validate_float_non_negative
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import ValidationException, DatabaseException, NotFoundException
 from utils.system.logger import logger
@@ -117,8 +117,8 @@ class SaleService:
             raise ValidationException(f"Sale with ID {sale_id} not found.")
 
         sale_datetime = datetime.fromisoformat(sale.date.isoformat())
-        if datetime.now() - sale_datetime > timedelta(hours=48):
-            raise ValidationException("Sales can only be edited within 48 hours of creation.")
+        if datetime.now() - sale_datetime > timedelta(hours=96):
+            raise ValidationException("Sales can only be edited within 96 hours of creation.")
 
         old_items = self.get_sale_items(sale_id)
 
@@ -249,7 +249,9 @@ class SaleService:
         if not items:
             raise ValidationException("Sale must have at least one item")
         for item in items:
-            if item["quantity"] <= 0 or item["sell_price"] <= 0:
+            quantity = validate_float_non_negative(item["quantity"])
+            sell_price = validate_float_non_negative(item["sell_price"])
+            if quantity <= 0 or sell_price <= 0:
                 raise ValidationException("Item quantity and sell price must be positive")
 
     @staticmethod
@@ -267,7 +269,9 @@ class SaleService:
 
     def _update_inventory(self, items: List[Dict[str, Any]]) -> None:
         for item in items:
-            self.inventory_service.update_quantity(item["product_id"], -item["quantity"])
+            quantity_change = -abs(item["quantity"])
+            self.inventory_service.update_quantity(item["product_id"], quantity_change)
+            logger.debug(f"Updating inventory for product {item['product_id']}, change: {quantity_change}")
 
     @staticmethod
     def _revert_inventory(items: List[SaleItem]) -> None:

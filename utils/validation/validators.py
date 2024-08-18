@@ -32,9 +32,7 @@ def is_non_negative(value: Any) -> bool:
     return is_numeric(value) and value >= 0
 
 def is_string(value: str, min_length: int = 1, max_length: int = 100) -> bool:
-    if len(value) < min_length or len(value) > max_length:
-        return False
-    return True
+    return isinstance(value, str) and min_length <= len(value) <= max_length
 
 def is_in_range(min_value: float, max_value: float) -> Callable[[Any], bool]:
     return lambda value: is_numeric(value) and min_value <= value <= max_value
@@ -84,7 +82,15 @@ def validate_integer(value: Any, min_value: Optional[int] = None, max_value: Opt
     return int(result)
 
 def validate_float(value: Any, min_value: Optional[float] = None, max_value: Optional[float] = None) -> float:
-    return validate_numeric(value, min_value, max_value, is_integer=False)
+    try:
+        float_value = float(value)
+        if min_value is not None and float_value < min_value:
+            raise ValidationException(f"Value must be greater than or equal to {min_value}")
+        if max_value is not None and float_value > max_value:
+            raise ValidationException(f"Value must be less than or equal to {max_value}")
+        return float_value
+    except ValueError:
+        raise ValidationException("Invalid float value")
 
 def validate_boolean(value: Any) -> bool:
     if isinstance(value, bool):
@@ -126,10 +132,10 @@ def validate_identifier(value: str, length: Union[int, Tuple[int, ...]]) -> str:
     return validate_string(value, pattern=pattern, min_length=min(length) if isinstance(length, tuple) else length, max_length=max(length) if isinstance(length, tuple) else length)
 
 def validate_9digit_identifier(value: str) -> str:
-    return validate_identifier(value, 9)
+    return validate_string(value, min_length=9, max_length=9, pattern=r'^\d{9}$')
 
 def validate_3or4digit_identifier(value: str) -> str:
-    return validate_identifier(value, (3, 4))
+    return validate_string(value, min_length=3, max_length=4, pattern=r'^\d{3,4}$')
 
 def validate_int_non_negative(value: int) -> int:
     if value < 0:
@@ -137,9 +143,7 @@ def validate_int_non_negative(value: int) -> int:
     return value
 
 def validate_float_non_negative(value: float) -> float:
-    if value < 0:
-        raise ValueError("The value must be non-negative.")
-    return value
+    return validate_float(value, min_value=0)
 
 def validate_list(value: Any, item_validator: Callable[[Any], Any], min_length: int = 0, max_length: Optional[int] = None) -> List[Any]:
     if not isinstance(value, list):

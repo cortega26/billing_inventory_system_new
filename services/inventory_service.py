@@ -4,7 +4,7 @@ from models.inventory import Inventory
 from utils.system.event_system import event_system
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import ValidationException, NotFoundException, DatabaseException
-from utils.validation.validators import validate_integer, validate_string, validate_int_non_negative, validate_float_non_negative
+from utils.validation.validators import validate_integer, validate_string, validate_int_non_negative, validate_float_non_negative, validate_float
 from utils.system.logger import logger
 from functools import lru_cache
 
@@ -12,9 +12,9 @@ class InventoryService:
     @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
-    def update_quantity(product_id: int, quantity_change: int) -> None:
+    def update_quantity(product_id: int, quantity_change: float) -> None:
         product_id = validate_integer(product_id, min_value=1)
-        quantity_change = validate_integer(quantity_change)
+        quantity_change = validate_float(quantity_change)  # Allow negative values for sales
 
         inventory = InventoryService.get_inventory(product_id)
 
@@ -141,7 +141,7 @@ class InventoryService:
     @db_operation(show_dialog=True)
     def _update_inventory_quantity(product_id: int, new_quantity: float) -> None:
         product_id = validate_integer(product_id, min_value=1)
-        new_quantity = validate_float_non_negative(new_quantity)
+        new_quantity = validate_float(new_quantity, min_value=0)  # Ensure non-negative inventory
         query = "UPDATE inventory SET quantity = ? WHERE product_id = ?"
         DatabaseManager.execute_query(query, (new_quantity, product_id))
         logger.debug("Inventory quantity updated", extra={"product_id": product_id, "new_quantity": new_quantity})
@@ -150,7 +150,7 @@ class InventoryService:
     @db_operation(show_dialog=True)
     def _create_inventory_item(product_id: int, quantity: float) -> None:
         product_id = validate_integer(product_id, min_value=1)
-        quantity = validate_float_non_negative(quantity)
+        quantity = validate_float(quantity, min_value=0)  # Ensure non-negative initial quantity
         query = "INSERT INTO inventory (product_id, quantity) VALUES (?, ?)"
         DatabaseManager.execute_query(query, (product_id, quantity))
         logger.debug("New inventory item created", extra={"product_id": product_id, "initial_quantity": quantity})

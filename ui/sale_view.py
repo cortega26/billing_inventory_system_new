@@ -301,6 +301,7 @@ class SaleView(QWidget):
     @handle_exceptions(UIException, show_dialog=True)
     def update_sale_table(self, sales: List[Sale]):
         try:
+            self.sale_table.setSortingEnabled(False)  # Disable sorting temporarily
             self.sale_table.setRowCount(len(sales))
             for row, sale in enumerate(sales):
                 customer = self.customer_service.get_customer(sale.customer_id)
@@ -335,6 +336,11 @@ class SaleView(QWidget):
 
                 self.sale_table.setCellWidget(row, 5, actions_widget)
 
+                # Store the sale data in the row for later retrieval
+                for col, key in enumerate(["id", "customer_id", "date", "total_amount", "receipt_id"]):
+                    self.sale_table.item(row, col).setData(Qt.ItemDataRole.UserRole, getattr(sale, key))
+
+            self.sale_table.setSortingEnabled(True)  # Re-enable sorting
             logger.info(f"Sale table updated with {len(sales)} sales")
         except Exception as e:
             logger.error(f"Error updating sale table: {str(e)}")
@@ -342,7 +348,23 @@ class SaleView(QWidget):
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
-    def edit_sale(self, sale: Sale):
+    def edit_sale(self, sale: Optional[Sale] = None):
+        if sale is None:
+            # Get the selected row
+            selected_rows = self.sale_table.selectionModel().selectedRows()
+            if not selected_rows:
+                raise ValidationException("No sale selected for editing.")
+            row = selected_rows[0].row()
+            
+            # Retrieve the sale data from the row
+            sale = Sale(
+                id=self.sale_table.item(row, 0).data(Qt.ItemDataRole.UserRole),
+                customer_id=self.sale_table.item(row, 1).data(Qt.ItemDataRole.UserRole),
+                date=datetime.strptime(self.sale_table.item(row, 2).data(Qt.ItemDataRole.UserRole), "%Y-%m-%d"),
+                total_amount=self.sale_table.item(row, 3).data(Qt.ItemDataRole.UserRole),
+                receipt_id=self.sale_table.item(row, 4).data(Qt.ItemDataRole.UserRole)
+            )
+
         if datetime.now() - sale.date > timedelta(hours=96):
             raise ValidationException("Sales can only be edited within 96 hours of creation.")
 

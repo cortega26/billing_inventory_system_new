@@ -195,6 +195,7 @@ class InventoryView(QWidget):
     @handle_exceptions(UIException, show_dialog=True)
     def update_inventory_table(self, inventory_items: List[Dict[str, Any]]):
         try:
+            self.inventory_table.setSortingEnabled(False)  # Disable sorting temporarily
             self.inventory_table.setRowCount(len(inventory_items))
             for row, item in enumerate(inventory_items):
                 self.inventory_table.setItem(
@@ -218,6 +219,12 @@ class InventoryView(QWidget):
 
                 actions_layout.addWidget(edit_button)
                 self.inventory_table.setCellWidget(row, 4, actions_widget)
+
+                # Store the item data in the row for later retrieval
+                for col, key in enumerate(["product_id", "product_name", "category_name", "quantity"]):
+                    self.inventory_table.item(row, col).setData(Qt.ItemDataRole.DisplayRole, item[key])
+
+            self.inventory_table.setSortingEnabled(True)  # Re-enable sorting
             logger.info(f"Updated inventory table with {len(inventory_items)} items")
         except Exception as e:
             logger.error(f"Error updating inventory table: {str(e)}")
@@ -225,7 +232,22 @@ class InventoryView(QWidget):
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
-    def edit_inventory(self, item: Dict[str, Any]):
+    def edit_inventory(self, item: Optional[Dict[str, Any]] = None):
+        if item is None:
+            # Get the selected row
+            selected_rows = self.inventory_table.selectionModel().selectedRows()
+            if not selected_rows:
+                raise ValidationException("No item selected for editing.")
+            row = selected_rows[0].row()
+            
+            # Retrieve the item data from the row
+            item = {
+                "product_id": self.inventory_table.item(row, 0).data(Qt.ItemDataRole.UserRole),
+                "product_name": self.inventory_table.item(row, 1).data(Qt.ItemDataRole.UserRole),
+                "category_name": self.inventory_table.item(row, 2).data(Qt.ItemDataRole.UserRole),
+                "quantity": self.inventory_table.item(row, 3).data(Qt.ItemDataRole.UserRole)
+            }
+
         dialog = EditInventoryDialog(item, self)
         if dialog.exec():
             new_quantity = dialog.get_new_quantity()

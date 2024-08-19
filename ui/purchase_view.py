@@ -39,13 +39,13 @@ class PurchaseItemDialog(QDialog):
         self.quantity_input = QDoubleSpinBox()
         self.quantity_input.setMinimum(0.01)
         self.quantity_input.setMaximum(1000000.00)
-        self.quantity_input.setDecimals(2)
+        self.quantity_input.setDecimals(3)
         layout.addRow("Quantity:", self.quantity_input)
 
         self.cost_price_input = QDoubleSpinBox()
         self.cost_price_input.setMinimum(0.01)
         self.cost_price_input.setMaximum(1000000.00)
-        self.cost_price_input.setDecimals(2)
+        self.cost_price_input.setDecimals(3)
         layout.addRow("Cost Price:", self.cost_price_input)
 
         self.buttons = QDialogButtonBox(

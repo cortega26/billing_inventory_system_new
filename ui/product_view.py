@@ -282,21 +282,32 @@ class ProductView(QWidget):
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
-    def edit_product(self, product: Product):
-        categories = self.category_service.get_all_categories()
-        dialog = EditProductDialog(product, categories, self)
-        if dialog.exec():
-            product_data = dialog.product_data
-            try:
-                self.product_service.update_product(product.id, **product_data)
-                self.load_products()
-                show_info_message("Success", "Product updated successfully.")
-                event_system.product_updated.emit(product.id)
-                self.product_updated.emit()
-                logger.info(f"Product updated successfully: ID {product.id}")
-            except Exception as e:
-                logger.error(f"Error updating product: {str(e)}")
-                raise
+    def edit_product(self, product: Optional[Product] = None):
+        if product is None:
+            selected_rows = self.product_table.selectionModel().selectedRows()
+            if not selected_rows:
+                raise ValidationException("No product selected for editing.")
+            row = selected_rows[0].row()
+            product_id = int(self.product_table.item(row, 0).text())
+            product = self.product_service.get_product(product_id)
+
+        if product:
+            categories = self.category_service.get_all_categories()
+            dialog = EditProductDialog(product, categories, self)
+            if dialog.exec():
+                product_data = dialog.product_data
+                try:
+                    self.product_service.update_product(product.id, product_data)
+                    self.load_products()
+                    show_info_message("Success", "Product updated successfully.")
+                    event_system.product_updated.emit(product.id)
+                    self.product_updated.emit()
+                    logger.info(f"Product updated successfully: ID {product.id}")
+                except Exception as e:
+                    logger.error(f"Error updating product: {str(e)}")
+                    raise
+        else:
+            raise ValidationException(f"Product with ID {product_id} not found.")
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)

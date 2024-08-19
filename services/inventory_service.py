@@ -57,7 +57,7 @@ class InventoryService:
         query = """
             SELECT i.product_id, p.name as product_name, 
                 COALESCE(c.name, 'Uncategorized') as category_name, 
-                i.quantity
+                i.quantity, p.category_id
             FROM inventory i
             JOIN products p ON i.product_id = p.id
             LEFT JOIN categories c ON p.category_id = c.id

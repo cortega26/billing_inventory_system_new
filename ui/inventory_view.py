@@ -32,14 +32,14 @@ class EditInventoryDialog(QDialog):
         self.quantity_input = QDoubleSpinBox()
         self.quantity_input.setMinimum(0)
         self.quantity_input.setMaximum(1000000)
-        self.quantity_input.setDecimals(2)
+        self.quantity_input.setDecimals(3)
         self.quantity_input.setValue(self.product["quantity"])
         layout.addRow("Quantity:", self.quantity_input)
 
         self.adjustment_input = QDoubleSpinBox()
         self.adjustment_input.setMinimum(-1000000)
         self.adjustment_input.setMaximum(1000000)
-        self.adjustment_input.setDecimals(2)
+        self.adjustment_input.setDecimals(3)
         self.adjustment_input.setValue(0)
         layout.addRow("Adjust Quantity (+ or -):", self.adjustment_input)
 
@@ -154,6 +154,8 @@ class InventoryView(QWidget):
     def load_categories(self):
         try:
             categories = self.category_service.get_all_categories()
+            self.category_filter.clear()
+            self.category_filter.addItem("All Categories", None)
             for category in categories:
                 self.category_filter.addItem(category.name, category.id)
             logger.info(f"Loaded {len(categories)} categories")
@@ -195,20 +197,22 @@ class InventoryView(QWidget):
     @handle_exceptions(UIException, show_dialog=True)
     def update_inventory_table(self, inventory_items: List[Dict[str, Any]]):
         try:
-            self.inventory_table.setSortingEnabled(False)  # Disable sorting temporarily
+            self.inventory_table.setSortingEnabled(False)
             self.inventory_table.setRowCount(len(inventory_items))
             for row, item in enumerate(inventory_items):
-                self.inventory_table.setItem(
-                    row, 0, NumericTableWidgetItem(item["product_id"])
-                )
-                self.inventory_table.setItem(row, 1, QTableWidgetItem(item["product_name"]))
-                self.inventory_table.setItem(
-                    row, 2, QTableWidgetItem(item["category_name"])
-                )
-                self.inventory_table.setItem(
-                    row, 3, PriceTableWidgetItem(item["quantity"], format_price)
-                )
+                # Create QTableWidgetItems for all columns
+                id_item = NumericTableWidgetItem(item["product_id"])
+                name_item = QTableWidgetItem(item["product_name"])
+                category_item = QTableWidgetItem(item["category_name"])
+                quantity_item = PriceTableWidgetItem(item["quantity"], format_price)
 
+                # Set the items in the table
+                self.inventory_table.setItem(row, 0, id_item)
+                self.inventory_table.setItem(row, 1, name_item)
+                self.inventory_table.setItem(row, 2, category_item)
+                self.inventory_table.setItem(row, 3, quantity_item)
+
+                # Create and set the actions widget
                 actions_widget = QWidget()
                 actions_layout = QHBoxLayout(actions_widget)
                 actions_layout.setContentsMargins(0, 0, 0, 0)
@@ -220,11 +224,16 @@ class InventoryView(QWidget):
                 actions_layout.addWidget(edit_button)
                 self.inventory_table.setCellWidget(row, 4, actions_widget)
 
-                # Store the item data in the row for later retrieval
-                for col, key in enumerate(["product_id", "product_name", "category_name", "quantity"]):
-                    self.inventory_table.item(row, col).setData(Qt.ItemDataRole.DisplayRole, item[key])
+                # Store the full item data in the row
+                id_item.setData(Qt.ItemDataRole.UserRole, item["product_id"])
+                name_item.setData(Qt.ItemDataRole.UserRole, item["product_name"])
+                category_item.setData(Qt.ItemDataRole.UserRole, item["category_name"])
+                quantity_item.setData(Qt.ItemDataRole.UserRole, item["quantity"])
+                
+                # Store category_id in the category column
+                category_item.setData(Qt.ItemDataRole.UserRole + 1, item.get("category_id"))
 
-            self.inventory_table.setSortingEnabled(True)  # Re-enable sorting
+            self.inventory_table.setSortingEnabled(True)
             logger.info(f"Updated inventory table with {len(inventory_items)} items")
         except Exception as e:
             logger.error(f"Error updating inventory table: {str(e)}")
@@ -307,31 +316,24 @@ class InventoryView(QWidget):
     @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
     def search_inventory(self):
         search_term = validate_string(self.search_input.text().strip(), max_length=100)
-        category_id = self.category_filter.currentData()
-        self.filter_inventory(search_term, category_id)
+        self.filter_inventory()
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
-    def filter_inventory(
-        self, search_term: Optional[str] = None, category_id: Optional[int] = None
-    ):
-        if search_term is None:
-            search_term = self.search_input.text().strip()
-        if category_id is None:
-            category_id = self.category_filter.currentData()
-
+    def filter_inventory(self, index: Optional[int] = None):
         try:
-            all_items = self.inventory_service.get_all_inventory()
+            category_id = self.category_filter.currentData()
+            search_term = self.search_input.text().strip().lower()
+
             filtered_items = [
-                item
-                for item in all_items
-                if (
-                    search_term.lower() in item["product_name"].lower()
-                    or search_term.lower() in str(item["product_id"])
-                    or search_term.lower() in item["category_name"].lower()
-                )
-                and (category_id is None or item["category_id"] == category_id)
+                item for item in self.current_inventory
+                if (category_id is None or item["category_id"] == category_id) and
+                (not search_term or
+                 search_term in item["product_name"].lower() or
+                 search_term in str(item["product_id"]).lower() or
+                 search_term in item["category_name"].lower())
             ]
+
             self.update_inventory_table(filtered_items)
             logger.info(f"Filtered inventory: {len(filtered_items)} items")
         except Exception as e:

@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
     QFormLayout, QDoubleSpinBox, QProgressBar, QHeaderView, QMenu, QApplication,
     QFileDialog
 )
-from PySide6.QtCore import Qt, QDate, QTimer, Signal
+from PySide6.QtCore import Qt, QDate, QTimer, Signal, QLocale
 from PySide6.QtGui import QAction, QKeySequence
 from services.sale_service import SaleService
 from services.customer_service import CustomerService
@@ -41,21 +41,21 @@ class SaleItemDialog(QDialog):
         layout.addRow("Product:", self.product_combo)
 
         self.quantity_input = QDoubleSpinBox()
-        self.quantity_input.setMinimum(0.01)
-        self.quantity_input.setMaximum(1000000.00)
-        self.quantity_input.setDecimals(2)
+        self.quantity_input.setMinimum(0.001)
+        self.quantity_input.setMaximum(1000000.000)
+        self.quantity_input.setDecimals(3)
         self.quantity_input.setValue(1.00)
         self.quantity_input.valueChanged.connect(self.update_total)
         layout.addRow("Quantity:", self.quantity_input)
 
         self.price_input = QDoubleSpinBox()
-        self.price_input.setMinimum(0.01)
-        self.price_input.setMaximum(1000000.00)
-        self.price_input.setDecimals(2)
+        self.price_input.setMinimum(1)
+        self.price_input.setMaximum(1000000)
+        self.price_input.setDecimals(0)
         self.price_input.valueChanged.connect(self.update_total)
         layout.addRow("Sell Price:", self.price_input)
 
-        self.total_label = QLabel("0.00")
+        self.total_label = QLabel("0")
         layout.addRow("Total:", self.total_label)
 
         self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -75,7 +75,8 @@ class SaleItemDialog(QDialog):
 
     def update_total(self):
         total = self.quantity_input.value() * self.price_input.value()
-        self.total_label.setText(f"{total:.2f}")
+        self.total_label.setText(f"{total:,.0f}".replace(',', '.'))
+
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(ValidationException, show_dialog=True)

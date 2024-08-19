@@ -1,9 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Any
 from models.category import Category
-from utils.exceptions import ValidationException
-#from utils.decorators import validate_input
-
 
 @dataclass
 class Product:
@@ -51,24 +48,3 @@ class Product:
             "sell_price": self.sell_price,
         }
 
-    @staticmethod
-    #@validate_input(show_dialog=True)
-    def validate_name(name: str) -> None:
-        if not name or len(name.strip()) == 0:
-            raise ValidationException("Product name cannot be empty")
-        if len(name) > 100:
-            raise ValidationException("Product name cannot exceed 100 characters")
-
-    @staticmethod
-    #@validate_input(show_dialog=True)
-    def validate_description(description: Optional[str]) -> None:
-        if description and len(description) > 500:
-            raise ValidationException(
-                "Product description cannot exceed 500 characters"
-            )
-
-    @staticmethod
-    #@validate_input(show_dialog=True)
-    def validate_price(price: Optional[int]) -> None:
-        if price is not None and price < 0:
-            raise ValidationException("Price cannot be negative")

@@ -267,7 +267,7 @@ class ProductView(QWidget):
         if dialog.exec():
             product_data = dialog.product_data
             try:
-                product_id = self.product_service.create_product(**product_data)
+                product_id = self.product_service.create_product(product_data)
                 if product_id is not None:
                     self.load_products()
                     show_info_message("Success", "Product added successfully.")

@@ -89,7 +89,7 @@ class AnalyticsService:
         end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
         query = """
-            SELECT date, SUM(total_amount) as daily_sales
+            SELECT date, CAST(ROUND(SUM(total_amount), 0) AS INTEGER) as daily_sales
             FROM sales
             WHERE date BETWEEN ? AND ?
             GROUP BY date

@@ -206,7 +206,7 @@ class AnalyticsView(QWidget):
             total_quantity = sum(p["total_quantity"] for p in top_products)
             total_revenue = sum(p["total_revenue"] for p in top_products)
             self.summary_text.setText(
-                f"Total quantity sold: {total_quantity}, Total revenue: ${total_revenue:.2f}"
+                f"Total quantity sold: {total_quantity}, Total revenue: ${total_revenue:.0f}"
             )
             logger.info(f"Displayed top selling products analysis: {len(top_products)} products")
         except Exception as e:
@@ -229,7 +229,7 @@ class AnalyticsView(QWidget):
             total_sales = sum(day["daily_sales"] for day in sales_trend)
             avg_daily_sales = total_sales / len(sales_trend) if sales_trend else 0
             self.summary_text.setText(
-                f"Total sales: ${total_sales:.2f}, Average daily sales: ${avg_daily_sales:.2f}"
+                f"Total sales: ${total_sales}, Average daily sales: ${avg_daily_sales:.0f}"
             )
             logger.info(f"Displayed sales trend analysis: {len(sales_trend)} days")
         except Exception as e:
@@ -251,7 +251,7 @@ class AnalyticsView(QWidget):
             total_sales = sum(c["total_sales"] for c in category_performance)
             total_products_sold = sum(c["number_of_products_sold"] for c in category_performance)
             self.summary_text.setText(
-                f"Total sales: ${total_sales:.2f}, Total products sold: {total_products_sold}"
+                f"Total sales: ${total_sales:.0f}, Total products sold: {total_products_sold}"
             )
             logger.info(f"Displayed category performance analysis: {len(category_performance)} categories")
         except Exception as e:

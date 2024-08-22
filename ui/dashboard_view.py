@@ -103,20 +103,20 @@ class DashboardView(QWidget):
     def setup_update_timer(self):
         self.update_timer = QTimer(self)
         self.update_timer.timeout.connect(self.update_dashboard)
-        self.update_timer.start(300000)  # Update every 5 minutes
+        self.update_timer.start(600000)  # Update every 10 minutes
 
     @ui_operation()
     def get_total_sales(self) -> str:
-        return f"${self.sale_service.get_total_sales(self.start_date.strftime('%Y-%m-%d'), self.end_date.strftime('%Y-%m-%d')):,.2f}"
+        return f"${self.sale_service.get_total_sales(self.start_date.strftime('%Y-%m-%d'), self.end_date.strftime('%Y-%m-%d')):,.0f}".replace(',', '.')
 
     @ui_operation()
     def get_total_purchases(self) -> str:
         purchases = self.purchase_service.get_purchase_stats(self.start_date.strftime("%Y-%m-%d"), self.end_date.strftime("%Y-%m-%d"))
-        return f"${purchases['total_amount']:,.2f}"
+        return f"${purchases['total_amount']:,.0f}".replace(',', '.')
 
     @ui_operation()
     def get_inventory_value(self) -> str:
-        return f"${self.inventory_service.get_inventory_value():,.2f}"
+        return f"${self.inventory_service.get_inventory_value():,.0f}".replace(',', '.')
 
     @ui_operation()
     def get_total_customers(self) -> str:

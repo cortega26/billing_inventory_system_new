@@ -223,12 +223,12 @@ class SaleService:
         for item in items:
             c.drawString(50, y, item.product_name or f"Product ID: {item.product_id}")
             c.drawString(250, y, str(item.quantity))
-            c.drawString(350, y, f"${item.unit_price:.2f}")
-            c.drawString(450, y, f"${item.total_price():.2f}")
+            c.drawString(350, y, f"${item.unit_price:.0f}".replace(',', '.'))
+            c.drawString(450, y, f"${item.total_price():.0f}".replace(',', '.'))
             y -= 20
 
         c.drawString(350, y - 20, "Total:")
-        c.drawString(450, y - 20, f"${sale.total_amount:.2f}")
+        c.drawString(450, y - 20, f"${sale.total_amount:.0f}".replace(',', '.'))
 
         c.save()
         logger.info("Receipt saved as PDF", extra={"sale_id": sale_id, "filepath": filepath})

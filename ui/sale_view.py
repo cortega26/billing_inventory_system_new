@@ -305,20 +305,19 @@ class SaleView(QWidget):
             receipt_id = sale.receipt_id or self.sale_service.generate_receipt(sale.id)
 
             message = f"<pre>"
-            message += f"{'Receipt #' + receipt_id:^64}\n\n"
-            message += f"{' Sale Details ':=^64}\n\n"
-            message += f"Customer: {customer_text}\n"
-            message += f"Date: {sale.date.strftime('%d-%m-%Y')}\n"
+            message += f"{'Recibo #' + receipt_id:^64}\n\n"
+            message += f"{' Detalles de venta ':=^64}\n\n"
+            message += f"Cliente: {customer_text}\n"
+            message += f"Fecha: {sale.date.strftime('%d-%m-%Y')}\n"
             message += f"{'':=^64}\n\n"
-            message += f"{'Product':<30}{'Quantity':>10}{'P.Unitario':>12}{'Subtotal':>12}\n"
+            message += f"{'Producto':<30}{'Cantidad':>10}{'P.Unitario':>12}{'Subtotal':>12}\n"
             message += f"{'':-^64}\n"
             for item in items:
                 product = self.product_service.get_product(item.product_id)
                 product_name = product.name if product else "Unknown Product"
                 message += f"{product_name[:30]:<30}{item.quantity:>10.2f}{format_price(item.unit_price):>12}{format_price(item.total_price()):>12}\n"
             message += f"{'':-^64}\n"
-            message += f"{'Total amount:':<45}{format_price(sale.total_amount):>19}\n"
-            message += f"{'Total profit:':<45}{format_price(sale.total_profit):>19}\n"
+            message += f"{'Total:':<45}{format_price(sale.total_amount):>19}\n"
             message += "</pre>"
 
             show_info_message("Sale Details", message)

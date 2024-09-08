@@ -146,8 +146,8 @@ class PurchaseService:
         result = DatabaseManager.fetch_one(query, (start_date, end_date))
         stats = {
             "total_purchases": result["total_purchases"] if result else 0,
-            "total_amount": float(result["total_amount"]) if result and result["total_amount"] else 0.0,
-            "average_purchase_amount": float(result["average_purchase_amount"]) if result and result["average_purchase_amount"] else 0.0,
+            "total_amount": int(result["total_amount"]) if result and result["total_amount"] else 0,
+            "average_purchase_amount": int(result["average_purchase_amount"]) if result and result["average_purchase_amount"] else 0,
             "unique_suppliers": result["unique_suppliers"] if result else 0,
         }
         logger.info("Purchase stats retrieved", extra={"start_date": start_date, "end_date": end_date, "stats": stats})
@@ -172,7 +172,7 @@ class PurchaseService:
     @staticmethod
     @db_operation(show_dialog=True)
     def _insert_purchase(
-        supplier: str, date: str, total_amount: float
+        supplier: str, date: str, total_amount: int
     ) -> Optional[int]:
         query = "INSERT INTO purchases (supplier, date, total_amount) VALUES (?, ?, ?)"
         cursor = DatabaseManager.execute_query(query, (supplier, date, total_amount))
@@ -209,7 +209,7 @@ class PurchaseService:
     @staticmethod
     @db_operation(show_dialog=True)
     def _update_purchase(
-        purchase_id: int, supplier: str, date: str, total_amount: float
+        purchase_id: int, supplier: str, date: str, total_amount: int
     ) -> None:
         query = "UPDATE purchases SET supplier = ?, date = ?, total_amount = ? WHERE id = ?"
         DatabaseManager.execute_query(

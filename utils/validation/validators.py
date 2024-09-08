@@ -78,8 +78,15 @@ def validate_numeric(value: Any, min_value: Optional[float] = None, max_value: O
     return int(result) if is_integer else result
 
 def validate_integer(value: Any, min_value: Optional[int] = None, max_value: Optional[int] = None) -> int:
-    result = validate_numeric(value, min_value, max_value, is_integer=True)
-    return int(result)
+    try:
+        int_value = int(value)
+        if min_value is not None and int_value < min_value:
+            raise ValidationException(f"Value must be greater than or equal to {min_value}")
+        if max_value is not None and int_value > max_value:
+            raise ValidationException(f"Value must be less than or equal to {max_value}")
+        return int_value
+    except ValueError:
+        raise ValidationException(f"Invalid integer value: {value}")
 
 def validate_float(value: Any, min_value: Optional[float] = None, max_value: Optional[float] = None) -> float:
     try:

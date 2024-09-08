@@ -80,7 +80,7 @@ class DashboardView(QWidget):
         # Top row with key metrics
         metrics_layout = QHBoxLayout()
         metrics_layout.addWidget(MetricWidget("Total Sales", self.get_total_sales))
-        metrics_layout.addWidget(MetricWidget("Total Purchases", self.get_total_purchases))
+        metrics_layout.addWidget(MetricWidget("Total Profits", self.get_total_profits))
         metrics_layout.addWidget(MetricWidget("Inventory Value", self.get_inventory_value))
         metrics_layout.addWidget(MetricWidget("Total Customers", self.get_total_customers))
         layout.addLayout(metrics_layout)
@@ -110,9 +110,8 @@ class DashboardView(QWidget):
         return f"${self.sale_service.get_total_sales(self.start_date.strftime('%Y-%m-%d'), self.end_date.strftime('%Y-%m-%d')):,.0f}".replace(',', '.')
 
     @ui_operation()
-    def get_total_purchases(self) -> str:
-        purchases = self.purchase_service.get_purchase_stats(self.start_date.strftime("%Y-%m-%d"), self.end_date.strftime("%Y-%m-%d"))
-        return f"${purchases['total_amount']:,.0f}".replace(',', '.')
+    def get_total_profits(self) -> str:
+        return f"${self.sale_service.get_total_profits(self.start_date.strftime('%Y-%m-%d'), self.end_date.strftime('%Y-%m-%d')):,.0f}".replace(',', '.')
 
     @ui_operation()
     def get_inventory_value(self) -> str:
@@ -129,16 +128,15 @@ class DashboardView(QWidget):
 
         series = QPieSeries()
 
-        top_products = self.sale_service.get_top_selling_products(
+        sales_distribution = self.sale_service.get_sales_distribution_by_category(
             self.start_date.strftime("%Y-%m-%d"),
-            self.end_date.strftime("%Y-%m-%d"),
-            limit=5
+            self.end_date.strftime("%Y-%m-%d")
         )
 
         colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8"]
 
-        for i, product in enumerate(top_products):
-            slice = series.append(product["name"], product["total_revenue"])
+        for i, category in enumerate(sales_distribution[:5]):  # Limit to top 5 categories
+            slice = series.append(category["category_name"], category["total_revenue"])
             slice.setBrush(QColor(colors[i % len(colors)]))
 
         chart.addSeries(series)

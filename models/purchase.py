@@ -2,16 +2,18 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any
 from datetime import datetime
 from utils.exceptions import ValidationException
-#from utils.decorators import validate_input
-
 
 @dataclass
 class PurchaseItem:
     id: int
     purchase_id: int
     product_id: int
-    quantity: int
-    price: float
+    quantity: float
+    price: int
+
+    def __post_init__(self):
+        self.validate_quantity(self.quantity)
+        self.validate_price(self.price)
 
     @classmethod
     def from_db_row(cls, row: Dict[str, Any]) -> "PurchaseItem":
@@ -19,9 +21,19 @@ class PurchaseItem:
             id=row["id"],
             purchase_id=row["purchase_id"],
             product_id=row["product_id"],
-            quantity=row["quantity"],
-            price=float(row["price"]),
+            quantity=float(row["quantity"]),
+            price=int(row["price"]),
         )
+
+    @staticmethod
+    def validate_quantity(quantity: float) -> None:
+        if quantity <= 0:
+            raise ValidationException("Quantity must be positive")
+
+    @staticmethod
+    def validate_price(price: float) -> None:
+        if price < 0:
+            raise ValidationException("Price cannot be negative")
 
     def total_price(self) -> float:
         return round(self.quantity * self.price, 2)
@@ -36,7 +48,6 @@ class PurchaseItem:
             "total_price": self.total_price(),
         }
 
-
 @dataclass
 class Purchase:
     id: int
@@ -46,6 +57,8 @@ class Purchase:
     _total_amount: float = field(init=False, default=0)
 
     def __post_init__(self):
+        self.validate_supplier(self.supplier)
+        self.validate_date(self.date)
         self.recalculate_total()
 
     @classmethod
@@ -56,21 +69,29 @@ class Purchase:
             date=datetime.fromisoformat(row["date"]),
         )
 
-    #@validate_input(show_dialog=True)
+    @staticmethod
+    def validate_supplier(supplier: str) -> None:
+        if not supplier or len(supplier.strip()) == 0:
+            raise ValidationException("Supplier name cannot be empty")
+        if len(supplier) > 100:
+            raise ValidationException("Supplier name cannot exceed 100 characters")
+
+    @staticmethod
+    def validate_date(date: datetime) -> None:
+        if date > datetime.now():
+            raise ValidationException("Purchase date cannot be in the future")
+
     def add_item(self, item: PurchaseItem) -> None:
         self.items.append(item)
         self._total_amount += item.total_price()
 
-    #@validate_input(show_dialog=True)
     def remove_item(self, item_id: int) -> None:
         item = next((item for item in self.items if item.id == item_id), None)
         if item:
             self.items.remove(item)
             self._total_amount -= item.total_price()
         else:
-            raise ValidationException(
-                f"Item with id {item_id} not found in the purchase"
-            )
+            raise ValidationException(f"Item with id {item_id} not found in the purchase")
 
     def recalculate_total(self) -> None:
         self._total_amount = sum(item.total_price() for item in self.items)
@@ -78,6 +99,14 @@ class Purchase:
     @property
     def total_amount(self) -> float:
         return round(self._total_amount, 2)
+
+    def update_supplier(self, new_supplier: str) -> None:
+        self.validate_supplier(new_supplier)
+        self.supplier = new_supplier
+
+    def update_date(self, new_date: datetime) -> None:
+        self.validate_date(new_date)
+        self.date = new_date
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -90,17 +119,3 @@ class Purchase:
 
     def __str__(self) -> str:
         return f"Purchase(id={self.id}, supplier='{self.supplier}', date='{self.date.isoformat()}', total_amount={self.total_amount:.2f})"
-
-    @staticmethod
-    #@validate_input(show_dialog=True)
-    def validate_supplier(supplier: str) -> None:
-        if not supplier or len(supplier.strip()) == 0:
-            raise ValidationException("Supplier name cannot be empty")
-        if len(supplier) > 100:
-            raise ValidationException("Supplier name cannot exceed 100 characters")
-
-    @staticmethod
-    #@validate_input(show_dialog=True)
-    def validate_date(date: datetime) -> None:
-        if date > datetime.now():
-            raise ValidationException("Purchase date cannot be in the future")

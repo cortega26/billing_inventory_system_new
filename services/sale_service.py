@@ -2,6 +2,8 @@ from typing import List, Dict, Any, Optional
 from database import DatabaseManager
 from models.sale import Sale, SaleItem
 from services.inventory_service import InventoryService
+from services.customer_service import CustomerService
+from services.product_service import ProductService
 from utils.validation.validators import validate_integer, validate_string, validate_date, validate_float_non_negative
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import ValidationException, DatabaseException, NotFoundException
@@ -15,19 +17,60 @@ from reportlab.lib.pagesizes import letter
 class SaleService:
     def __init__(self):
         self.inventory_service = InventoryService()
+        self.customer_service = CustomerService()
+        self.product_service = ProductService()
+
+    @staticmethod
+    @db_operation(show_dialog=True)
+    def diagnose_sales_data():
+        query = "SELECT * FROM sales"
+        rows = DatabaseManager.fetch_all(query)
+        for row in rows:
+            print(f"Sale ID: {row['id']}")
+            print(f"  customer_id: {row['customer_id']}")
+            print(f"  date: {row['date']}")
+            print(f"  total_amount: {row['total_amount']}")
+            print(f"  total_profit: {row['total_profit']}")
+            print(f"  receipt_id: {row['receipt_id']}")
+            print("---")
+
+        query = "SELECT * FROM sale_items"
+        rows = DatabaseManager.fetch_all(query)
+        for row in rows:
+            print(f"Sale Item ID: {row['id']}")
+            print(f"  sale_id: {row['sale_id']}")
+            print(f"  product_id: {row['product_id']}")
+            print(f"  quantity: {row['quantity']}")
+            print(f"  price: {row['price']}")
+            print(f"  profit: {row['profit']}")
+            print("---")
 
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def create_sale(self, customer_id: int, date: str, items: List[Dict[str, Any]]) -> Optional[int]:
         date = validate_date(date)
         self._validate_sale_items(items)
-        total_amount = sum(item["quantity"] * item["sell_price"] for item in items)
+        total_amount = 0
+        total_profit = 0
+        
+        for item in items:
+            product = self.product_service.get_product(item["product_id"])
+            if product is None:
+                raise ValidationException(f"Product with ID {item['product_id']} not found")
+            if product.cost_price is None:
+                raise ValidationException(f"Cost price not set for product '{product.name}'")
+            if product.sell_price is None:
+                raise ValidationException(f"Sell price not set for product '{product.name}'")
+            
+            item["profit"] = int((item["sell_price"] - product.cost_price) * item["quantity"])
+            total_amount += int(item["sell_price"] * item["quantity"])
+            total_profit += item["profit"]
 
         receipt_id = self.generate_receipt_id(datetime.fromisoformat(date))
 
-        query = "INSERT INTO sales (customer_id, date, total_amount, receipt_id) VALUES (?, ?, ?, ?)"
+        query = "INSERT INTO sales (customer_id, date, total_amount, total_profit, receipt_id) VALUES (?, ?, ?, ?, ?)"
         try:
-            cursor = DatabaseManager.execute_query(query, (customer_id, date, total_amount, receipt_id))
+            cursor = DatabaseManager.execute_query(query, (customer_id, date, total_amount, total_profit, receipt_id))
             sale_id = cursor.lastrowid
 
             if sale_id is None:
@@ -36,7 +79,7 @@ class SaleService:
             self._insert_sale_items(sale_id, items)
             self._update_inventory(items)
 
-            logger.info("Sale created", extra={"sale_id": sale_id, "customer_id": customer_id, "total_amount": total_amount})
+            logger.info("Sale created", extra={"sale_id": sale_id, "customer_id": customer_id, "total_amount": total_amount, "total_profit": total_profit})
             event_system.sale_added.emit(sale_id)
             self.clear_cache()
             return sale_id
@@ -69,12 +112,24 @@ class SaleService:
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
     def get_all_sales() -> List[Sale]:
-        query = "SELECT * FROM sales ORDER BY date DESC"
+        query = """
+        SELECT s.*, 
+               COALESCE(s.total_amount, 0) as total_amount,
+               COALESCE(s.total_profit, 0) as total_profit
+        FROM sales s
+        ORDER BY s.date DESC
+        """
         rows = DatabaseManager.fetch_all(query)
-        sales = [Sale.from_db_row(row) for row in rows]
-        for sale in sales:
-            sale.items = SaleService.get_sale_items(sale.id)
-        logger.info("All sales retrieved", extra={"count": len(sales)})
+        sales = []
+        for row in rows:
+            try:
+                sale = Sale.from_db_row(row)
+                sale.items = SaleService.get_sale_items(sale.id)
+                sales.append(sale)
+            except Exception as e:
+                logger.error(f"Error processing sale {row.get('id', 'Unknown')}: {str(e)}")
+                # Optionally, you can choose to skip this sale or handle it differently
+        logger.info(f"All sales retrieved: {len(sales)}")
         return sales
 
     @staticmethod
@@ -82,7 +137,14 @@ class SaleService:
     @handle_exceptions(DatabaseException, show_dialog=True)
     def get_sale_items(sale_id: int) -> List[SaleItem]:
         sale_id = validate_integer(sale_id, min_value=1)
-        query = "SELECT * FROM sale_items WHERE sale_id = ?"
+        query = """
+        SELECT si.*,
+               COALESCE(si.quantity, 0) as quantity,
+               COALESCE(si.price, 0) as price,
+               COALESCE(si.profit, 0) as profit
+        FROM sale_items si
+        WHERE si.sale_id = ?
+        """
         rows = DatabaseManager.fetch_all(query, (sale_id,))
         return [SaleItem.from_db_row(row) for row in rows]
 
@@ -124,20 +186,33 @@ class SaleService:
 
         self._revert_inventory(old_items)
 
-        total_amount = sum(item["sell_price"] * item["quantity"] for item in items)
+        total_amount = 0
+        total_profit = 0
+        for item in items:
+            product = self.product_service.get_product(item["product_id"])
+            if product is None:
+                raise ValidationException(f"Product with ID {item['product_id']} not found")
+            if product.cost_price is None:
+                raise ValidationException(f"Cost price not set for product '{product.name}'")
+            if product.sell_price is None:
+                raise ValidationException(f"Sell price not set for product '{product.name}'")
+            
+            item["profit"] = int((item["sell_price"] - product.cost_price) * item["quantity"])
+            total_amount += int(item["sell_price"] * item["quantity"])
+            total_profit += item["profit"]
 
-        self._update_sale(sale_id, customer_id, date, total_amount)
+        self._update_sale(sale_id, customer_id, date, total_amount, total_profit)
         self._update_sale_items(sale_id, items)
         self._update_inventory(items)
 
-        logger.info("Sale updated", extra={"sale_id": sale_id, "customer_id": customer_id, "total_amount": total_amount})
+        logger.info("Sale updated", extra={"sale_id": sale_id, "customer_id": customer_id, "total_amount": total_amount, "total_profit": total_profit})
         event_system.sale_updated.emit(sale_id)
         self.clear_cache()
 
     @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_total_sales(start_date: str, end_date: str) -> float:
+    def get_total_sales(start_date: str, end_date: str) -> int:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         query = """
@@ -146,9 +221,25 @@ class SaleService:
             WHERE date BETWEEN ? AND ?
         """
         result = DatabaseManager.fetch_one(query, (start_date, end_date))
-        total_sales = float(result["total"] if result else 0)
+        total_sales = int(result["total"] if result else 0)
         logger.info("Total sales retrieved", extra={"start_date": start_date, "end_date": end_date, "total_sales": total_sales})
         return total_sales
+
+    @staticmethod
+    @db_operation(show_dialog=True)
+    @handle_exceptions(DatabaseException, show_dialog=True)
+    def get_total_profits(start_date: str, end_date: str) -> int:
+        start_date = validate_date(start_date)
+        end_date = validate_date(end_date)
+        query = """
+            SELECT COALESCE(SUM(total_profit), 0) as total
+            FROM sales
+            WHERE date BETWEEN ? AND ?
+        """
+        result = DatabaseManager.fetch_one(query, (start_date, end_date))
+        total_profits = int(result["total"] if result else 0)
+        logger.info("Total profits retrieved", extra={"start_date": start_date, "end_date": end_date, "total_profits": total_profits})
+        return total_profits
 
     @staticmethod
     def generate_receipt_id(sale_date: datetime) -> str:
@@ -223,12 +314,15 @@ class SaleService:
         for item in items:
             c.drawString(50, y, item.product_name or f"Product ID: {item.product_id}")
             c.drawString(250, y, str(item.quantity))
-            c.drawString(350, y, f"${item.unit_price:.0f}".replace(',', '.'))
-            c.drawString(450, y, f"${item.total_price():.0f}".replace(',', '.'))
+            c.drawString(350, y, f"${item.unit_price:,}".replace(',', '.'))
+            c.drawString(450, y, f"${item.total_price():,}".replace(',', '.'))
             y -= 20
 
         c.drawString(350, y - 20, "Total:")
-        c.drawString(450, y - 20, f"${sale.total_amount:.0f}".replace(',', '.'))
+        c.drawString(450, y - 20, f"${sale.total_amount:,}".replace(',', '.'))
+
+        c.drawString(350, y - 40, "Profit:")
+        c.drawString(450, y - 40, f"${sale.total_profit:,}".replace(',', '.'))
 
         c.save()
         logger.info("Receipt saved as PDF", extra={"sale_id": sale_id, "filepath": filepath})
@@ -249,22 +343,30 @@ class SaleService:
         if not items:
             raise ValidationException("Sale must have at least one item")
         for item in items:
+            product = self.product_service.get_product(item["product_id"])
+            if product is None:
+                raise ValidationException(f"Product with ID {item['product_id']} not found")
+            if product.cost_price is None:
+                raise ValidationException(f"Cost price not set for product '{product.name}'")
+            if product.sell_price is None:
+                raise ValidationException(f"Sell price not set for product '{product.name}'")
+            
             quantity = validate_float_non_negative(item["quantity"])
-            sell_price = validate_float_non_negative(item["sell_price"])
+            sell_price = validate_integer(item["sell_price"], min_value=1)
             if quantity <= 0 or sell_price <= 0:
-                raise ValidationException("Item quantity and sell price must be positive")
+                raise ValidationException("Item quantity must be positive and sell price must be a positive integer")
 
     @staticmethod
     @db_operation(show_dialog=True)
     def _insert_sale_items(sale_id: int, items: List[Dict[str, Any]]) -> None:
         for item in items:
             query = """
-                INSERT INTO sale_items (sale_id, product_id, quantity, price)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO sale_items (sale_id, product_id, quantity, price, profit)
+                VALUES (?, ?, ?, ?, ?)
             """
             DatabaseManager.execute_query(
                 query,
-                (sale_id, item["product_id"], item["quantity"], item["sell_price"]),
+                (sale_id, item["product_id"], item["quantity"], item["sell_price"], item["profit"]),
             )
 
     def _update_inventory(self, items: List[Dict[str, Any]]) -> None:
@@ -280,9 +382,9 @@ class SaleService:
 
     @staticmethod
     @db_operation(show_dialog=True)
-    def _update_sale(sale_id: int, customer_id: int, date: str, total_amount: float) -> None:
-        query = "UPDATE sales SET customer_id = ?, date = ?, total_amount = ? WHERE id = ?"
-        DatabaseManager.execute_query(query, (customer_id, date, total_amount, sale_id))
+    def _update_sale(sale_id: int, customer_id: int, date: str, total_amount: int, total_profit: int) -> None:
+        query = "UPDATE sales SET customer_id = ?, date = ?, total_amount = ?, total_profit = ? WHERE id = ?"
+        DatabaseManager.execute_query(query, (customer_id, date, total_amount, total_profit, sale_id))
 
     @staticmethod
     @db_operation(show_dialog=True)
@@ -315,7 +417,7 @@ class SaleService:
     @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_total_sales_by_customer(customer_id: int) -> float:
+    def get_total_sales_by_customer(customer_id: int) -> int:
         customer_id = validate_integer(customer_id, min_value=1)
         query = """
             SELECT COALESCE(SUM(total_amount), 0) as total
@@ -323,7 +425,7 @@ class SaleService:
             WHERE customer_id = ?
         """
         result = DatabaseManager.fetch_one(query, (customer_id,))
-        total_sales = float(result["total"] if result else 0)
+        total_sales = int(result["total"] if result else 0)
         logger.info("Total sales by customer retrieved", extra={"customer_id": customer_id, "total_sales": total_sales})
         return total_sales
 
@@ -352,7 +454,8 @@ class SaleService:
             SELECT 
                 COUNT(*) as total_sales,
                 COALESCE(SUM(total_amount), 0) as total_revenue,
-                COALESCE(AVG(total_amount), 0) as average_sale_amount
+                COALESCE(AVG(total_amount), 0) as average_sale_amount,
+                COALESCE(SUM(total_profit), 0) as total_profit
             FROM sales
             WHERE date = ?
         """
@@ -361,13 +464,15 @@ class SaleService:
             "date": date,
             "total_sales": 0,
             "total_revenue": 0,
-            "average_sale_amount": 0
+            "average_sale_amount": 0,
+            "total_profit": 0
         }
         if result:
             report.update({
                 "total_sales": result.get("total_sales", 0),
-                "total_revenue": result.get("total_revenue", 0),
-                "average_sale_amount": result.get("average_sale_amount", 0)
+                "total_revenue": int(result.get("total_revenue", 0)),
+                "average_sale_amount": int(result.get("average_sale_amount", 0)),
+                "total_profit": int(result.get("total_profit", 0))
             })
         logger.info("Daily sales report generated", extra={"date": date, "report": report})
         return report
@@ -379,14 +484,14 @@ class SaleService:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         query = """
-            SELECT s.date, si.quantity, si.price
+            SELECT s.date, si.quantity, si.price, si.profit
             FROM sale_items si
             JOIN sales s ON si.sale_id = s.id
             WHERE si.product_id = ? AND s.date BETWEEN ? AND ?
             ORDER BY s.date
         """
         rows = DatabaseManager.fetch_all(query, (product_id, start_date, end_date))
-        sales = [{"date": row["date"], "quantity": row["quantity"], "price": row["price"]} for row in rows]
+        sales = [{"date": row["date"], "quantity": row["quantity"], "price": row["price"], "profit": row["profit"]} for row in rows]
         logger.info("Sales by product retrieved", extra={"product_id": product_id, "start_date": start_date, "end_date": end_date, "count": len(sales)})
         return sales
 
@@ -399,7 +504,8 @@ class SaleService:
             SELECT 
                 c.name as category_name,
                 COUNT(DISTINCT s.id) as sale_count,
-                SUM(si.quantity * si.price) as total_revenue
+                SUM(si.quantity * si.price) as total_revenue,
+                SUM(si.profit) as total_profit
             FROM sales s
             JOIN sale_items si ON s.id = si.sale_id
             JOIN products p ON si.product_id = p.id
@@ -409,8 +515,11 @@ class SaleService:
             ORDER BY total_revenue DESC
         """
         rows = DatabaseManager.fetch_all(query, (start_date, end_date))
-        distribution = [{"category_name": row["category_name"] or "Uncategorized", 
-                         "sale_count": row["sale_count"], 
-                         "total_revenue": row["total_revenue"]} for row in rows]
+        distribution = [{
+            "category_name": row["category_name"] or "Uncategorized", 
+            "sale_count": row["sale_count"], 
+            "total_revenue": int(row["total_revenue"]),
+            "total_profit": int(row["total_profit"])
+        } for row in rows]
         logger.info("Sales distribution by category retrieved", extra={"start_date": start_date, "end_date": end_date, "count": len(distribution)})
         return distribution

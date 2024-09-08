@@ -171,7 +171,7 @@ class CustomerService:
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_customer_stats(self, customer_id: int) -> Tuple[int, float]:
+    def get_customer_stats(self, customer_id: int) -> Tuple[int, int]:
         customer_id = validate_integer(customer_id, min_value=1)
         query = """
             SELECT COUNT(*) as total_purchases, COALESCE(SUM(total_amount), 0) as total_amount

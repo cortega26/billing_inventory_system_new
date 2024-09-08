@@ -1,7 +1,7 @@
 from typing import List, Optional, Dict, Any
 from database import DatabaseManager
 from models.product import Product
-from utils.validation.validators import validate_string, validate_float, validate_integer
+from utils.validation.validators import validate_string, validate_integer
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import NotFoundException, ValidationException, DatabaseException
 from utils.system.logger import logger
@@ -125,7 +125,7 @@ class ProductService:
 
     @db_operation(show_dialog=True)
     @handle_exceptions(NotFoundException, DatabaseException, show_dialog=True)
-    def get_product_profit_margin(self, product_id: int) -> float:
+    def get_product_profit_margin(self, product_id: int) -> int:
         try:
             product = self.get_product(product_id)
             if product is None:
@@ -134,16 +134,15 @@ class ProductService:
             
             if product.cost_price is None or product.sell_price is None:
                 logger.info(f"Unable to calculate profit margin for product {product_id}: cost_price or sell_price is None")
-                return 0.0
+                return 0
             
             if product.sell_price == 0:
                 logger.warning(f"Sell price is zero for product {product_id}, unable to calculate profit margin")
-                return 0.0
+                return 0
             
-            profit_margin = (product.sell_price - product.cost_price) / product.sell_price * 100
-            rounded_margin = round(profit_margin, 2)
-            logger.info(f"Calculated profit margin for product {product_id}: {rounded_margin}%")
-            return rounded_margin
+            profit_margin = int((product.sell_price - product.cost_price) / product.sell_price * 100)
+            logger.info(f"Calculated profit margin for product {product_id}: {profit_margin}%")
+            return profit_margin
         except Exception as e:
             logger.error(f"Error calculating profit margin for product {product_id}: {str(e)}")
             raise
@@ -157,16 +156,18 @@ class ProductService:
         if 'name' in data or is_create:
             validated['name'] = validate_string(data.get('name', ''), min_length=1, max_length=100)
         if 'description' in data:
-            validated['description'] = validate_string(data.get('description', ''), min_length=1, max_length=500)
+            validated['description'] = validate_string(data.get('description', ''), min_length=0, max_length=500)
         if 'category_id' in data:
             category_id = data.get('category_id')
             validated['category_id'] = validate_integer(category_id, min_value=1) if category_id is not None else None
         if 'cost_price' in data:
             cost_price = data.get('cost_price')
-            validated['cost_price'] = validate_float(cost_price, min_value=0) if cost_price is not None else None
+            if cost_price is not None:
+                validated['cost_price'] = validate_integer(cost_price, min_value=0)
         if 'sell_price' in data:
             sell_price = data.get('sell_price')
-            validated['sell_price'] = validate_float(sell_price, min_value=0) if sell_price is not None else None
+            if sell_price is not None:
+                validated['sell_price'] = validate_integer(sell_price, min_value=0)
         
         if is_create and 'name' not in validated:
             raise ValidationException("Product name is required when creating a product")

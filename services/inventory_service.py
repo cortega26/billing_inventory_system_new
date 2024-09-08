@@ -107,14 +107,14 @@ class InventoryService:
     @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_inventory_value() -> float:
+    def get_inventory_value() -> int:
         query = """
             SELECT SUM(i.quantity * COALESCE(p.cost_price, 0)) as total_value
             FROM inventory i
             JOIN products p ON i.product_id = p.id
         """
         result = DatabaseManager.fetch_one(query)
-        total_value = float(result["total_value"] if result and result["total_value"] is not None else 0)
+        total_value = int(result["total_value"] if result and result["total_value"] is not None else 0)
         logger.info("Total inventory value calculated", extra={"total_value": total_value})
         return total_value
 

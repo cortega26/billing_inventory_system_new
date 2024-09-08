@@ -6,6 +6,7 @@ from utils.sanitizers import sanitize_html, sanitize_sql
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import ValidationException, NotFoundException, DatabaseException
 from utils.system.logger import logger
+from utils.system.event_system import event_system
 from functools import lru_cache
 
 class CategoryService:
@@ -63,6 +64,7 @@ class CategoryService:
             DatabaseManager.execute_query(query, (name, category_id))
             CategoryService.clear_cache()
             logger.info("Category updated", extra={"category_id": category_id, "new_name": name})
+            event_system.category_updated.emit(category_id)
         except Exception as e:
             logger.error("Failed to update category", extra={"error": str(e), "category_id": category_id})
             raise DatabaseException(f"Failed to update category: {str(e)}")
@@ -77,6 +79,7 @@ class CategoryService:
             DatabaseManager.execute_query(query, (category_id,))
             CategoryService.clear_cache()
             logger.info("Category deleted", extra={"category_id": category_id})
+            event_system.category_deleted.emit(category_id)
         except Exception as e:
             logger.error("Failed to delete category", extra={"error": str(e), "category_id": category_id})
             raise DatabaseException(f"Failed to delete category: {str(e)}")

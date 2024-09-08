@@ -173,7 +173,7 @@ class AnalyticsService:
                 (SUM(si.quantity * si.price) - SUM(si.quantity * p.cost_price)) as profit,
                 CASE 
                     WHEN SUM(si.quantity * si.price) > 0 
-                    THEN ((SUM(si.quantity * si.price) - SUM(si.quantity * p.cost_price)) / SUM(si.quantity * si.price)) * 100
+                    THEN CAST(((SUM(si.quantity * si.price) - SUM(si.quantity * p.cost_price)) * 100 / SUM(si.quantity * si.price)) AS INTEGER)
                     ELSE 0 
                 END as profit_margin
             FROM products p
@@ -215,7 +215,7 @@ class AnalyticsService:
             COUNT(DISTINCT rc.customer_id) as returning_customers,
             CASE 
                 WHEN COUNT(DISTINCT c.customer_id) > 0 
-                THEN CAST(COUNT(DISTINCT rc.customer_id) AS FLOAT) / COUNT(DISTINCT c.customer_id) * 100
+                THEN CAST(COUNT(DISTINCT rc.customer_id) * 100 / COUNT(DISTINCT c.customer_id) AS INTEGER)
                 ELSE 0 
             END as retention_rate
         FROM customers_in_period c
@@ -229,7 +229,7 @@ class AnalyticsService:
             return {
                 "total_customers": 0,
                 "returning_customers": 0,
-                "retention_rate": 0.0,
+                "retention_rate": 0,
             }
 
         logger.info("Customer retention rate retrieved", extra={"start_date": start_date, "end_date": end_date})

@@ -85,12 +85,13 @@ def log_exception(exc_type: type, exc_value: Exception, exc_traceback: Any) -> N
         exc_traceback (Any): The traceback object.
     """
     logger = StructuredLogger(APP_NAME)
-    logger.error("Uncaught exception", 
-                 exc_info={
-                     "type": str(exc_type),
-                     "value": str(exc_value),
-                     "traceback": str(exc_traceback)
-                 })
+    logger.error(
+        "Uncaught exception", exc_info={
+            "type": str(exc_type),
+            "value": str(exc_value),
+            "traceback": str(exc_traceback)
+            }
+        )
 
 # Set up the logger
 logger = setup_logger()

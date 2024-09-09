@@ -5,7 +5,6 @@ from enum import IntEnum
 from typing import Dict, Any, Optional
 import json
 from json.decoder import JSONDecodeError
-#from utils.system.logger import logger
 
 # Application settings
 APP_NAME: str = "Inventory and Billing System"
@@ -60,7 +59,7 @@ class Config:
                     with open(config_file, 'r') as f:
                         cls._config = json.load(f)
                 except (IOError, JSONDecodeError) as e:
-                    logger.error(f"Error loading configuration: {e}")
+                    print(f"Error loading configuration: {e}")
                     cls._config = cls._get_default_config()
             else:
                 cls._config = cls._get_default_config()
@@ -86,7 +85,7 @@ class Config:
             with open(config_file, 'w') as f:
                 json.dump(cls._config, f, indent=4)
         except IOError as e:
-            logger.error(f"Error saving configuration: {e}")
+            print(f"Error saving configuration: {e}")
 
     @classmethod
     def get(cls, key: str, default: Any = None) -> Any:

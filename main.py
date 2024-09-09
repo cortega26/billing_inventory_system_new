@@ -8,19 +8,9 @@ from utils.decorators import handle_exceptions
 from config import config, APP_NAME, APP_VERSION
 
 class Application:
-    """
-    Main application class responsible for initializing and running the application.
-    """
-
     @staticmethod
     @handle_exceptions(AppException, show_dialog=True)
     def initialize():
-        """
-        Initialize the application by setting up the database.
-
-        Raises:
-            AppException: If there's an error initializing the database.
-        """
         logger.info("Initializing the application")
         try:
             init_db()
@@ -32,15 +22,6 @@ class Application:
     @staticmethod
     @handle_exceptions(AppException, show_dialog=True)
     def run():
-        """
-        Run the main application loop.
-
-        This method sets up the QApplication, applies the theme,
-        creates the main window, and starts the event loop.
-
-        Raises:
-            AppException: If there's an error during application execution.
-        """
         app = QApplication(sys.argv)
         app.setApplicationName(APP_NAME)
         app.setApplicationVersion(APP_VERSION)
@@ -54,12 +35,6 @@ class Application:
 
     @staticmethod
     def apply_theme(app: QApplication):
-        """
-        Apply the theme specified in the configuration.
-
-        Args:
-            app (QApplication): The QApplication instance.
-        """
         theme = config.get('theme', 'default')
         if theme != 'default':
             app.setStyle(theme)
@@ -67,7 +42,6 @@ class Application:
 
     @staticmethod
     def shutdown():
-        """Perform any necessary cleanup before application exit."""
         logger.info("Application shutting down")
         # Perform any necessary cleanup here
         # For example, close database connections, save application state, etc.

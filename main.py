@@ -7,6 +7,7 @@ from utils.exceptions import DatabaseException, AppException
 from utils.decorators import handle_exceptions
 from config import config, APP_NAME, APP_VERSION
 
+
 class Application:
     @staticmethod
     @handle_exceptions(AppException, show_dialog=True)

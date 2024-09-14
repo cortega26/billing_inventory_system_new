@@ -114,11 +114,6 @@ class InventoryView(QWidget):
         self.inventory_table.customContextMenuRequested.connect(self.show_context_menu)
         layout.addWidget(self.inventory_table)
 
-        # Low stock alert button
-        low_stock_button = QPushButton("Show Low Stock Items")
-        low_stock_button.clicked.connect(self.show_low_stock_alert)
-        layout.addWidget(low_stock_button)
-
         # Progress bar
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
@@ -289,28 +284,6 @@ class InventoryView(QWidget):
             except Exception as e:
                 logger.error(f"Error updating inventory: {str(e)}")
                 raise DatabaseException(f"Failed to update inventory: {str(e)}")
-
-    @ui_operation(show_dialog=True)
-    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
-    def show_low_stock_alert(self):
-        threshold, ok = QInputDialog.getInt(
-            self, "Low Stock Threshold", "Enter the low stock threshold:", 10, 1, 1000
-        )
-        if ok:
-            try:
-                low_stock_items = self.inventory_service.get_low_stock_products(threshold)
-                if low_stock_items:
-                    message = "The following items are low in stock:\n\n"
-                    for item in low_stock_items:
-                        message += f"{item['product_name']} ({item['category_name']}): {format_price(item['quantity'])} left\n"
-                    show_info_message("Low Stock Alert", message)
-                    logger.info(f"Low stock alert shown for {len(low_stock_items)} items")
-                else:
-                    show_info_message("Stock Status", "No items are low in stock.")
-                    logger.info("No low stock items found")
-            except Exception as e:
-                logger.error(f"Error getting low stock items: {str(e)}")
-                raise DatabaseException(f"Failed to get low stock items: {str(e)}")
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)

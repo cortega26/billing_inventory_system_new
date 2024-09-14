@@ -112,6 +112,7 @@ class SaleService:
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
     def get_all_sales() -> List[Sale]:
+        logger.info("Starting get_all_sales method")
         query = """
         SELECT s.*, 
                COALESCE(s.total_amount, 0) as total_amount,
@@ -119,16 +120,26 @@ class SaleService:
         FROM sales s
         ORDER BY s.date DESC
         """
-        rows = DatabaseManager.fetch_all(query)
+        try:
+            rows = DatabaseManager.fetch_all(query)
+            logger.info(f"Fetched {len(rows)} rows from database")
+        except Exception as e:
+            logger.error(f"Error fetching rows: {str(e)}")
+            raise
+
         sales = []
         for row in rows:
             try:
+                logger.debug(f"Processing row: {row}")
                 sale = Sale.from_db_row(row)
+                logger.debug(f"Created Sale object: {sale}")
                 sale.items = SaleService.get_sale_items(sale.id)
+                logger.debug(f"Fetched items for sale {sale.id}: {len(sale.items)} items")
                 sales.append(sale)
             except Exception as e:
                 logger.error(f"Error processing sale {row.get('id', 'Unknown')}: {str(e)}")
-                # Optionally, you can choose to skip this sale or handle it differently
+                logger.error(f"Problematic row data: {row}")
+
         logger.info(f"All sales retrieved: {len(sales)}")
         return sales
 
@@ -136,7 +147,7 @@ class SaleService:
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
     def get_sale_items(sale_id: int) -> List[SaleItem]:
-        sale_id = validate_integer(sale_id, min_value=1)
+        logger.debug(f"Fetching items for sale {sale_id}")
         query = """
         SELECT si.*,
                COALESCE(si.quantity, 0) as quantity,
@@ -146,7 +157,15 @@ class SaleService:
         WHERE si.sale_id = ?
         """
         rows = DatabaseManager.fetch_all(query, (sale_id,))
-        return [SaleItem.from_db_row(row) for row in rows]
+        items = []
+        for row in rows:
+            try:
+                item = SaleItem.from_db_row(row)
+                items.append(item)
+            except Exception as e:
+                logger.error(f"Error processing sale item for sale {sale_id}: {str(e)}")
+                logger.error(f"Problematic row data: {row}")
+        return items
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)

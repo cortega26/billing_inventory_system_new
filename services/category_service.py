@@ -22,6 +22,7 @@ class CategoryService:
             category_id = cursor.lastrowid
             CategoryService.clear_cache()
             logger.info("Category created", extra={"category_id": category_id, "name": name})
+            event_system.category_added.emit(category_id)
             return category_id
         except Exception as e:
             logger.error("Failed to create category", extra={"error": str(e), "name": name})
@@ -61,7 +62,9 @@ class CategoryService:
         name = sanitize_html(name)
         query = "UPDATE categories SET name = ? WHERE id = ?"
         try:
-            DatabaseManager.execute_query(query, (name, category_id))
+            cursor = DatabaseManager.execute_query(query, (name, category_id))
+            if cursor.rowcount == 0:
+                raise NotFoundException(f"Category with ID {category_id} not found")
             CategoryService.clear_cache()
             logger.info("Category updated", extra={"category_id": category_id, "new_name": name})
             event_system.category_updated.emit(category_id)
@@ -76,7 +79,9 @@ class CategoryService:
         category_id = validate_integer(category_id, min_value=1)
         query = "DELETE FROM categories WHERE id = ?"
         try:
-            DatabaseManager.execute_query(query, (category_id,))
+            cursor = DatabaseManager.execute_query(query, (category_id,))
+            if cursor.rowcount == 0:
+                raise NotFoundException(f"Category with ID {category_id} not found")
             CategoryService.clear_cache()
             logger.info("Category deleted", extra={"category_id": category_id})
             event_system.category_deleted.emit(category_id)
@@ -120,12 +125,33 @@ class CategoryService:
     def get_products_in_category(category_id: int) -> List[Dict[str, Any]]:
         category_id = validate_integer(category_id, min_value=1)
         query = """
-        SELECT p.id, p.name, p.description
+        SELECT p.id, p.name, p.description, p.cost_price, p.sell_price
         FROM products p
         WHERE p.category_id = ?
         """
         rows = DatabaseManager.fetch_all(query, (category_id,))
         logger.info("Products retrieved for category", extra={"category_id": category_id, "count": len(rows)})
+        return rows
+
+    @staticmethod
+    @db_operation(show_dialog=True)
+    @handle_exceptions(DatabaseException, show_dialog=True)
+    def get_category_statistics() -> List[Dict[str, Any]]:
+        query = """
+        SELECT 
+            c.id, 
+            c.name, 
+            COUNT(p.id) as product_count,
+            COALESCE(SUM(i.quantity), 0) as total_inventory,
+            COALESCE(SUM(p.sell_price * i.quantity), 0) as inventory_value
+        FROM categories c
+        LEFT JOIN products p ON c.id = p.category_id
+        LEFT JOIN inventory i ON p.id = i.product_id
+        GROUP BY c.id
+        ORDER BY c.name
+        """
+        rows = DatabaseManager.fetch_all(query)
+        logger.info("Category statistics retrieved", extra={"count": len(rows)})
         return rows
 
     @staticmethod

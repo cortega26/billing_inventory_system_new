@@ -2,9 +2,10 @@ from pathlib import Path
 import logging
 import os
 from enum import IntEnum
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 import json
 from json.decoder import JSONDecodeError
+import threading
 
 # Application settings
 APP_NAME: str = "Inventory and Billing System"
@@ -14,9 +15,6 @@ COMPANY_NAME: str = "El Rincón de Ébano"
 # Database
 DATABASE_NAME = os.environ.get("DATABASE_NAME", "billing_inventory.db")
 DATABASE_PATH = Path(__file__).parent / DATABASE_NAME
-
-# Analytics settings
-LOYALTY_THRESHOLD: int = 5  # Number of purchases to be considered a loyal customer
 
 # Debug Level
 class DebugLevel(IntEnum):
@@ -36,37 +34,47 @@ DEBUG_LEVEL_MAP: Dict[DebugLevel, int] = {
 }
 
 # Set the desired debug level
-DEBUG_LEVEL: int = DEBUG_LEVEL_MAP[DebugLevel.INFO]
+DEBUG_LEVEL: int = DEBUG_LEVEL_MAP[DebugLevel(int(os.environ.get("DEBUG_LEVEL", DebugLevel.WARNING)))]
 
 class Config:
-    """Singleton class for managing application configuration."""
+    """Thread-safe singleton class for managing application configuration."""
 
     _instance = None
     _config: Optional[Dict[str, Any]] = None
+    _lock = threading.Lock()
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(Config, cls).__new__(cls)
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super(Config, cls).__new__(cls)
         return cls._instance
 
     @classmethod
     def _load_config(cls):
         """Load configuration from file or create default if not exists."""
         if cls._config is None:
-            config_file = Path(__file__).parent / 'app_config.json'
-            if config_file.exists():
-                try:
-                    with open(config_file, 'r') as f:
-                        cls._config = json.load(f)
-                except (IOError, JSONDecodeError) as e:
-                    print(f"Error loading configuration: {e}")
-                    cls._config = cls._get_default_config()
-            else:
-                cls._config = cls._get_default_config()
-                cls._save_config()
+            with cls._lock:
+                if cls._config is None:
+                    config_file = Path(__file__).parent / 'app_config.json'
+                    if config_file.exists():
+                        try:
+                            with open(config_file, 'r') as f:
+                                loaded_config = json.load(f)
+                            cls._validate_config(loaded_config)
+                            cls._config = loaded_config
+                        except (IOError, JSONDecodeError) as e:
+                            logging.error(f"Error loading configuration: {e}")
+                            cls._config = cls._get_default_config()
+                        except (ValueError, TypeError) as e:
+                            logging.error(f"Invalid configuration: {e}")
+                            cls._config = cls._get_default_config()
+                    else:
+                        cls._config = cls._get_default_config()
+                        cls._save_config()
 
     @classmethod
-    def _get_default_config(cls) -> Dict[str, Any]:
+    def _get_default_config(cls) -> Dict[str, Union[str, int]]:
         """Return the default configuration."""
         return {
             "theme": "default",
@@ -85,7 +93,21 @@ class Config:
             with open(config_file, 'w') as f:
                 json.dump(cls._config, f, indent=4)
         except IOError as e:
-            print(f"Error saving configuration: {e}")
+            logging.error(f"Error saving configuration: {e}")
+
+    @classmethod
+    def _validate_config(cls, config: Dict[str, Any]):
+        """Validate the configuration structure and types."""
+        expected_types = {
+            "theme": str,
+            "language": str,
+            "backup_interval": int,
+        }
+        for key, expected_type in expected_types.items():
+            if key not in config:
+                raise ValueError(f"Missing configuration key: {key}")
+            if not isinstance(config[key], expected_type):
+                raise TypeError(f"Invalid type for {key}. Expected {expected_type}, got {type(config[key])}")
 
     @classmethod
     def get(cls, key: str, default: Any = None) -> Any:
@@ -100,9 +122,8 @@ class Config:
             Any: The configuration value or default.
         """
         cls._load_config()
-        if cls._config is not None:
-            return cls._config.get(key, default)
-        return default
+        with cls._lock:
+            return cls._config.get(key, default) if cls._config is not None else default
 
     @classmethod
     def set(cls, key: str, value: Any):
@@ -114,10 +135,18 @@ class Config:
             value (Any): The value to set.
         """
         cls._load_config()
-        if cls._config is None:
-            cls._config = cls._get_default_config()
-        cls._config[key] = value
-        cls._save_config()
+        with cls._lock:
+            if cls._config is None:
+                cls._config = cls._get_default_config()
+            cls._config[key] = value
+            cls._save_config()
+
+    @classmethod
+    def reload(cls):
+        """Reload the configuration from file."""
+        with cls._lock:
+            cls._config = None
+        cls._load_config()
 
 # Global instance of Config
 config = Config()
@@ -126,3 +155,4 @@ config = Config()
 # from config import config, APP_NAME, DATABASE_PATH
 # theme = config.get('theme', 'default')
 # config.set('language', 'es')
+# config.reload()  # Reload configuration from file

@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict, Any
 from database import DatabaseManager
 from models.customer import Customer
 from utils.validation.validators import (
@@ -110,7 +110,9 @@ class CustomerService:
         
         query = "UPDATE customers SET identifier_9 = ? WHERE id = ?"
         try:
-            DatabaseManager.execute_query(query, (identifier_9, customer_id))
+            cursor = DatabaseManager.execute_query(query, (identifier_9, customer_id))
+            if cursor.rowcount == 0:
+                raise NotFoundException(f"Customer with ID {customer_id} not found")
             
             self.update_identifier_3or4(customer_id, identifier_3or4)
             
@@ -127,7 +129,9 @@ class CustomerService:
         customer_id = validate_integer(customer_id, min_value=1)
         query = "DELETE FROM customers WHERE id = ?"
         try:
-            DatabaseManager.execute_query(query, (customer_id,))
+            cursor = DatabaseManager.execute_query(query, (customer_id,))
+            if cursor.rowcount == 0:
+                raise NotFoundException(f"Customer with ID {customer_id} not found")
             DatabaseManager.execute_query("DELETE FROM customer_identifiers WHERE customer_id = ?", (customer_id,))
             logger.info("Customer deleted", extra={"customer_id": customer_id})
             self.clear_cache()
@@ -205,3 +209,22 @@ class CustomerService:
     def clear_cache(self):
         self.get_all_customers.cache_clear()
         logger.debug("Customer cache cleared")
+
+    @db_operation(show_dialog=True)
+    @handle_exceptions(DatabaseException, show_dialog=True)
+    def get_customer_purchase_history(self, customer_id: int, limit: int = 10) -> List[Dict[str, Any]]:
+        customer_id = validate_integer(customer_id, min_value=1)
+        limit = validate_integer(limit, min_value=1)
+        query = """
+        SELECT s.id as sale_id, s.date, s.total_amount, s.total_profit, s.receipt_id,
+               COUNT(si.id) as item_count
+        FROM sales s
+        LEFT JOIN sale_items si ON s.id = si.sale_id
+        WHERE s.customer_id = ?
+        GROUP BY s.id
+        ORDER BY s.date DESC
+        LIMIT ?
+        """
+        rows = DatabaseManager.fetch_all(query, (customer_id, limit))
+        logger.info("Customer purchase history retrieved", extra={"customer_id": customer_id, "count": len(rows)})
+        return rows

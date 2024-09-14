@@ -1,31 +1,22 @@
 from PySide6.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QLabel,
-    QFrame,
-    QSizePolicy,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QSizePolicy
 )
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QPainter, QColor
+from PySide6.QtCore import Qt, QTimer, QDate, QMargins
+from PySide6.QtGui import QPainter
 from PySide6.QtCharts import (
-    QChart,
-    QChartView,
-    QPieSeries,
-    QBarSeries,
-    QBarSet,
-    QBarCategoryAxis,
-    QValueAxis,
+    QChart, QChartView, QBarSeries, QBarSet, QBarCategoryAxis, QValueAxis
 )
 from services.sale_service import SaleService
 from services.purchase_service import PurchaseService
 from services.inventory_service import InventoryService
 from services.customer_service import CustomerService
+from services.analytics_service import AnalyticsService
 from datetime import datetime, timedelta
 from utils.system.event_system import event_system
 from utils.system.logger import logger
 from utils.decorators import ui_operation
 from typing import Callable, Union
+from math import ceil
 
 class MetricWidget(QFrame):
     def __init__(self, label: str, value_func: Callable[[], Union[str, int, float]]):
@@ -63,6 +54,7 @@ class DashboardView(QWidget):
         self.purchase_service = PurchaseService()
         self.inventory_service = InventoryService()
         self.customer_service = CustomerService()
+        self.analytics_service = AnalyticsService()
         self.end_date = datetime.now()
         self.start_date = self.end_date - timedelta(days=30)
         self.setup_ui()
@@ -82,21 +74,21 @@ class DashboardView(QWidget):
         metrics_layout.addWidget(MetricWidget("Total Sales", self.get_total_sales))
         metrics_layout.addWidget(MetricWidget("Total Profits", self.get_total_profits))
         metrics_layout.addWidget(MetricWidget("Inventory Value", self.get_inventory_value))
-        metrics_layout.addWidget(MetricWidget("Total Customers", self.get_total_customers))
+        metrics_layout.addWidget(MetricWidget("Profit Margin", self.get_profit_margin))
         layout.addLayout(metrics_layout)
 
         # Charts row
         self.charts_layout = QHBoxLayout()
-        self.sales_chart_view = self.create_sales_by_category_chart()
-        self.customers_chart_view = self.create_top_customers_chart()
+        self.profit_trend_chart_view = self.create_profit_trend_chart()
+        self.top_products_chart_view = self.create_top_products_chart()
 
         # Set fixed size policies for both charts
-        self.sales_chart_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.customers_chart_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.profit_trend_chart_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.top_products_chart_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         # Add charts to the layout with a 1:1 ratio
-        self.charts_layout.addWidget(self.sales_chart_view, 1)
-        self.charts_layout.addWidget(self.customers_chart_view, 1)
+        self.charts_layout.addWidget(self.profit_trend_chart_view, 1)
+        self.charts_layout.addWidget(self.top_products_chart_view, 1)
 
         layout.addLayout(self.charts_layout)
 
@@ -118,60 +110,84 @@ class DashboardView(QWidget):
         return f"${self.inventory_service.get_inventory_value():,.0f}".replace(',', '.')
 
     @ui_operation()
-    def get_total_customers(self) -> str:
-        return str(len(self.customer_service.get_all_customers()))
+    def get_profit_margin(self) -> str:
+        total_sales = self.sale_service.get_total_sales(self.start_date.strftime('%Y-%m-%d'), self.end_date.strftime('%Y-%m-%d'))
+        total_profits = self.sale_service.get_total_profits(self.start_date.strftime('%Y-%m-%d'), self.end_date.strftime('%Y-%m-%d'))
+        if total_sales > 0:
+            profit_margin = (total_profits / total_sales) * 100
+            return f"{profit_margin:.2f}%"
+        return "0.00%"
 
     @ui_operation()
-    def create_sales_by_category_chart(self):
+    def create_profit_trend_chart(self):
         chart = QChart()
-        chart.setTitle("Sales by Category (Last 30 Days)")
-
-        series = QPieSeries()
-
-        sales_distribution = self.sale_service.get_sales_distribution_by_category(
+        chart.setTitle("Weekly Profit Trend (Last 4 Weeks)")
+        weekly_profit_trend = self.analytics_service.get_weekly_profit_trend(
             self.start_date.strftime("%Y-%m-%d"),
             self.end_date.strftime("%Y-%m-%d")
         )
-
-        colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8"]
-
-        for i, category in enumerate(sales_distribution[:5]):  # Limit to top 5 categories
-            slice = series.append(category["category_name"], category["total_revenue"])
-            slice.setBrush(QColor(colors[i % len(colors)]))
-
+        series = QBarSeries()
+        bar_set = QBarSet("Weekly Profit")
+        axis_x = QBarCategoryAxis()
+        weeks = []
+        for data in weekly_profit_trend:
+            week_start = QDate.fromString(data['week_start'], "yyyy-MM-dd")
+            bar_set.append(data['weekly_profit'])
+            weeks.append(week_start.toString("MMM dd"))
+        series.append(bar_set)
         chart.addSeries(series)
+
+        axis_x.append(weeks)
+        chart.addAxis(axis_x, Qt.AlignmentFlag.AlignBottom)
+        series.attachAxis(axis_x)
+
+        axis_y = QValueAxis()
+        axis_y.setMin(0)  # Set the minimum value of Y-axis to 0
+        max_profit = max(data['weekly_profit'] for data in weekly_profit_trend)
+        
+        # Round up the max value to the nearest 10000
+        max_y = (ceil(max_profit / 10000) * 10000) + 10000
+        
+        axis_y.setMax(max_y)
+        
+        # Set the number of ticks to 6 (5 intervals)
+        tick_count = 6
+        axis_y.setTickCount(tick_count)
+        
+        # Set the label format to display whole numbers
+        axis_y.setLabelFormat("%d")
+        
+        chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
+        series.attachAxis(axis_y)
+
+        # Standardize legend position
+        chart.legend().setVisible(True)
+        chart.legend().setAlignment(Qt.AlignmentFlag.AlignBottom)
+
+        # Adjust the chart margins
+        chart.setMargins(QMargins(10, 10, 10, 10))
+        chart.layout().setContentsMargins(0, 0, 0, 0)
 
         chart_view = QChartView(chart)
         chart_view.setRenderHint(QPainter.RenderHint.Antialiasing)
-
         return chart_view
 
     @ui_operation()
-    def create_top_customers_chart(self):
+    def create_top_products_chart(self):
         chart = QChart()
-        chart.setTitle("Top 5 Customer Groups")
-
+        chart.setTitle("Top 5 Profitable Products")
+        top_products = self.analytics_service.get_profit_by_product(
+            self.start_date.strftime("%Y-%m-%d"),
+            self.end_date.strftime("%Y-%m-%d"),
+            limit=5
+        )
         series = QBarSeries()
-
-        customers = self.customer_service.get_all_customers()
-        customer_totals = [
-            (customer, self.sale_service.get_total_sales_by_customer(customer.id))
-            for customer in customers
-        ]
-
-        grouped_totals = {}
-        for customer, total in customer_totals:
-            group_id = customer.identifier_3or4 or "Unknown"
-            grouped_totals[group_id] = grouped_totals.get(group_id, 0) + total
-
-        top_groups = sorted(grouped_totals.items(), key=lambda x: x[1], reverse=True)[:5]
-
-        bar_set = QBarSet("Purchase Amount")
+        
+        bar_set = QBarSet("Profit")
         categories = []
-        for group_id, total in top_groups:
-            bar_set.append(total)
-            categories.append(group_id)
-
+        for product in top_products:
+            bar_set.append(product['total_profit'])
+            categories.append(product['name'])
         series.append(bar_set)
         chart.addSeries(series)
 
@@ -181,12 +197,34 @@ class DashboardView(QWidget):
         series.attachAxis(axis_x)
 
         axis_y = QValueAxis()
+        axis_y.setMin(0)  # Set the minimum value of Y-axis to 0
+        max_profit = max(product['total_profit'] for product in top_products)
+        
+        # Round up the max value to the nearest 5000
+        max_y = (ceil(max_profit / 5000) * 5000) + 5000
+        
+        axis_y.setMax(max_y)
+        
+        # Set the number of ticks to 6 (5 intervals)
+        tick_count = 6
+        axis_y.setTickCount(tick_count)
+        
+        # Set the label format to display whole numbers
+        axis_y.setLabelFormat("%d")
+        
         chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
         series.attachAxis(axis_y)
 
+        # Standardize legend position
+        chart.legend().setVisible(True)
+        chart.legend().setAlignment(Qt.AlignmentFlag.AlignBottom)
+
+        # Adjust the chart margins
+        chart.setMargins(QMargins(10, 10, 10, 10))
+        chart.layout().setContentsMargins(0, 0, 0, 0)
+
         chart_view = QChartView(chart)
         chart_view.setRenderHint(QPainter.RenderHint.Antialiasing)
-
         return chart_view
 
     @ui_operation()
@@ -203,21 +241,21 @@ class DashboardView(QWidget):
                         widget.update_value()
 
         # Update charts
-        new_sales_chart = self.create_sales_by_category_chart()
-        new_customers_chart = self.create_top_customers_chart()
+        new_profit_trend_chart = self.create_profit_trend_chart()
+        new_top_products_chart = self.create_top_products_chart()
 
         # Set fixed size policies for new charts
-        new_sales_chart.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        new_customers_chart.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        new_profit_trend_chart.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        new_top_products_chart.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
-        self.charts_layout.replaceWidget(self.sales_chart_view, new_sales_chart)
-        self.charts_layout.replaceWidget(self.customers_chart_view, new_customers_chart)
+        self.charts_layout.replaceWidget(self.profit_trend_chart_view, new_profit_trend_chart)
+        self.charts_layout.replaceWidget(self.top_products_chart_view, new_top_products_chart)
 
-        self.sales_chart_view.deleteLater()
-        self.customers_chart_view.deleteLater()
+        self.profit_trend_chart_view.deleteLater()
+        self.top_products_chart_view.deleteLater()
 
-        self.sales_chart_view = new_sales_chart
-        self.customers_chart_view = new_customers_chart
+        self.profit_trend_chart_view = new_profit_trend_chart
+        self.top_products_chart_view = new_top_products_chart
 
         logger.info("Dashboard updated successfully")
 

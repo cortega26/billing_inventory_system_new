@@ -1,7 +1,6 @@
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QPushButton, QSpinBox, QTableWidgetItem,
-    QDateEdit, QComboBox, QLineEdit, QFormLayout, QProgressBar, QHBoxLayout,
-    QMenu, QApplication,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QSpinBox, QTableWidgetItem,
+    QDateEdit, QComboBox, QLineEdit, QFormLayout, QProgressBar, QApplication,
 )
 from PySide6.QtCore import Qt, QDate, QTimer
 from PySide6.QtGui import QPainter, QAction, QKeySequence
@@ -10,9 +9,7 @@ from PySide6.QtCharts import (
     QLineSeries, QDateTimeAxis, QPieSeries,
 )
 from services.analytics_service import AnalyticsService
-from utils.helpers import (
-    create_table, show_info_message, format_price,
-)
+from utils.helpers import create_table,  format_price
 from utils.ui.table_items import (
     NumericTableWidgetItem, PriceTableWidgetItem, PercentageTableWidgetItem,
 )
@@ -49,13 +46,13 @@ class AnalyticsView(QWidget):
         # Analytics type selection
         self.analytics_type = QComboBox()
         self.analytics_type.addItems([
-            "Loyal Customers",
             "Sales by Weekday",
             "Top Selling Products",
             "Sales Trend",
             "Category Performance",
-            "Inventory Turnover",
-            "Customer Retention Rate",
+            "Profit by Product",
+            "Profit Trend",
+            "Profit Margin Distribution",
         ])
         layout.addWidget(QLabel("Select Analysis:"))
         layout.addWidget(self.analytics_type)
@@ -119,13 +116,13 @@ class AnalyticsView(QWidget):
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
             analytics_functions = {
-                "Loyal Customers": self.show_loyal_customers,
                 "Sales by Weekday": lambda: self.show_sales_by_weekday(start_date, end_date),
                 "Top Selling Products": lambda: self.show_top_selling_products(start_date, end_date, top_n),
                 "Sales Trend": lambda: self.show_sales_trend(start_date, end_date),
                 "Category Performance": lambda: self.show_category_performance(start_date, end_date),
-                "Inventory Turnover": lambda: self.show_inventory_turnover(start_date, end_date),
-                "Customer Retention Rate": lambda: self.show_customer_retention_rate(start_date, end_date),
+                "Profit by Product": lambda: self.show_profit_by_product(start_date, end_date, top_n),
+                "Profit Trend": lambda: self.show_profit_trend(start_date, end_date),
+                "Profit Margin Distribution": lambda: self.show_profit_margin_distribution(start_date, end_date),
             }
 
             if analytics_type in analytics_functions:
@@ -142,32 +139,6 @@ class AnalyticsView(QWidget):
 
     def update_analytics(self):
         self.generate_analytics()
-
-    @ui_operation(show_dialog=True)
-    @handle_exceptions(DatabaseException, UIException, show_dialog=True)
-    def show_loyal_customers(self):
-        try:
-            loyal_customers = self.analytics_service.get_loyal_customers()
-            self._populate_table_and_chart(
-                loyal_customers,
-                ["ID", "9-digit Identifier", "Purchase Count"],
-                "identifier_9",
-                "purchase_count",
-                "Loyal Customers",
-            )
-            total_loyal = len(loyal_customers)
-            avg_purchases = (
-                sum(c["purchase_count"] for c in loyal_customers) / total_loyal
-                if total_loyal > 0
-                else 0
-            )
-            self.summary_text.setText(
-                f"Total loyal customers: {total_loyal}, Average purchases: {format_price(avg_purchases)}"
-            )
-            logger.info(f"Displayed loyal customers analysis: {total_loyal} customers")
-        except Exception as e:
-            logger.error(f"Error showing loyal customers: {str(e)}")
-            raise DatabaseException(f"Failed to show loyal customers: {str(e)}")
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
@@ -224,7 +195,7 @@ class AnalyticsView(QWidget):
                 "date",
                 "daily_sales",
                 "Sales Trend",
-                chart_type="bar",
+                chart_type="line",
             )
             total_sales = sum(day["daily_sales"] for day in sales_trend)
             avg_daily_sales = total_sales / len(sales_trend) if sales_trend else 0
@@ -260,47 +231,71 @@ class AnalyticsView(QWidget):
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
-    def show_inventory_turnover(self, start_date: str, end_date: str):
+    def show_profit_by_product(self, start_date: str, end_date: str, top_n: int):
         try:
-            inventory_turnover = self.analytics_service.get_inventory_turnover(start_date, end_date)
+            profit_by_product = self.analytics_service.get_profit_by_product(start_date, end_date, top_n)
             self._populate_table_and_chart(
-                inventory_turnover,
-                ["Product ID", "Product Name", "Turnover Ratio"],
+                profit_by_product,
+                ["Product ID", "Product Name", "Total Revenue", "Total Cost", "Total Profit"],
                 "name",
-                "turnover_ratio",
-                "Inventory Turnover",
+                "total_profit",
+                "Profit by Product",
             )
-            avg_turnover = (
-                sum(p["turnover_ratio"] for p in inventory_turnover) / len(inventory_turnover)
-                if inventory_turnover
-                else 0
+            total_revenue = sum(p["total_revenue"] for p in profit_by_product)
+            total_profit = sum(p["total_profit"] for p in profit_by_product)
+            self.summary_text.setText(
+                f"Total revenue: ${total_revenue:.0f}, Total profit: ${total_profit:.0f}"
             )
-            self.summary_text.setText(f"Average turnover ratio: {avg_turnover:.2f}")
-            logger.info(f"Displayed inventory turnover analysis: {len(inventory_turnover)} products")
+            logger.info(f"Displayed profit by product analysis: {len(profit_by_product)} products")
         except Exception as e:
-            logger.error(f"Error showing inventory turnover: {str(e)}")
-            raise DatabaseException(f"Failed to show inventory turnover: {str(e)}")
+            logger.error(f"Error showing profit by product: {str(e)}")
+            raise DatabaseException(f"Failed to show profit by product: {str(e)}")
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
-    def show_customer_retention_rate(self, start_date: str, end_date: str):
+    def show_profit_trend(self, start_date: str, end_date: str):
         try:
-            retention_data = self.analytics_service.get_customer_retention_rate(start_date, end_date)
+            profit_trend = self.analytics_service.get_profit_trend(start_date, end_date)
             self._populate_table_and_chart(
-                [retention_data],
-                ["Total Customers", "Returning Customers", "Retention Rate"],
-                "retention_rate",
-                "retention_rate",
-                "Customer Retention Rate",
+                profit_trend,
+                ["Date", "Daily Revenue", "Daily Profit"],
+                "date",
+                "daily_profit",
+                "Profit Trend",
+                chart_type="line",
+            )
+            total_revenue = sum(day["daily_revenue"] for day in profit_trend)
+            total_profit = sum(day["daily_profit"] for day in profit_trend)
+            self.summary_text.setText(
+                f"Total revenue: ${total_revenue:.0f}, Total profit: ${total_profit:.0f}"
+            )
+            logger.info(f"Displayed profit trend analysis: {len(profit_trend)} days")
+        except Exception as e:
+            logger.error(f"Error showing profit trend: {str(e)}")
+            raise DatabaseException(f"Failed to show profit trend: {str(e)}")
+
+    @ui_operation(show_dialog=True)
+    @handle_exceptions(DatabaseException, UIException, show_dialog=True)
+    def show_profit_margin_distribution(self, start_date: str, end_date: str):
+        try:
+            margin_distribution = self.analytics_service.get_profit_margin_distribution(start_date, end_date)
+            self._populate_table_and_chart(
+                margin_distribution,
+                ["Margin Range", "Product Count", "Average Margin"],
+                "margin_range",
+                "product_count",
+                "Profit Margin Distribution",
                 chart_type="pie",
             )
+            total_products = sum(d["product_count"] for d in margin_distribution)
+            weighted_avg_margin = sum(d["product_count"] * d["average_margin"] for d in margin_distribution) / total_products if total_products > 0 else 0
             self.summary_text.setText(
-                f"Customer retention rate: {retention_data['retention_rate']:.2f}%"
+                f"Total products: {total_products}, Weighted average profit margin: {weighted_avg_margin:.2f}%"
             )
-            logger.info(f"Displayed customer retention rate analysis")
+            logger.info(f"Displayed profit margin distribution analysis: {len(margin_distribution)} ranges")
         except Exception as e:
-            logger.error(f"Error showing customer retention rate: {str(e)}")
-            raise DatabaseException(f"Failed to show customer retention rate: {str(e)}")
+            logger.error(f"Error showing profit margin distribution: {str(e)}")
+            raise DatabaseException(f"Failed to show profit margin distribution: {str(e)}")
 
     def _populate_table_and_chart(
         self,
@@ -320,9 +315,9 @@ class AnalyticsView(QWidget):
                 key = header.lower().replace(" ", "_")
                 value = item.get(key, "")
                 if isinstance(value, (int, float)):
-                    if header.lower().endswith("price") or header.lower().endswith("amount"):
+                    if header.lower().endswith("price") or header.lower().endswith("revenue") or header.lower().endswith("sales") or header.lower().endswith("profit"):
                         self.result_table.setItem(row, col, PriceTableWidgetItem(value, format_price))
-                    elif header.lower().endswith("percentage") or header.lower().endswith("rate"):
+                    elif header.lower().endswith("margin"):
                         self.result_table.setItem(row, col, PercentageTableWidgetItem(value))
                     else:
                         self.result_table.setItem(row, col, NumericTableWidgetItem(value))
@@ -362,7 +357,7 @@ class AnalyticsView(QWidget):
         elif chart_type == "pie":
             series = QPieSeries()
             for item in data:
-                series.append(f"{x_key}: {item[x_key]:.2f}%", item[y_key])
+                series.append(f"{item[x_key]}: {item[y_key]}", item[y_key])
             chart.addSeries(series)
 
         axis_y = QValueAxis()
@@ -375,24 +370,6 @@ class AnalyticsView(QWidget):
 
     def refresh(self):
         self.generate_analytics()
-
-    def show_context_menu(self, position):
-        menu = QMenu()
-        refresh_action = menu.addAction("Refresh")
-        export_action = menu.addAction("Export to CSV")
-
-        action = menu.exec(self.result_table.mapToGlobal(position))
-        if action == refresh_action:
-            self.refresh()
-        elif action == export_action:
-            self.export_to_csv()
-
-    @ui_operation(show_dialog=True)
-    @handle_exceptions(UIException, show_dialog=True)
-    def export_to_csv(self):
-        # TODO: Implement CSV export functionality
-        show_info_message("Export", "CSV export functionality not implemented yet.")
-        logger.info("CSV export requested (not implemented)")
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_F5:

@@ -92,21 +92,6 @@ class InventoryService:
     @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_low_stock_products(threshold: int = 10) -> List[Dict[str, Any]]:
-        threshold = validate_int_non_negative(threshold)
-        query = """
-            SELECT p.id as product_id, p.name as product_name, COALESCE(i.quantity, 0) as quantity
-            FROM products p
-            LEFT JOIN inventory i ON p.id = i.product_id
-            WHERE COALESCE(i.quantity, 0) <= ?
-        """
-        result = DatabaseManager.fetch_all(query, (threshold,))
-        logger.info("Low stock products retrieved", extra={"threshold": threshold, "count": len(result)})
-        return result
-
-    @staticmethod
-    @db_operation(show_dialog=True)
-    @handle_exceptions(DatabaseException, show_dialog=True)
     def get_inventory_value() -> int:
         query = """
             SELECT SUM(i.quantity * COALESCE(p.cost_price, 0)) as total_value

@@ -1,7 +1,7 @@
 from typing import List, Optional, Dict, Any
 from database import DatabaseManager
 from models.product import Product
-from utils.validation.validators import validate_string, validate_integer
+from utils.validation.validators import validate_string, validate_integer, validate_float_non_negative
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import NotFoundException, ValidationException, DatabaseException
 from utils.system.logger import logger
@@ -98,7 +98,9 @@ class ProductService:
         product_id = validate_integer(product_id, min_value=1)
         query = "DELETE FROM products WHERE id = :product_id"
         try:
-            DatabaseManager.execute_query(query, {"product_id": product_id})
+            cursor = DatabaseManager.execute_query(query, {"product_id": product_id})
+            if cursor.rowcount == 0:
+                raise NotFoundException(f"No product found with ID: {product_id}")
             logger.info("Product deleted", extra={"product_id": product_id})
             self.clear_cache()
             event_system.product_deleted.emit(product_id)
@@ -163,13 +165,56 @@ class ProductService:
         if 'cost_price' in data:
             cost_price = data.get('cost_price')
             if cost_price is not None:
-                validated['cost_price'] = validate_integer(cost_price, min_value=0)
+                validated['cost_price'] = validate_float_non_negative(cost_price)
         if 'sell_price' in data:
             sell_price = data.get('sell_price')
             if sell_price is not None:
-                validated['sell_price'] = validate_integer(sell_price, min_value=0)
+                validated['sell_price'] = validate_float_non_negative(sell_price)
         
         if is_create and 'name' not in validated:
             raise ValidationException("Product name is required when creating a product")
         
         return validated
+
+    @db_operation(show_dialog=True)
+    @handle_exceptions(DatabaseException, show_dialog=True)
+    def get_product_sales_history(self, product_id: int, limit: int = 10) -> List[Dict[str, Any]]:
+        product_id = validate_integer(product_id, min_value=1)
+        limit = validate_integer(limit, min_value=1)
+        query = """
+        SELECT s.id as sale_id, s.date, si.quantity, si.price, si.profit
+        FROM sale_items si
+        JOIN sales s ON si.sale_id = s.id
+        WHERE si.product_id = ?
+        ORDER BY s.date DESC
+        LIMIT ?
+        """
+        rows = DatabaseManager.fetch_all(query, (product_id, limit))
+        logger.info("Product sales history retrieved", extra={"product_id": product_id, "count": len(rows)})
+        return rows
+
+    @db_operation(show_dialog=True)
+    @handle_exceptions(DatabaseException, show_dialog=True)
+    def get_product_inventory_history(self, product_id: int, limit: int = 10) -> List[Dict[str, Any]]:
+        product_id = validate_integer(product_id, min_value=1)
+        limit = validate_integer(limit, min_value=1)
+        query = """
+        SELECT 'adjustment' as type, ia.date, ia.quantity_change, ia.reason
+        FROM inventory_adjustments ia
+        WHERE ia.product_id = ?
+        UNION ALL
+        SELECT 'purchase' as type, p.date, pi.quantity as quantity_change, 'Purchase' as reason
+        FROM purchase_items pi
+        JOIN purchases p ON pi.purchase_id = p.id
+        WHERE pi.product_id = ?
+        UNION ALL
+        SELECT 'sale' as type, s.date, -si.quantity as quantity_change, 'Sale' as reason
+        FROM sale_items si
+        JOIN sales s ON si.sale_id = s.id
+        WHERE si.product_id = ?
+        ORDER BY date DESC
+        LIMIT ?
+        """
+        rows = DatabaseManager.fetch_all(query, (product_id, product_id, product_id, limit))
+        logger.info("Product inventory history retrieved", extra={"product_id": product_id, "count": len(rows)})
+        return rows

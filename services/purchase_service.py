@@ -2,7 +2,7 @@ from typing import List, Dict, Any, Optional
 from database import DatabaseManager
 from models.purchase import Purchase, PurchaseItem
 from services.inventory_service import InventoryService
-from utils.validation.validators import validate_string, validate_date, validate_integer
+from utils.validation.validators import validate_string, validate_date, validate_integer, validate_float_non_negative
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import ValidationException, NotFoundException, DatabaseException
 from utils.system.logger import logger
@@ -164,7 +164,9 @@ class PurchaseService:
         if not items:
             raise ValidationException("Purchase must have at least one item")
         for item in items:
-            if item["quantity"] <= 0 or item["cost_price"] <= 0:
+            quantity = validate_float_non_negative(item.get("quantity", 0))
+            cost_price = validate_float_non_negative(item.get("cost_price", 0))
+            if quantity <= 0 or cost_price <= 0:
                 raise ValidationException(
                     "Item quantity and cost price must be positive"
                 )
@@ -172,7 +174,7 @@ class PurchaseService:
     @staticmethod
     @db_operation(show_dialog=True)
     def _insert_purchase(
-        supplier: str, date: str, total_amount: int
+        supplier: str, date: str, total_amount: float
     ) -> Optional[int]:
         query = "INSERT INTO purchases (supplier, date, total_amount) VALUES (?, ?, ?)"
         cursor = DatabaseManager.execute_query(query, (supplier, date, total_amount))
@@ -209,7 +211,7 @@ class PurchaseService:
     @staticmethod
     @db_operation(show_dialog=True)
     def _update_purchase(
-        purchase_id: int, supplier: str, date: str, total_amount: int
+        purchase_id: int, supplier: str, date: str, total_amount: float
     ) -> None:
         query = "UPDATE purchases SET supplier = ?, date = ?, total_amount = ? WHERE id = ?"
         DatabaseManager.execute_query(
@@ -272,3 +274,25 @@ class PurchaseService:
         trends = [{"period": row["period"], "purchase_count": row["purchase_count"], "total_amount": row["total_amount"]} for row in rows]
         logger.info("Purchase trends retrieved", extra={"start_date": start_date, "end_date": end_date, "interval": interval, "count": len(trends)})
         return trends
+
+    @staticmethod
+    @db_operation(show_dialog=True)
+    @handle_exceptions(DatabaseException, show_dialog=True)
+    def get_top_suppliers(start_date: str, end_date: str, limit: int = 10) -> List[Dict[str, Any]]:
+        start_date = validate_date(start_date)
+        end_date = validate_date(end_date)
+        limit = validate_integer(limit, min_value=1)
+        query = """
+            SELECT supplier, 
+                   COUNT(*) as purchase_count, 
+                   SUM(total_amount) as total_amount
+            FROM purchases
+            WHERE date BETWEEN ? AND ?
+            GROUP BY supplier
+            ORDER BY total_amount DESC
+            LIMIT ?
+        """
+        rows = DatabaseManager.fetch_all(query, (start_date, end_date, limit))
+        top_suppliers = [{"supplier": row["supplier"], "purchase_count": row["purchase_count"], "total_amount": row["total_amount"]} for row in rows]
+        logger.info("Top suppliers retrieved", extra={"start_date": start_date, "end_date": end_date, "limit": limit, "count": len(top_suppliers)})
+        return top_suppliers

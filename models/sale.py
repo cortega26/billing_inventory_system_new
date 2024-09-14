@@ -2,7 +2,8 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from utils.exceptions import ValidationException
-
+from decimal import Decimal, InvalidOperation
+from utils.system.logger import logger
 
 @dataclass
 class SaleItem:
@@ -21,15 +22,26 @@ class SaleItem:
 
     @classmethod
     def from_db_row(cls, row: Dict[str, Any]) -> "SaleItem":
-        return cls(
-            id=row["id"],
-            sale_id=row["sale_id"],
-            product_id=row["product_id"],
-            quantity=float(row["quantity"]),
-            unit_price=int(row["price"]),
-            profit=int(row["profit"]),
-            product_name=row.get("product_name")
-        )
+        try:
+            profit_value = row["profit"]
+            if profit_value is None or profit_value < 0:
+                profit = 0  # or another appropriate default value
+            else:
+                profit = int(Decimal(str(profit_value)).quantize(Decimal('1')))
+
+            return cls(
+                id=int(row["id"]),
+                sale_id=int(row["sale_id"]),
+                product_id=int(row["product_id"]),
+                quantity=float(row["quantity"]),
+                unit_price=int(row["price"]),
+                profit=profit,
+                product_name=row.get("product_name")
+            )
+        except (ValueError, InvalidOperation) as e:
+            logger.error(f"Error creating SaleItem object from row: {row}")
+            logger.error(f"Error details: {str(e)}")
+            raise
 
     @staticmethod
     def validate_quantity(quantity: float) -> None:
@@ -82,14 +94,19 @@ class Sale:
 
     @classmethod
     def from_db_row(cls, row: Dict[str, Any]) -> "Sale":
-        return cls(
-            id=row["id"],
-            customer_id=row["customer_id"],
-            date=datetime.fromisoformat(row["date"]),
-            total_amount=int(row["total_amount"] or 0),
-            total_profit=int(row["total_profit"] or 0),
-            receipt_id=row.get("receipt_id")
-        )
+        try:
+            return cls(
+                id=int(row["id"]),
+                customer_id=int(row["customer_id"]),
+                date=datetime.fromisoformat(row["date"]),
+                total_amount=int(row["total_amount"]),
+                total_profit=int(Decimal(str(row["total_profit"])).quantize(Decimal('1'))),
+                receipt_id=row.get("receipt_id")
+            )
+        except (ValueError, InvalidOperation) as e:
+            logger.error(f"Error creating Sale object from row: {row}")
+            logger.error(f"Error details: {str(e)}")
+            raise
 
     @staticmethod
     def validate_customer_id(customer_id: int) -> None:

@@ -131,23 +131,12 @@ class InventoryView(QWidget):
         self.addAction(refresh_shortcut)
 
     def connect_signals(self):
-        try:
-            event_system.product_added.connect(self.on_product_added)
-            event_system.product_updated.connect(self.load_inventory)
-            event_system.product_deleted.connect(self.load_inventory)
-            event_system.sale_added.connect(self.load_inventory)
-            event_system.purchase_added.connect(self.load_inventory)
-            event_system.inventory_changed.connect(self.on_inventory_changed)
-        except Exception as e:
-            logger.error(f"Error connecting signals in InventoryView: {str(e)}")
-            from utils.helpers import show_error_message
-            show_error_message("Error", "Failed to set up inventory view. Please restart the application.")
-
-    @ui_operation(show_dialog=True)
-    @handle_exceptions(DatabaseException, UIException, show_dialog=True)
-    def on_inventory_changed(self, product_id):
-        self.load_inventory()
-        logger.info(f"Inventory changed for product ID: {product_id}")
+        event_system.product_added.connect(self.refresh_inventory)
+        event_system.product_updated.connect(self.refresh_inventory)
+        event_system.product_deleted.connect(self.refresh_inventory)
+        event_system.sale_added.connect(self.refresh_inventory)
+        event_system.purchase_added.connect(self.refresh_inventory)
+        event_system.inventory_changed.connect(self.refresh_inventory)
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
@@ -163,35 +152,35 @@ class InventoryView(QWidget):
             logger.error(f"Error loading categories: {str(e)}")
             raise DatabaseException(f"Failed to load categories: {str(e)}")
 
-    @ui_operation(show_dialog=True)
-    @handle_exceptions(DatabaseException, UIException, show_dialog=True)
-    def on_product_added(self, product_id: int):
-        try:
-            self.inventory_service.update_quantity(product_id, 0)  # Add new product with quantity 0
-            self.load_inventory()
-            logger.info(f"New product added to inventory: ID {product_id}")
-        except Exception as e:
-            logger.error(f"Error adding new product to inventory: {str(e)}")
-            raise DatabaseException(f"Failed to add new product to inventory: {str(e)}")
+    def refresh_inventory(self):
+        """Refresh the inventory view."""
+        self.show_loading_indicator(True)
+        QTimer.singleShot(0, self.load_inventory)
+
+    def show_loading_indicator(self, is_loading: bool):
+        """Show or hide loading indicators."""
+        self.progress_bar.setVisible(is_loading)
+        if is_loading:
+            self.progress_bar.setValue(0)
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        else:
+            self.progress_bar.setValue(100)
+            QApplication.restoreOverrideCursor()
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
-    def load_inventory(self, *args):
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setValue(0)
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+    def load_inventory(self):
+        """Load inventory data from the service."""
         try:
             inventory_items = self.inventory_service.get_all_inventory()
             self.current_inventory = inventory_items
-            QTimer.singleShot(0, lambda: self.update_inventory_table(inventory_items))
+            self.update_inventory_table(inventory_items)
             logger.info(f"Loaded {len(inventory_items)} inventory items")
         except Exception as e:
             logger.error(f"Error loading inventory: {str(e)}")
             raise DatabaseException(f"Failed to load inventory: {str(e)}")
         finally:
-            QApplication.restoreOverrideCursor()
-            self.progress_bar.setValue(100)
-            QTimer.singleShot(1000, lambda: self.progress_bar.setVisible(False))
+            self.show_loading_indicator(False)
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(UIException, show_dialog=True)
@@ -298,18 +287,19 @@ class InventoryView(QWidget):
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
-    def filter_inventory(self, index: Optional[int] = None):
+    def filter_inventory(self):
         try:
             category_id = self.category_filter.currentData()
             search_term = self.search_input.text().strip().lower()
 
             filtered_items = [
                 item for item in self.current_inventory
-                if (category_id is None or item["category_id"] == category_id) and
-                (not search_term or
-                 search_term in item["product_name"].lower() or
-                 search_term in str(item["product_id"]).lower() or
-                 search_term in item["category_name"].lower())
+                if (category_id is None or item["category_id"] == category_id) and (
+                    not search_term or
+                    search_term in item["product_name"].lower() or
+                    search_term in str(item["product_id"]).lower() or
+                    search_term in item["category_name"].lower()
+                    )
             ]
 
             self.update_inventory_table(filtered_items)
@@ -319,7 +309,7 @@ class InventoryView(QWidget):
             raise DatabaseException(f"Failed to filter inventory: {str(e)}")
 
     def refresh(self):
-        self.load_inventory()
+        self.refresh_inventory()
 
     def show_context_menu(self, position):
         menu = QMenu()

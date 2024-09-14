@@ -65,23 +65,21 @@ class EditProductDialog(QDialog):
     @ui_operation(show_dialog=True)
     @handle_exceptions(ValidationException, show_dialog=True)
     def validate_and_accept(self):
-        try:
-            name = validate_string(self.name_input.text().strip(), min_length=1, max_length=100)
-            description = validate_string(self.description_input.text().strip(), min_length=0, max_length=500)
-            category_id = self.category_combo.currentData()
-            cost_price = validate_float(self.cost_price_input.value(), min_value=0)
-            sell_price = validate_float(self.sell_price_input.value(), min_value=0)
+        name = validate_string(self.name_input.text().strip(), min_length=1, max_length=100)
+        description = validate_string(self.description_input.text().strip(), min_length=0, max_length=500)
+        category_id = self.category_combo.currentData()
+        cost_price = validate_float(self.cost_price_input.value(), min_value=0)
+        sell_price = validate_float(self.sell_price_input.value(), min_value=0)
 
-            self.product_data = {
-                "name": name,
-                "description": description,
-                "category_id": category_id,
-                "cost_price": cost_price,
-                "sell_price": sell_price,
-            }
-            self.accept()
-        except ValidationException as e:
-            raise ValidationException(str(e))
+        self.product_data = {
+            "name": name,
+            "description": description,
+            "category_id": category_id,
+            "cost_price": cost_price,
+            "sell_price": sell_price,
+        }
+        self.accept()
+
 
 class ProductView(QWidget):
     product_updated = Signal()

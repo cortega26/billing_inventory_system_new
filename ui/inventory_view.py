@@ -131,12 +131,17 @@ class InventoryView(QWidget):
         self.addAction(refresh_shortcut)
 
     def connect_signals(self):
-        event_system.product_added.connect(self.on_product_added)
-        event_system.product_updated.connect(self.load_inventory)
-        event_system.product_deleted.connect(self.load_inventory)
-        event_system.sale_added.connect(self.load_inventory)
-        event_system.purchase_added.connect(self.load_inventory)
-        event_system.inventory_changed.connect(self.on_inventory_changed)
+        try:
+            event_system.product_added.connect(self.on_product_added)
+            event_system.product_updated.connect(self.load_inventory)
+            event_system.product_deleted.connect(self.load_inventory)
+            event_system.sale_added.connect(self.load_inventory)
+            event_system.purchase_added.connect(self.load_inventory)
+            event_system.inventory_changed.connect(self.on_inventory_changed)
+        except Exception as e:
+            logger.error(f"Error connecting signals in InventoryView: {str(e)}")
+            from utils.helpers import show_error_message
+            show_error_message("Error", "Failed to set up inventory view. Please restart the application.")
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
@@ -171,7 +176,7 @@ class InventoryView(QWidget):
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
-    def load_inventory(self):
+    def load_inventory(self, *args):
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)

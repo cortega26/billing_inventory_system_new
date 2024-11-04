@@ -47,8 +47,8 @@ class AnalyticsService:
         limit = validate_integer(limit, min_value=1)
         query = """
             SELECT p.id, p.name, 
-                   SUM(si.quantity) as total_quantity, 
-                   SUM(si.quantity * si.price) as total_revenue,
+                   ROUND(SUM(si.quantity), 3) as total_quantity, 
+                   SUM(ROUND(si.quantity * si.price)) as total_revenue,
                    COUNT(DISTINCT s.id) as sale_count
             FROM products p
             JOIN sale_items si ON p.id = si.product_id
@@ -59,7 +59,11 @@ class AnalyticsService:
             LIMIT ?
         """
         result = DatabaseManager.fetch_all(query, (start_date, end_date, limit))
-        logger.info("Top selling products retrieved", extra={"start_date": start_date, "end_date": end_date, "limit": limit})
+        logger.info("Top selling products retrieved", extra={
+            "start_date": start_date,
+            "end_date": end_date,
+            "limit": limit
+        })
         return result
 
     @staticmethod
@@ -71,7 +75,7 @@ class AnalyticsService:
         end_date = validate_date(end_date)
         query = """
             SELECT date, 
-                   CAST(ROUND(SUM(total_amount), 0) AS INTEGER) as daily_sales,
+                   total_amount as daily_sales,
                    COUNT(*) as sale_count
             FROM sales
             WHERE date BETWEEN ? AND ?
@@ -115,8 +119,8 @@ class AnalyticsService:
             SELECT 
                 p.id,
                 p.name,
-                SUM(si.quantity * (si.price - p.cost_price)) as total_profit,
-                SUM(si.quantity) as sales_volume
+                SUM(ROUND(si.quantity * (si.price - p.cost_price))) as total_profit,
+                ROUND(SUM(si.quantity), 3) as sales_volume
             FROM products p
             JOIN sale_items si ON p.id = si.product_id
             JOIN sales s ON si.sale_id = s.id
@@ -139,8 +143,8 @@ class AnalyticsService:
         query = """
             SELECT 
                 c.name as category,
-                SUM(si.quantity * si.price) as total_sales,
-                SUM(si.quantity) as number_of_products_sold,
+                SUM(ROUND(si.quantity * si.price)) as total_sales,
+                ROUND(SUM(si.quantity), 3) as number_of_products_sold,
                 COUNT(DISTINCT s.id) as sale_count
             FROM categories c
             JOIN products p ON c.id = p.category_id
@@ -164,9 +168,9 @@ class AnalyticsService:
         limit = validate_integer(limit, min_value=1)
         query = """
             SELECT p.id, p.name, 
-                   SUM(si.quantity * si.price) as total_revenue,
-                   SUM(si.quantity * p.cost_price) as total_cost,
-                   SUM(si.quantity * (si.price - p.cost_price)) as total_profit,
+                   SUM(ROUND(si.quantity * si.price)) as total_revenue,
+                   SUM(ROUND(si.quantity * p.cost_price)) as total_cost,
+                   SUM(ROUND(si.quantity * (si.price - p.cost_price))) as total_profit,
                    COUNT(DISTINCT s.id) as sale_count
             FROM products p
             JOIN sale_items si ON p.id = si.product_id
@@ -189,8 +193,8 @@ class AnalyticsService:
         end_date = validate_date(end_date)
         query = """
             SELECT date, 
-                SUM(total_amount) as daily_revenue,
-                SUM(total_profit) as daily_profit,
+                total_amount as daily_revenue,
+                total_profit as daily_profit,
                 COUNT(*) as sale_count
             FROM sales
             WHERE date BETWEEN ? AND ?
@@ -219,17 +223,18 @@ class AnalyticsService:
                     ELSE '40%+'
                 END as margin_range,
                 COUNT(*) as product_count,
-                AVG(profit_margin) as average_margin,
+                ROUND(AVG(profit_margin), 2) as average_margin,
                 SUM(total_sales) as total_sales
             FROM (
                 SELECT 
                     p.id,
                     CASE 
-                        WHEN SUM(si.quantity * si.price) > 0 
-                        THEN (SUM(si.quantity * (si.price - p.cost_price)) / SUM(si.quantity * si.price)) * 100
+                        WHEN SUM(ROUND(si.quantity * si.price)) > 0 
+                        THEN (CAST(SUM(ROUND(si.quantity * (si.price - p.cost_price))) AS FLOAT) / 
+                              SUM(ROUND(si.quantity * si.price))) * 100
                         ELSE 0 
                     END as profit_margin,
-                    SUM(si.quantity * si.price) as total_sales
+                    SUM(ROUND(si.quantity * si.price)) as total_sales
                 FROM products p
                 JOIN sale_items si ON p.id = si.product_id
                 JOIN sales s ON si.sale_id = s.id
@@ -262,7 +267,7 @@ class AnalyticsService:
                 COUNT(*) as total_sales,
                 COALESCE(SUM(total_amount), 0) as total_revenue,
                 COALESCE(SUM(total_profit), 0) as total_profit,
-                COALESCE(AVG(total_amount), 0) as average_sale_value,
+                COALESCE(ROUND(AVG(total_amount)), 0) as average_sale_value,
                 COUNT(DISTINCT customer_id) as unique_customers
             FROM sales
             WHERE date BETWEEN ? AND ?
@@ -278,13 +283,15 @@ class AnalyticsService:
                 "unique_customers": 0
             }
         logger.info(f"Retrieved sales summary from {start_date} to {end_date}")
-        return dict(result)  # Convert sqlite3.Row to dict
+        return dict(result)
 
     @staticmethod
     def clear_cache():
         AnalyticsService.get_sales_by_weekday.cache_clear()
         AnalyticsService.get_top_selling_products.cache_clear()
         AnalyticsService.get_sales_trend.cache_clear()
+        AnalyticsService.get_weekly_profit_trend.cache_clear()
+        AnalyticsService.get_profit_and_volume_by_product.cache_clear()
         AnalyticsService.get_category_performance.cache_clear()
         AnalyticsService.get_profit_by_product.cache_clear()
         AnalyticsService.get_profit_trend.cache_clear()

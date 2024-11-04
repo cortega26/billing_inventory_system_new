@@ -19,7 +19,12 @@ class PurchaseService:
         supplier = validate_string(supplier, max_length=100)
         date = validate_date(date)
         PurchaseService._validate_purchase_items(items)
-        total_amount = sum(item["quantity"] * item["cost_price"] for item in items)
+        
+        # Calculate total amount with proper integer handling for money
+        total_amount = sum(
+            int(round(item["quantity"] * item["cost_price"]))
+            for item in items
+        )
 
         purchase_id = PurchaseService._insert_purchase(supplier, date, total_amount)
 
@@ -29,7 +34,11 @@ class PurchaseService:
         PurchaseService._insert_purchase_items(purchase_id, items)
         PurchaseService._update_inventory(items)
 
-        logger.info("Purchase created", extra={"purchase_id": purchase_id, "supplier": supplier, "total_amount": total_amount})
+        logger.info("Purchase created", extra={
+            "purchase_id": purchase_id,
+            "supplier": supplier,
+            "total_amount": total_amount
+        })
         PurchaseService.clear_cache()
         event_system.purchase_added.emit(purchase_id)
         return purchase_id
@@ -115,66 +124,53 @@ class PurchaseService:
         PurchaseService._validate_purchase_items(items)
         
         old_items = PurchaseService.get_purchase_items(purchase_id)
-
         PurchaseService._revert_inventory(old_items)
 
-        total_amount = sum(item["price"] * item["quantity"] for item in items)
+        # Calculate total with proper rounding for money values
+        total_amount = sum(
+            int(round(item["quantity"] * item["cost_price"]))
+            for item in items
+        )
 
         PurchaseService._update_purchase(purchase_id, supplier, date, total_amount)
         PurchaseService._update_purchase_items(purchase_id, items)
         PurchaseService._update_inventory(items)
 
-        logger.info("Purchase updated", extra={"purchase_id": purchase_id, "supplier": supplier, "total_amount": total_amount})
+        logger.info("Purchase updated", extra={
+            "purchase_id": purchase_id,
+            "supplier": supplier,
+            "total_amount": total_amount
+        })
         PurchaseService.clear_cache()
         event_system.purchase_updated.emit(purchase_id)
 
     @staticmethod
-    @db_operation(show_dialog=True)
-    @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_purchase_stats(start_date: str, end_date: str) -> Dict[str, Any]:
-        start_date = validate_date(start_date)
-        end_date = validate_date(end_date)
-        query = """
-        SELECT 
-            COUNT(DISTINCT p.id) as total_purchases,
-            SUM(p.total_amount) as total_amount,
-            AVG(p.total_amount) as average_purchase_amount,
-            COUNT(DISTINCT p.supplier) as unique_suppliers
-        FROM purchases p
-        WHERE p.date BETWEEN ? AND ?
-        """
-        result = DatabaseManager.fetch_one(query, (start_date, end_date))
-        stats = {
-            "total_purchases": result["total_purchases"] if result else 0,
-            "total_amount": int(result["total_amount"]) if result and result["total_amount"] else 0,
-            "average_purchase_amount": int(result["average_purchase_amount"]) if result and result["average_purchase_amount"] else 0,
-            "unique_suppliers": result["unique_suppliers"] if result else 0,
-        }
-        logger.info("Purchase stats retrieved", extra={"start_date": start_date, "end_date": end_date, "stats": stats})
-        return stats
-
-    @staticmethod
-    def clear_cache():
-        PurchaseService.get_all_purchases.cache_clear()
-        PurchaseService.get_suppliers.cache_clear()
-        logger.debug("Purchase cache cleared")
-
-    @staticmethod
     def _validate_purchase_items(items: List[Dict[str, Any]]) -> None:
+        """Validate purchase items with proper quantity and price handling."""
         if not items:
             raise ValidationException("Purchase must have at least one item")
         for item in items:
-            quantity = validate_float_non_negative(item.get("quantity", 0))
-            cost_price = validate_float_non_negative(item.get("cost_price", 0))
-            if quantity <= 0 or cost_price <= 0:
-                raise ValidationException(
-                    "Item quantity and cost price must be positive"
-                )
+            try:
+                # Validate quantity as float with 3 decimal places
+                quantity = validate_float_non_negative(float(item.get("quantity", 0)))
+                if round(quantity, 3) != quantity:
+                    raise ValidationException("Quantity cannot have more than 3 decimal places")
+                
+                # Validate cost_price as integer (Chilean Pesos)
+                cost_price = validate_integer(item.get("cost_price", 0))
+                if not isinstance(cost_price, int):
+                    raise ValidationException("Cost price must be an integer")
+                
+                if quantity <= 0 or cost_price <= 0:
+                    raise ValidationException("Item quantity and cost price must be positive")
+                    
+            except (ValueError, TypeError):
+                raise ValidationException("Invalid quantity or cost price format")
 
     @staticmethod
     @db_operation(show_dialog=True)
     def _insert_purchase(
-        supplier: str, date: str, total_amount: float
+        supplier: str, date: str, total_amount: int
     ) -> Optional[int]:
         query = "INSERT INTO purchases (supplier, date, total_amount) VALUES (?, ?, ?)"
         cursor = DatabaseManager.execute_query(query, (supplier, date, total_amount))
@@ -188,9 +184,11 @@ class PurchaseService:
                 INSERT INTO purchase_items (purchase_id, product_id, quantity, price)
                 VALUES (?, ?, ?, ?)
             """
+            # Store quantity with 3 decimal places precision
+            quantity_str = str(round(float(item["quantity"]), 3))
             DatabaseManager.execute_query(
                 query,
-                (purchase_id, item["product_id"], item["quantity"], item["cost_price"]),
+                (purchase_id, item["product_id"], quantity_str, item["cost_price"])
             )
 
             update_query = "UPDATE products SET cost_price = ? WHERE id = ?"
@@ -201,17 +199,19 @@ class PurchaseService:
     @staticmethod
     def _update_inventory(items: List[Dict[str, Any]]) -> None:
         for item in items:
-            InventoryService.update_quantity(item["product_id"], item["quantity"])
+            quantity = round(float(item["quantity"]), 3)
+            InventoryService.update_quantity(item["product_id"], quantity)
 
     @staticmethod
     def _revert_inventory(items: List[PurchaseItem]) -> None:
         for item in items:
-            InventoryService.update_quantity(item.product_id, -item.quantity)
+            quantity = -round(float(item.quantity), 3)
+            InventoryService.update_quantity(item.product_id, quantity)
 
     @staticmethod
     @db_operation(show_dialog=True)
     def _update_purchase(
-        purchase_id: int, supplier: str, date: str, total_amount: float
+        purchase_id: int, supplier: str, date: str, total_amount: int
     ) -> None:
         query = "UPDATE purchases SET supplier = ?, date = ?, total_amount = ? WHERE id = ?"
         DatabaseManager.execute_query(
@@ -240,8 +240,16 @@ class PurchaseService:
             ORDER BY date DESC
         """
         rows = DatabaseManager.fetch_all(query, (supplier, start_date, end_date))
-        purchases = [{"id": row["id"], "date": row["date"], "total_amount": row["total_amount"]} for row in rows]
-        logger.info("Purchases by supplier retrieved", extra={"supplier": supplier, "start_date": start_date, "end_date": end_date, "count": len(purchases)})
+        purchases = [{"id": row["id"], 
+                     "date": row["date"], 
+                     "total_amount": row["total_amount"]} 
+                    for row in rows]
+        logger.info("Purchases by supplier retrieved", extra={
+            "supplier": supplier,
+            "start_date": start_date,
+            "end_date": end_date,
+            "count": len(purchases)
+        })
         return purchases
 
     @staticmethod
@@ -271,8 +279,16 @@ class PurchaseService:
             ORDER BY period
         """
         rows = DatabaseManager.fetch_all(query, (start_date, end_date))
-        trends = [{"period": row["period"], "purchase_count": row["purchase_count"], "total_amount": row["total_amount"]} for row in rows]
-        logger.info("Purchase trends retrieved", extra={"start_date": start_date, "end_date": end_date, "interval": interval, "count": len(trends)})
+        trends = [{"period": row["period"], 
+                  "purchase_count": row["purchase_count"], 
+                  "total_amount": row["total_amount"]} 
+                 for row in rows]
+        logger.info("Purchase trends retrieved", extra={
+            "start_date": start_date,
+            "end_date": end_date,
+            "interval": interval,
+            "count": len(trends)
+        })
         return trends
 
     @staticmethod
@@ -293,6 +309,21 @@ class PurchaseService:
             LIMIT ?
         """
         rows = DatabaseManager.fetch_all(query, (start_date, end_date, limit))
-        top_suppliers = [{"supplier": row["supplier"], "purchase_count": row["purchase_count"], "total_amount": row["total_amount"]} for row in rows]
-        logger.info("Top suppliers retrieved", extra={"start_date": start_date, "end_date": end_date, "limit": limit, "count": len(top_suppliers)})
+        top_suppliers = [{
+            "supplier": row["supplier"],
+            "purchase_count": row["purchase_count"],
+            "total_amount": row["total_amount"]
+        } for row in rows]
+        logger.info("Top suppliers retrieved", extra={
+            "start_date": start_date,
+            "end_date": end_date,
+            "limit": limit,
+            "count": len(top_suppliers)
+        })
         return top_suppliers
+
+    @staticmethod
+    def clear_cache():
+        PurchaseService.get_all_purchases.cache_clear()
+        PurchaseService.get_suppliers.cache_clear()
+        logger.debug("Purchase cache cleared")

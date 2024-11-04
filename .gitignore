@@ -46,4 +46,7 @@ ENV/
 # Other
 backup/
 *.old
-.bak
+*.bak
+*.db-shm
+*.db-wal
+

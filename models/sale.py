@@ -2,7 +2,6 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from utils.exceptions import ValidationException
-from decimal import Decimal, InvalidOperation
 from utils.system.logger import logger
 
 @dataclass
@@ -10,59 +9,70 @@ class SaleItem:
     id: int
     sale_id: int
     product_id: int
-    quantity: float
-    unit_price: int
-    profit: int
+    quantity: float  # Allow up to 3 decimals for weight-based products
+    unit_price: int  # Chilean Pesos - always integer
+    profit: int      # Chilean Pesos - always integer
     product_name: Optional[str] = None
 
     def __post_init__(self):
-        self.validate_quantity(self.quantity)
+        self.quantity = self.normalize_quantity(self.quantity)
         self.validate_price(self.unit_price)
         self.validate_profit(self.profit)
 
     @classmethod
     def from_db_row(cls, row: Dict[str, Any]) -> "SaleItem":
         try:
-            profit_value = row["profit"]
-            if profit_value is None or profit_value < 0:
-                profit = 0  # or another appropriate default value
-            else:
-                profit = int(Decimal(str(profit_value)).quantize(Decimal('1')))
-
             return cls(
                 id=int(row["id"]),
                 sale_id=int(row["sale_id"]),
                 product_id=int(row["product_id"]),
                 quantity=float(row["quantity"]),
                 unit_price=int(row["price"]),
-                profit=profit,
+                profit=int(row["profit"]),
                 product_name=row.get("product_name")
             )
-        except (ValueError, InvalidOperation) as e:
-            logger.error(f"Error creating SaleItem object from row: {row}")
+        except (ValueError, TypeError) as e:
+            logger.error(f"Error creating SaleItem from row: {row}")
             logger.error(f"Error details: {str(e)}")
             raise
 
     @staticmethod
-    def validate_quantity(quantity: float) -> None:
-        if quantity <= 0:
-            raise ValidationException("Quantity must be positive")
+    def normalize_quantity(quantity: float) -> float:
+        """Normalize and validate quantity value."""
+        try:
+            # Convert to float if not already
+            if not isinstance(quantity, (int, float)):
+                quantity = float(str(quantity))
+            
+            if quantity <= 0:
+                raise ValidationException("Quantity must be positive")
+            
+            # Round to 3 decimal places for weight-based products
+            return round(quantity, 3)
+            
+        except (ValueError, TypeError):
+            raise ValidationException("Invalid quantity format")
 
     @staticmethod
     def validate_price(price: int) -> None:
+        """Validate price value."""
+        if not isinstance(price, int):
+            raise ValidationException("Price must be an integer")
         if price < 0:
             raise ValidationException("Price cannot be negative")
 
     @staticmethod
     def validate_profit(profit: int) -> None:
-        if profit < 0:
-            raise ValidationException("Profit cannot be negative")
+        """Validate profit value."""
+        if not isinstance(profit, int):
+            raise ValidationException("Profit must be an integer")
 
     def total_price(self) -> int:
-        return round(self.quantity * self.unit_price)
-
-    def calculate_profit(self, cost_price: int) -> None:
-        self.profit = int((self.unit_price - cost_price) * self.quantity)
+        """Calculate total price and ensure integer result."""
+        # Convert quantity to float and multiply by integer price
+        total = float(self.quantity) * self.unit_price
+        # Round to nearest integer for Chilean Pesos
+        return int(round(total))
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -81,8 +91,8 @@ class Sale:
     id: int
     customer_id: int
     date: datetime
-    total_amount: int
-    total_profit: int
+    total_amount: int     # Chilean Pesos - always integer
+    total_profit: int     # Chilean Pesos - always integer
     receipt_id: Optional[str] = None
     items: List[SaleItem] = field(default_factory=list)
 
@@ -100,11 +110,11 @@ class Sale:
                 customer_id=int(row["customer_id"]),
                 date=datetime.fromisoformat(row["date"]),
                 total_amount=int(row["total_amount"]),
-                total_profit=int(Decimal(str(row["total_profit"])).quantize(Decimal('1'))),
+                total_profit=int(row["total_profit"]),
                 receipt_id=row.get("receipt_id")
             )
-        except (ValueError, InvalidOperation) as e:
-            logger.error(f"Error creating Sale object from row: {row}")
+        except (ValueError, TypeError) as e:
+            logger.error(f"Error creating Sale from row: {row}")
             logger.error(f"Error details: {str(e)}")
             raise
 
@@ -120,13 +130,15 @@ class Sale:
 
     @staticmethod
     def validate_total_amount(total_amount: int) -> None:
+        if not isinstance(total_amount, int):
+            raise ValidationException("Total amount must be an integer")
         if total_amount < 0:
             raise ValidationException("Total amount cannot be negative")
 
     @staticmethod
     def validate_total_profit(total_profit: int) -> None:
-        if total_profit < 0:
-            raise ValidationException("Total profit cannot be negative")
+        if not isinstance(total_profit, int):
+            raise ValidationException("Total profit must be an integer")
 
     def add_item(self, item: SaleItem) -> None:
         self.items.append(item)
@@ -137,7 +149,8 @@ class Sale:
         self.recalculate_total()
 
     def recalculate_total(self) -> None:
-        self.total_amount = sum(item.total_price() for item in self.items)
+        """Recalculate totals ensuring integer results."""
+        self.total_amount = sum(item.total_price() for item in self.items)  # Already rounded to int
         self.total_profit = sum(item.profit for item in self.items)
 
     def update_date(self, new_date: datetime) -> None:

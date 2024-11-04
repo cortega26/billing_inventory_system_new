@@ -4,7 +4,7 @@ from models.sale import Sale, SaleItem
 from services.inventory_service import InventoryService
 from services.customer_service import CustomerService
 from services.product_service import ProductService
-from utils.validation.validators import validate_integer, validate_string, validate_date, validate_float_non_negative
+from utils.validation.validators import validate_integer, validate_string, validate_date, validate_float
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import ValidationException, DatabaseException, NotFoundException
 from utils.system.logger import logger
@@ -62,9 +62,15 @@ class SaleService:
             if product.sell_price is None:
                 raise ValidationException(f"Sell price not set for product '{product.name}'")
             
-            item["profit"] = int((item["sell_price"] - product.cost_price) * item["quantity"])
-            total_amount += int(item["sell_price"] * item["quantity"])
-            total_profit += item["profit"]
+            # Calculate using integers for money amounts and float for quantities
+            quantity = float(item["quantity"])
+            sell_price = int(item["sell_price"])
+            item_total = int(round(quantity * sell_price))  # Round to nearest peso
+            item_profit = int(round(quantity * (sell_price - product.cost_price)))  # Round profit to nearest peso
+            
+            item["profit"] = item_profit
+            total_amount += item_total
+            total_profit += item_profit
 
         receipt_id = self.generate_receipt_id(datetime.fromisoformat(date))
 
@@ -79,7 +85,8 @@ class SaleService:
             self._insert_sale_items(sale_id, items)
             self._update_inventory(items)
 
-            logger.info("Sale created", extra={"sale_id": sale_id, "customer_id": customer_id, "total_amount": total_amount, "total_profit": total_profit})
+            logger.info("Sale created", extra={"sale_id": sale_id, "customer_id": customer_id, 
+                                             "total_amount": total_amount, "total_profit": total_profit})
             event_system.sale_added.emit(sale_id)
             self.clear_cache()
             return sale_id
@@ -353,8 +360,8 @@ class SaleService:
         # This is a placeholder. You'll need to implement the actual WhatsApp API integration.
         logger.info("Sending receipt via WhatsApp", extra={"sale_id": sale_id, "phone_number": phone_number})
 
-    @staticmethod
-    def clear_cache():
+    def clear_cache(self):
+        """Clear the sale cache."""
         SaleService.get_all_sales.cache_clear()
         logger.debug("Sale cache cleared")
 
@@ -362,35 +369,38 @@ class SaleService:
         if not items:
             raise ValidationException("Sale must have at least one item")
         for item in items:
-            product = self.product_service.get_product(item["product_id"])
-            if product is None:
-                raise ValidationException(f"Product with ID {item['product_id']} not found")
-            if product.cost_price is None:
-                raise ValidationException(f"Cost price not set for product '{product.name}'")
-            if product.sell_price is None:
-                raise ValidationException(f"Sell price not set for product '{product.name}'")
-            
-            quantity = validate_float_non_negative(item["quantity"])
-            sell_price = validate_integer(item["sell_price"], min_value=1)
-            if quantity <= 0 or sell_price <= 0:
-                raise ValidationException("Item quantity must be positive and sell price must be a positive integer")
+            try:
+                # Validate quantity as float with 3 decimal places
+                quantity = validate_float(float(item["quantity"]), min_value=0.001)
+                if round(quantity, 3) != quantity:
+                    raise ValidationException("Quantity cannot have more than 3 decimal places")
+                
+                # Validate price as integer
+                sell_price = validate_integer(item["sell_price"], min_value=1)
+                if not isinstance(sell_price, int):
+                    raise ValidationException("Item sell price must be an integer")
+                
+            except (ValueError, TypeError):
+                raise ValidationException("Invalid quantity or price format")
 
     @staticmethod
     @db_operation(show_dialog=True)
     def _insert_sale_items(sale_id: int, items: List[Dict[str, Any]]) -> None:
         for item in items:
+            # Convert float quantity to string for storage
+            quantity_str = str(round(float(item["quantity"]), 3))  # Ensure 3 decimal places
             query = """
                 INSERT INTO sale_items (sale_id, product_id, quantity, price, profit)
                 VALUES (?, ?, ?, ?, ?)
             """
             DatabaseManager.execute_query(
                 query,
-                (sale_id, item["product_id"], item["quantity"], item["sell_price"], item["profit"]),
+                (sale_id, item["product_id"], quantity_str, item["sell_price"], item["profit"])
             )
 
     def _update_inventory(self, items: List[Dict[str, Any]]) -> None:
         for item in items:
-            quantity_change = -abs(item["quantity"])
+            quantity_change = -abs(float(item["quantity"]))  # Ensure float for quantity
             self.inventory_service.update_quantity(item["product_id"], quantity_change)
             logger.debug(f"Updating inventory for product {item['product_id']}, change: {quantity_change}")
 

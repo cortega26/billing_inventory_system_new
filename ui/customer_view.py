@@ -7,13 +7,13 @@ from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QAction, QKeySequence
 from services.customer_service import CustomerService
 from utils.helpers import create_table, show_error_message, show_info_message, format_price
-from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
-from utils.validation.validators import validate_9digit_identifier, validate_3or4digit_identifier, validate_string
-from utils.decorators import ui_operation, handle_exceptions
-from models.customer import Customer
-from typing import Optional
 from utils.system.event_system import event_system
+from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
+from typing import Optional
+from models.customer import Customer
+from utils.decorators import ui_operation, handle_exceptions
 from utils.exceptions import ValidationException, DatabaseException, UIException
+from utils.validation.validators import validate_string
 from utils.system.logger import logger
 
 class EditCustomerDialog(QDialog):
@@ -26,15 +26,31 @@ class EditCustomerDialog(QDialog):
     def setup_ui(self):
         layout = QFormLayout(self)
 
+        # 9-digit identifier
         self.identifier_9_input = QLineEdit(
             self.customer.identifier_9 if self.customer else ""
         )
+        self.identifier_9_input.setPlaceholderText("Enter 9-digit identifier")
+        layout.addRow("9-digit Identifier:", self.identifier_9_input)
+
+        # 3 or 4-digit identifier
         self.identifier_3or4_input = QLineEdit(
             self.customer.identifier_3or4 or "" if self.customer else ""
         )
-
-        layout.addRow("9-digit Identifier:", self.identifier_9_input)
+        self.identifier_3or4_input.setPlaceholderText("Enter 3 or 4-digit identifier (optional)")
         layout.addRow("3 or 4-digit Identifier:", self.identifier_3or4_input)
+
+        # Name field
+        self.name_input = QLineEdit(
+            self.customer.name or "" if self.customer else ""
+        )
+        self.name_input.setPlaceholderText("Enter customer name (optional)")
+        layout.addRow("Name:", self.name_input)
+
+        # Add help text for name requirements
+        name_help = QLabel("Name can contain letters, accented characters, and spaces (max 50 chars)")
+        name_help.setStyleSheet("color: gray; font-size: 10px;")
+        layout.addRow("", name_help)
 
         self.button_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -47,9 +63,13 @@ class EditCustomerDialog(QDialog):
     @handle_exceptions(ValidationException, show_dialog=True)
     def validate_and_accept(self):
         try:
-            validate_9digit_identifier(self.identifier_9_input.text())
-            if self.identifier_3or4_input.text():
-                validate_3or4digit_identifier(self.identifier_3or4_input.text())
+            # Create a temporary customer to validate the input
+            temp_customer = Customer(
+                id=0,
+                identifier_9=self.identifier_9_input.text().strip(),
+                identifier_3or4=self.identifier_3or4_input.text().strip() or None,
+                name=self.name_input.text().strip() or None
+            )
             self.accept()
         except ValidationException as e:
             raise ValidationException(str(e))
@@ -68,7 +88,7 @@ class CustomerView(QWidget):
         # Search field
         search_layout = QHBoxLayout()
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Search customers...")
+        self.search_input.setPlaceholderText("Search by ID or name...")
         self.search_input.returnPressed.connect(self.search_customers)
         search_button = QPushButton("Search")
         search_button.clicked.connect(self.search_customers)
@@ -82,6 +102,7 @@ class CustomerView(QWidget):
                 "ID",
                 "9-digit Identifier",
                 "3 or 4-digit Identifier",
+                "Name",
                 "Total Purchases",
                 "Total Amount",
                 "Actions",
@@ -147,16 +168,26 @@ class CustomerView(QWidget):
                 total_purchases, total_amount = self.customer_service.get_customer_stats(
                     customer.id
                 )
+                
+                # Basic information
                 self.customer_table.setItem(row, 0, NumericTableWidgetItem(customer.id))
                 self.customer_table.setItem(row, 1, QTableWidgetItem(customer.identifier_9))
                 self.customer_table.setItem(
                     row, 2, QTableWidgetItem(customer.identifier_3or4 or "N/A")
                 )
-                self.customer_table.setItem(row, 3, NumericTableWidgetItem(total_purchases))
+                
+                # Name column
+                name_item = QTableWidgetItem(customer.name or "")
+                name_item.setToolTip(customer.name if customer.name else "No name provided")
+                self.customer_table.setItem(row, 3, name_item)
+                
+                # Statistics
+                self.customer_table.setItem(row, 4, NumericTableWidgetItem(total_purchases))
                 self.customer_table.setItem(
-                    row, 4, PriceTableWidgetItem(total_amount, format_price)
+                    row, 5, PriceTableWidgetItem(total_amount, format_price)
                 )
 
+                # Actions
                 actions_widget = QWidget()
                 actions_layout = QHBoxLayout(actions_widget)
                 actions_layout.setContentsMargins(0, 0, 0, 0)
@@ -173,7 +204,11 @@ class CustomerView(QWidget):
 
                 actions_layout.addWidget(edit_button)
                 actions_layout.addWidget(delete_button)
-                self.customer_table.setCellWidget(row, 5, actions_widget)
+                self.customer_table.setCellWidget(row, 6, actions_widget)
+
+            # Adjust column widths
+            self.customer_table.resizeColumnsToContents()
+            
         except Exception as e:
             logger.error(f"Error populating customer table: {str(e)}")
             raise UIException(f"Failed to populate customer table: {str(e)}")
@@ -183,12 +218,11 @@ class CustomerView(QWidget):
     def add_customer(self):
         dialog = EditCustomerDialog(None, self)
         if dialog.exec():
-            identifier_9 = dialog.identifier_9_input.text().strip()
-            identifier_3or4 = dialog.identifier_3or4_input.text().strip() or None
-
             try:
                 customer_id = self.customer_service.create_customer(
-                    identifier_9, identifier_3or4
+                    identifier_9=dialog.identifier_9_input.text().strip(),
+                    name=dialog.name_input.text().strip() or None,
+                    identifier_3or4=dialog.identifier_3or4_input.text().strip() or None
                 )
                 if customer_id is not None:
                     self.load_customers()
@@ -210,11 +244,12 @@ class CustomerView(QWidget):
 
         dialog = EditCustomerDialog(customer, self)
         if dialog.exec():
-            new_identifier_9 = dialog.identifier_9_input.text().strip()
-            new_identifier_3or4 = dialog.identifier_3or4_input.text().strip() or None
             try:
                 self.customer_service.update_customer(
-                    customer.id, new_identifier_9, new_identifier_3or4
+                    customer.id,
+                    identifier_9=dialog.identifier_9_input.text().strip(),
+                    name=dialog.name_input.text().strip() or None,
+                    identifier_3or4=dialog.identifier_3or4_input.text().strip() or None
                 )
                 self.load_customers()
                 show_info_message("Success", "Customer updated successfully.")
@@ -231,10 +266,11 @@ class CustomerView(QWidget):
         if customer is None:
             raise ValidationException("No customer selected for deletion.")
 
+        display_name = customer.get_display_name()
         reply = QMessageBox.question(
             self,
             "Delete Customer",
-            f"Are you sure you want to delete customer {customer.identifier_9}?",
+            f"Are you sure you want to delete customer {display_name}?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )

@@ -33,6 +33,7 @@ class EditProductDialog(QDialog):
 
         self.name_input = QLineEdit(self.product.name if self.product else "")
         self.description_input = QLineEdit(self.product.description or "" if self.product else "")
+        self.barcode_input = QLineEdit(self.product.barcode or "" if self.product else "")
 
         self.category_combo = QComboBox()
         self.category_combo.addItem("Uncategorized", None)
@@ -53,9 +54,15 @@ class EditProductDialog(QDialog):
 
         layout.addRow("Name:", self.name_input)
         layout.addRow("Description:", self.description_input)
+        layout.addRow("Barcode:", self.barcode_input)
         layout.addRow("Category:", self.category_combo)
         layout.addRow("Cost Price:", self.cost_price_input)
         layout.addRow("Sell Price:", self.sell_price_input)
+
+        # Add help text for barcode
+        barcode_help = QLabel("Optional - Must be 8, 12, 13, or 14 digits if provided")
+        barcode_help.setStyleSheet("color: gray; font-size: 10px;")
+        layout.addRow("", barcode_help)
 
         self.button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         self.button_box.accepted.connect(self.validate_and_accept)
@@ -70,6 +77,14 @@ class EditProductDialog(QDialog):
         category_id = self.category_combo.currentData()
         cost_price = validate_float(self.cost_price_input.value(), min_value=0)
         sell_price = validate_float(self.sell_price_input.value(), min_value=0)
+        
+        # Get barcode value and validate if not empty
+        barcode = self.barcode_input.text().strip()
+        if barcode:
+            try:
+                Product.validate_barcode(barcode)
+            except ValidationException as e:
+                raise ValidationException(str(e))
 
         self.product_data = {
             "name": name,
@@ -77,6 +92,7 @@ class EditProductDialog(QDialog):
             "category_id": category_id,
             "cost_price": cost_price,
             "sell_price": sell_price,
+            "barcode": barcode if barcode else None
         }
         self.accept()
 
@@ -201,7 +217,7 @@ class ProductView(QWidget):
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
-    def load_products(self):
+    def load_products(self, *args):
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)

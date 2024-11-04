@@ -6,6 +6,7 @@ from utils.system.logger import logger
 from utils.exceptions import DatabaseException, AppException
 from utils.decorators import handle_exceptions
 from config import config, APP_NAME, APP_VERSION
+from utils.validation.data_validator import DataValidationService
 
 
 class Application:
@@ -15,7 +16,9 @@ class Application:
         logger.info("Initializing the application")
         try:
             init_db()
-            logger.info("Database initialized successfully")
+            # Use the new validation service
+            DataValidationService.validate_all_data()
+            logger.info("Database initialized and validated successfully")
         except DatabaseException as e:
             logger.critical(f"Failed to initialize database: {e}")
             raise AppException(f"Failed to initialize database: {e}")

@@ -414,9 +414,14 @@ class SaleView(QWidget):
 
         customer_list = QComboBox()
         for customer in customers:
-            display_text = f"{customer.identifier_3or4} - {customer.identifier_9}"
+            # Format display text in consistent format: "3/4 digits id - Name - 9 digits id"
+            display_parts = []
+            if customer.identifier_3or4:
+                display_parts.append(customer.identifier_3or4)
             if customer.name:
-                display_text += f" ({customer.name})"
+                display_parts.append(customer.name)
+            display_parts.append(customer.identifier_9)
+            display_text = " - ".join(display_parts)
             customer_list.addItem(display_text, customer)
 
         layout.addWidget(QLabel("Multiple customers found. Please select one:"))

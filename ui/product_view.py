@@ -17,7 +17,7 @@ from models.product import Product
 from models.category import Category
 from utils.decorators import ui_operation, handle_exceptions
 from utils.validation.validators import validate_string, validate_float, validate_integer
-from utils.exceptions import ValidationException, DatabaseException, UIException
+from utils.exceptions import ValidationException, DatabaseException, UIException, NotFoundException
 from utils.system.logger import logger
 
 class EditProductDialog(QDialog):
@@ -236,42 +236,61 @@ class ProductView(QWidget):
     @ui_operation(show_dialog=True)
     @handle_exceptions(UIException, show_dialog=True)
     def update_product_table(self, products: List[Product]):
+        """Update the product table with graceful handling of deleted products."""
         try:
             self.product_table.setRowCount(len(products))
             for row, product in enumerate(products):
-                profit_margin = self.product_service.get_product_profit_margin(product.id)
-                self.product_table.setItem(row, 0, NumericTableWidgetItem(product.id))
-                self.product_table.setItem(row, 1, QTableWidgetItem(product.name))
-                self.product_table.setItem(row, 2, QTableWidgetItem(product.description or ""))
-                self.product_table.setItem(row, 3, QTableWidgetItem(product.category.name if product.category else ""))
-                self.product_table.setItem(row, 4, PriceTableWidgetItem(product.cost_price, format_price))
-                self.product_table.setItem(row, 5, PriceTableWidgetItem(product.sell_price, format_price))
-                self.product_table.setItem(row, 6, PercentageTableWidgetItem(profit_margin))
+                try:
+                    # Basic product information that should always be available
+                    self.product_table.setItem(row, 0, NumericTableWidgetItem(product.id))
+                    self.product_table.setItem(row, 1, QTableWidgetItem(product.name))
+                    self.product_table.setItem(row, 2, QTableWidgetItem(product.description or ""))
+                    self.product_table.setItem(row, 3, QTableWidgetItem(product.category.name if product.category else ""))
 
-                actions_widget = QWidget()
-                actions_layout = QHBoxLayout(actions_widget)
-                actions_layout.setContentsMargins(0, 0, 0, 0)
+                    # Handle potentially missing profit margin gracefully
+                    try:
+                        profit_margin = self.product_service.get_product_profit_margin(product.id)
+                    except NotFoundException:
+                        profit_margin = None
+                    
+                    # Price and margin columns
+                    self.product_table.setItem(row, 4, PriceTableWidgetItem(product.cost_price, format_price))
+                    self.product_table.setItem(row, 5, PriceTableWidgetItem(product.sell_price, format_price))
+                    self.product_table.setItem(row, 6, PercentageTableWidgetItem(profit_margin))
 
-                edit_button = QPushButton("Edit")
-                edit_button.setFixedWidth(80)
-                edit_button.clicked.connect(lambda _, p=product: self.edit_product(p))
-                edit_button.setToolTip("Edit this product")
+                    # Actions
+                    actions_widget = QWidget()
+                    actions_layout = QHBoxLayout(actions_widget)
+                    actions_layout.setContentsMargins(0, 0, 0, 0)
 
-                delete_button = QPushButton("Delete")
-                delete_button.setFixedWidth(80)
-                delete_button.clicked.connect(lambda _, p=product: self.delete_product(p))
-                delete_button.setToolTip("Delete this product")
+                    edit_button = QPushButton("Edit")
+                    edit_button.setFixedWidth(80)
+                    edit_button.clicked.connect(lambda _, p=product: self.edit_product(p))
+                    edit_button.setToolTip("Edit this product")
 
-                actions_layout.addWidget(edit_button)
-                actions_layout.addWidget(delete_button)
-                self.product_table.setCellWidget(row, 7, actions_widget)
+                    delete_button = QPushButton("Delete")
+                    delete_button.setFixedWidth(80)
+                    delete_button.clicked.connect(lambda _, p=product: self.delete_product(p))
+                    delete_button.setToolTip("Delete this product")
+
+                    actions_layout.addWidget(edit_button)
+                    actions_layout.addWidget(delete_button)
+                    self.product_table.setCellWidget(row, 7, actions_widget)
+
+                except NotFoundException:
+                    # Skip this product if it was deleted
+                    continue
+                except Exception as e:
+                    logger.warning(f"Error updating row for product {product.id}: {str(e)}")
+                    continue
 
             self.product_table.resizeColumnsToContents()
             self.product_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
-            logger.info("Product table updated successfully")
+            
         except Exception as e:
             logger.error(f"Error updating product table: {str(e)}")
-            raise UIException(f"Failed to update product table: {str(e)}")
+            # Don't raise the exception - just log it and continue
+            pass
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
@@ -286,6 +305,7 @@ class ProductView(QWidget):
                     self.load_products()
                     show_info_message("Success", "Product added successfully.")
                     event_system.product_added.emit(product_id)
+                    event_system.inventory_changed.emit(product_id)
                     self.product_updated.emit()
                     logger.info(f"Product added successfully: ID {product_id}")
                 else:
@@ -373,7 +393,48 @@ class ProductView(QWidget):
         logger.info(f"Products filtered: {len(filtered_products)} results")
 
     def refresh(self):
-        self.load_products()
+        """Refresh the product view safely."""
+        try:
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+            
+            try:
+                # Get fresh product list
+                products = self.product_service.get_all_products()
+                
+                # Update the display
+                if self.search_input.text().strip():
+                    # If there's a search term, filter the products
+                    search_term = self.search_input.text().strip().lower()
+                    filtered_products = [
+                        p for p in products
+                        if search_term in p.name.lower() or 
+                        (p.description and search_term in p.description.lower())
+                    ]
+                    self.update_product_table(filtered_products)
+                else:
+                    # Otherwise show all products
+                    self.update_product_table(products)
+                    
+            except Exception as e:
+                logger.error(f"Error refreshing products: {str(e)}")
+                # Don't raise the exception - the view should still be usable
+                
+            finally:
+                QApplication.restoreOverrideCursor()
+                
+        except Exception as e:
+            logger.error(f"Error in refresh: {str(e)}")
+            QApplication.restoreOverrideCursor()
+
+    def on_product_deleted(self, product_id: int):
+        """Handle product deleted event gracefully."""
+        try:
+            logger.info(f"Product deleted event received: {product_id}")
+            # Simply refresh the view - don't try to access the deleted product
+            self.refresh()
+        except Exception as e:
+            logger.error(f"Error handling product deletion: {str(e)}")
+            # Don't raise the exception - just log it
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)

@@ -346,6 +346,7 @@ class ProductView(QWidget):
     @ui_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
     def delete_product(self, product: Product):
+        """Delete a product with proper UI update and cursor handling."""
         reply = QMessageBox.question(
             self,
             "Delete Product",
@@ -355,13 +356,26 @@ class ProductView(QWidget):
         )
         if reply == QMessageBox.StandardButton.Yes:
             try:
+                QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+                
+                # Delete the product
                 self.product_service.delete_product(product.id)
-                self.load_products()
+                
+                # Get fresh product list and update UI
+                products = self.product_service.get_all_products()
+                self.update_product_table(products)
+                
+                # Reset cursor before showing message
+                QApplication.restoreOverrideCursor()
+                
                 show_info_message("Success", "Product deleted successfully.")
                 event_system.product_deleted.emit(product.id)
                 self.product_updated.emit()
                 logger.info(f"Product deleted successfully: ID {product.id}")
+                
             except Exception as e:
+                # Ensure cursor is restored even if an error occurs
+                QApplication.restoreOverrideCursor()
                 logger.error(f"Error deleting product: {str(e)}")
                 raise
 

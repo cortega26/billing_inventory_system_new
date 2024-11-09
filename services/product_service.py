@@ -118,7 +118,7 @@ class ProductService:
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
     def get_all_products(self) -> List[Product]:
-        """Get all products."""
+        """Get all products with fresh data."""
         query = """
         SELECT DISTINCT p.*, c.name as category_name 
         FROM products p
@@ -127,17 +127,12 @@ class ProductService:
         """
         try:
             rows = DatabaseManager.fetch_all(query)
-            products = []
-            for row in rows:
-                product = Product.from_db_row(row)
-                products.append(product)
-                logger.debug(f"Loaded product: ID={product.id}, Name={product.name}")
-            
-            logger.info(f"Total products loaded: {len(products)}")
+            products = [Product.from_db_row(row) for row in rows]
+            logger.info(f"Retrieved {len(products)} products")
             return products
         except Exception as e:
-            logger.error(f"Error in get_all_products: {str(e)}")
-            raise
+            logger.error(f"Error retrieving products: {str(e)}")
+            raise DatabaseException(f"Failed to retrieve products: {str(e)}")
 
     @db_operation(show_dialog=True)
     @handle_exceptions(NotFoundException, ValidationException, DatabaseException, show_dialog=True)
@@ -194,17 +189,9 @@ class ProductService:
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
+    @db_operation(show_dialog=True)
     def delete_product(self, product_id: int) -> None:
-        """
-        Delete a product and all its related records.
-
-        Args:
-            product_id: The product ID to delete.
-
-        Raises:
-            DatabaseException: If database operation fails.
-            NotFoundException: If product not found.
-        """
+        """Delete a product and clear caches."""
         product_id = validate_integer(product_id, min_value=1)
         
         try:
@@ -212,19 +199,16 @@ class ProductService:
             DatabaseManager.begin_transaction()
             
             # First delete related records
-            # Delete from sale_items
             DatabaseManager.execute_query(
                 "DELETE FROM sale_items WHERE product_id = ?", 
                 (product_id,)
             )
             
-            # Delete from purchase_items
             DatabaseManager.execute_query(
                 "DELETE FROM purchase_items WHERE product_id = ?", 
                 (product_id,)
             )
             
-            # Delete from inventory (should cascade automatically but let's be explicit)
             DatabaseManager.execute_query(
                 "DELETE FROM inventory WHERE product_id = ?", 
                 (product_id,)
@@ -240,6 +224,9 @@ class ProductService:
                 
             # Commit all changes
             DatabaseManager.commit_transaction()
+            
+            # Clear the cache
+            self.clear_cache()
             
             logger.info(f"Product deleted successfully: ID {product_id}")
             

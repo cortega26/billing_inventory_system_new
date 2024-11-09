@@ -3,8 +3,8 @@ from database import DatabaseManager
 from models.inventory import Inventory
 from utils.system.event_system import event_system
 from utils.decorators import db_operation, handle_exceptions
-from utils.exceptions import ValidationException, NotFoundException, DatabaseException
-from utils.validation.validators import validate_integer, validate_string, validate_int_non_negative, validate_float_non_negative, validate_float
+from utils.exceptions import ValidationException, NotFoundException, DatabaseException, UIException
+from utils.validation.validators import validate_integer, validate_string, validate_float_non_negative, validate_float
 from utils.system.logger import logger
 from functools import lru_cache
 
@@ -53,19 +53,24 @@ class InventoryService:
     @staticmethod
     @lru_cache(maxsize=1)
     @db_operation(show_dialog=True)
-    @handle_exceptions(DatabaseException, show_dialog=True)
+    @handle_exceptions(DatabaseException, UIException, show_dialog=True)
     def get_all_inventory() -> List[Dict[str, Any]]:
         query = """
-            SELECT i.product_id, p.name as product_name, 
+            SELECT i.*, p.name as product_name, p.barcode,
                 COALESCE(c.name, 'Uncategorized') as category_name, 
-                i.quantity, p.category_id
+                p.category_id
             FROM inventory i
             JOIN products p ON i.product_id = p.id
             LEFT JOIN categories c ON p.category_id = c.id
+            ORDER BY p.name
         """
-        result = DatabaseManager.fetch_all(query)
-        logger.info("All inventory retrieved", extra={"count": len(result)})
-        return result
+        try:
+            result = DatabaseManager.fetch_all(query)
+            logger.info(f"Retrieved {len(result)} inventory items")
+            return result
+        except Exception as e:
+            logger.error(f"Error retrieving inventory: {str(e)}")
+            raise DatabaseException(f"Failed to retrieve inventory: {str(e)}")
 
     @staticmethod
     @db_operation(show_dialog=True)
@@ -133,9 +138,10 @@ class InventoryService:
         })
 
     @staticmethod
-    def clear_cache():
+    def clear_cache() -> None:
+        """Clear the inventory cache."""
+        logger.debug("Clearing inventory cache")
         InventoryService.get_all_inventory.cache_clear()
-        logger.debug("Inventory cache cleared")
 
     @staticmethod
     @db_operation(show_dialog=True)

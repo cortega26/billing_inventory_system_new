@@ -1,7 +1,6 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, 
-    QTableWidget, QTableWidgetItem, QMessageBox, QDialog, QDialogButtonBox, 
-    QFormLayout, QHeaderView, QProgressBar, QMenu, QApplication, QCheckBox,
+    QTableWidgetItem, QDialog, QFormLayout, QProgressBar, QMenu, QApplication,
     QComboBox, QDoubleSpinBox
 )
 from PySide6.QtCore import Qt, QTimer, Signal
@@ -10,14 +9,14 @@ from services.inventory_service import InventoryService
 from services.product_service import ProductService
 from services.category_service import CategoryService
 from utils.helpers import (
-    create_table, show_error_message, show_info_message, format_price
+    create_table, show_error_message, show_info_message
 )
 from utils.system.event_system import event_system
 from utils.ui.table_items import NumericTableWidgetItem
 from typing import List, Dict, Any
 from utils.decorators import ui_operation, handle_exceptions
 from utils.exceptions import ValidationException, DatabaseException, UIException
-from utils.validation.validators import validate_string, validate_float
+from utils.validation.validators import validate_string
 from utils.system.logger import logger
 from utils.ui.sound import SoundEffect
 import string
@@ -108,7 +107,20 @@ class InventoryView(QWidget):
         self.current_inventory = []
         self.setup_ui()
         self.setup_scan_sound()
-        
+        self.connect_signals()
+
+    def connect_signals(self):
+        """Set up event connections with delay to ensure database operations complete."""
+        event_system.product_added.connect(self.handle_product_change)
+        event_system.product_updated.connect(self.handle_product_change)
+        event_system.product_deleted.connect(self.handle_product_change)
+        event_system.inventory_changed.connect(self.handle_product_change)
+
+    def handle_product_change(self, product_id: int) -> None:
+        """Handle product changes with a small delay to ensure DB operations complete."""
+        logger.debug(f"Received product change event for product {product_id}")
+        # Use QTimer to add a small delay before reloading
+        QTimer.singleShot(100, self.refresh)
 
     def setup_scan_sound(self) -> None:
         """Initialize the sound system."""
@@ -271,13 +283,17 @@ class InventoryView(QWidget):
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
-    def load_inventory(self, *args):
+    def load_inventory(self, _: Any = None) -> None:
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
+            # Force a fresh read by clearing the cache first
+            self.inventory_service.clear_cache()
             inventory_items = self.inventory_service.get_all_inventory()
             self.current_inventory = inventory_items
+            
+            # Use QTimer to update the UI in the next event loop iteration
             QTimer.singleShot(0, lambda: self.update_inventory_table(inventory_items))
             logger.info(f"Loaded {len(inventory_items)} inventory items")
         except Exception as e:
@@ -471,9 +487,16 @@ class InventoryView(QWidget):
                     show_error_message("Error", f"Inventory item for product ID {product_id} not found")
 
     def refresh(self):
-        """Refresh the inventory view."""
-        self.load_inventory()
-        self.barcode_input.setFocus()
+        """Refresh the inventory view with cache clearing."""
+        try:
+            logger.debug("Refreshing inventory view")
+            # Clear the cache before loading
+            self.inventory_service.clear_cache()
+            self.load_inventory()
+            self.barcode_input.setFocus()
+        except Exception as e:
+            logger.error(f"Error refreshing inventory: {str(e)}")
+            show_error_message("Error", f"Failed to refresh inventory: {str(e)}")
 
     def keyPressEvent(self, event):
         """Handle key press events."""

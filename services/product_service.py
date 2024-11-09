@@ -1,11 +1,10 @@
 from typing import List, Optional, Dict, Any
 from database import DatabaseManager
 from models.product import Product
-from utils.validation.validators import (
-    validate_string, validate_integer, validate_float_non_negative
-)
+from PySide6.QtCore import QTimer
+from utils.validation.validators import validate_string, validate_integer
 from utils.decorators import db_operation, handle_exceptions
-from utils.exceptions import NotFoundException, ValidationException, DatabaseException
+from utils.exceptions import NotFoundException, ValidationException, DatabaseException, UIException
 from utils.system.logger import logger
 from utils.system.event_system import event_system
 from functools import lru_cache
@@ -13,34 +12,16 @@ import re
 
 class ProductService:
     @db_operation(show_dialog=True)
-    @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
     def create_product(self, product_data: Dict[str, Any]) -> Optional[int]:
-        """
-        Create a new product and initialize its inventory.
-
-        Args:
-            product_data: Dictionary containing product information.
-                Required: name
-                Optional: description, category_id, cost_price, sell_price, barcode
-
-        Returns:
-            Optional[int]: The ID of the created product.
-
-        Raises:
-            ValidationException: If validation fails.
-            DatabaseException: If database operation fails.
-        """
         validated_data = self._validate_product_data(product_data, is_create=True)
         
-        # Ensure barcode is in validated_data, even if None
         if 'barcode' not in validated_data:
             validated_data['barcode'] = None
 
         try:
-            # Begin transaction
             DatabaseManager.begin_transaction()
 
-            # Insert product
             query = """
             INSERT INTO products (
                 name, description, category_id, cost_price, sell_price, barcode
@@ -58,24 +39,26 @@ class ProductService:
                 VALUES (?, 0.000)
                 """
                 DatabaseManager.execute_query(inventory_query, (product_id,))
-
-                # Commit transaction
                 DatabaseManager.commit_transaction()
-
+                
+                # Clear caches
+                self.clear_cache()
+                
                 logger.info("Product created with inventory initialized", extra={
                     "product_id": product_id,
                     "name": validated_data['name']
                 })
-                
-                # Clear any caches
-                self.clear_cache()
+
+                # Emit events with a small delay to ensure database operations complete
+                QTimer.singleShot(50, lambda: event_system.product_added.emit(product_id))
+                QTimer.singleShot(100, lambda: event_system.inventory_changed.emit(product_id))
                 
                 return product_id
             else:
+                DatabaseManager.rollback_transaction()
                 raise DatabaseException("Failed to create product: No product ID returned")
 
         except Exception as e:
-            # Rollback transaction on error
             DatabaseManager.rollback_transaction()
             logger.error("Failed to create product", extra={
                 "error": str(e),
@@ -188,14 +171,12 @@ class ProductService:
             raise DatabaseException(f"Failed to update product: {str(e)}")
 
     @db_operation(show_dialog=True)
-    @handle_exceptions(DatabaseException, show_dialog=True)
-    @db_operation(show_dialog=True)
+    @handle_exceptions(DatabaseException, UIException, show_dialog=True)
     def delete_product(self, product_id: int) -> None:
         """Delete a product and clear caches."""
         product_id = validate_integer(product_id, min_value=1)
         
         try:
-            # Begin transaction
             DatabaseManager.begin_transaction()
             
             # First delete related records
@@ -221,12 +202,16 @@ class ProductService:
             if cursor.rowcount == 0:
                 DatabaseManager.rollback_transaction()
                 raise NotFoundException(f"Product with ID {product_id} not found")
-                
+            
             # Commit all changes
             DatabaseManager.commit_transaction()
             
-            # Clear the cache
+            # Clear product cache
             self.clear_cache()
+            
+            # Emit events after successful transaction
+            event_system.product_deleted.emit(product_id)
+            event_system.inventory_changed.emit(product_id)
             
             logger.info(f"Product deleted successfully: ID {product_id}")
             

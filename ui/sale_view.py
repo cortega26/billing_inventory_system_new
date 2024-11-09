@@ -386,15 +386,15 @@ class SaleView(QWidget):
 
             if customer:
                 self.selected_customer_id = customer.id
-                # Format customer info
-                info_parts = []
+                # Format customer info in the requested format: "3/4 digits id - Name - 9 digits id"
+                display_parts = []
                 if customer.identifier_3or4:
-                    info_parts.append(customer.identifier_3or4)
-                info_parts.append(customer.identifier_9)
+                    display_parts.append(customer.identifier_3or4)
                 if customer.name:
-                    info_parts.append(customer.name)
+                    display_parts.append(customer.name)
+                display_parts.append(customer.identifier_9)
                 
-                customer_info = " - ".join(info_parts)
+                customer_info = " - ".join(display_parts)
                 self.customer_info_label.setText(customer_info)
                 self.customer_id_input.clear()  # Clear the input field
                 self.barcode_input.setFocus()  # Move focus to barcode input

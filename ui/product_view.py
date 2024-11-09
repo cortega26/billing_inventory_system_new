@@ -12,7 +12,7 @@ from utils.helpers import create_table, show_info_message, show_error_message, f
 from utils.system.event_system import event_system
 from ui.category_management_dialog import CategoryManagementDialog
 from utils.ui.table_items import NumericTableWidgetItem, PercentageTableWidgetItem, PriceTableWidgetItem
-from typing import Optional, List
+from typing import Optional, List, Any
 from models.product import Product
 from models.category import Category
 from utils.decorators import ui_operation, handle_exceptions
@@ -170,10 +170,10 @@ class ProductView(QWidget):
         self.progress_bar.setVisible(False)
         layout.addWidget(self.progress_bar)
 
-        self.load_products()
-
         # Set up shortcuts
         self.setup_shortcuts()
+
+        self.load_products()
 
         # Connect to event system
         event_system.product_added.connect(self.load_products)
@@ -217,80 +217,77 @@ class ProductView(QWidget):
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
-    def load_products(self, *args):
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setValue(0)
+    def load_products(self, _: Any = None) -> None:
+        """Load all products."""
+        logger.debug("Loading products list")
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
             products = self.product_service.get_all_products()
-            QTimer.singleShot(0, lambda: self.filter_products(products))
+            logger.debug(f"Loaded {len(products)} products")
+            QTimer.singleShot(0, lambda: self.update_product_table(products))
             logger.info("Products loaded successfully")
         except Exception as e:
             logger.error(f"Error loading products: {str(e)}")
             raise DatabaseException(f"Failed to load products: {str(e)}")
         finally:
             QApplication.restoreOverrideCursor()
-            self.progress_bar.setValue(100)
-            QTimer.singleShot(1000, lambda: self.progress_bar.setVisible(False))
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(UIException, show_dialog=True)
     def update_product_table(self, products: List[Product]):
-        """Update the product table with graceful handling of deleted products."""
+        """Update the product table display."""
+        logger.debug(f"Updating product table with {len(products)} products")
         try:
+            # First, log all products being displayed
+            for product in products:
+                logger.debug(f"Processing product for display: ID={product.id}, Name={product.name}")
+                
+            # Clear existing rows
+            self.product_table.setRowCount(0)
             self.product_table.setRowCount(len(products))
+
             for row, product in enumerate(products):
-                try:
-                    # Basic product information that should always be available
-                    self.product_table.setItem(row, 0, NumericTableWidgetItem(product.id))
-                    self.product_table.setItem(row, 1, QTableWidgetItem(product.name))
-                    self.product_table.setItem(row, 2, QTableWidgetItem(product.description or ""))
-                    self.product_table.setItem(row, 3, QTableWidgetItem(product.category.name if product.category else ""))
+                # Log each row being added
+                logger.debug(f"Adding row {row}: Product ID={product.id}")
+                
+                self.product_table.setItem(row, 0, NumericTableWidgetItem(product.id))
+                self.product_table.setItem(row, 1, QTableWidgetItem(product.name))
+                self.product_table.setItem(row, 2, QTableWidgetItem(product.description or ""))
+                self.product_table.setItem(row, 3, QTableWidgetItem(
+                    product.category.name if product.category else ""))
+                self.product_table.setItem(row, 4, PriceTableWidgetItem(
+                    product.cost_price, format_price))
+                self.product_table.setItem(row, 5, PriceTableWidgetItem(
+                    product.sell_price, format_price))
+                self.product_table.setItem(row, 6, PercentageTableWidgetItem(
+                    product.calculate_profit_margin()))
 
-                    # Handle potentially missing profit margin gracefully
-                    try:
-                        profit_margin = self.product_service.get_product_profit_margin(product.id)
-                    except NotFoundException:
-                        profit_margin = None
-                    
-                    # Price and margin columns
-                    self.product_table.setItem(row, 4, PriceTableWidgetItem(product.cost_price, format_price))
-                    self.product_table.setItem(row, 5, PriceTableWidgetItem(product.sell_price, format_price))
-                    self.product_table.setItem(row, 6, PercentageTableWidgetItem(profit_margin))
+                # Create action buttons
+                actions_widget = QWidget()
+                actions_layout = QHBoxLayout(actions_widget)
+                actions_layout.setContentsMargins(0, 0, 0, 0)
 
-                    # Actions
-                    actions_widget = QWidget()
-                    actions_layout = QHBoxLayout(actions_widget)
-                    actions_layout.setContentsMargins(0, 0, 0, 0)
+                edit_button = QPushButton("Edit")
+                edit_button.setFixedWidth(80)
+                edit_button.clicked.connect(lambda _, p=product: self.edit_product(p))
+                
+                delete_button = QPushButton("Delete")
+                delete_button.setFixedWidth(80)
+                delete_button.clicked.connect(lambda _, p=product: self.delete_product(p))
 
-                    edit_button = QPushButton("Edit")
-                    edit_button.setFixedWidth(80)
-                    edit_button.clicked.connect(lambda _, p=product: self.edit_product(p))
-                    edit_button.setToolTip("Edit this product")
+                actions_layout.addWidget(edit_button)
+                actions_layout.addWidget(delete_button)
+                self.product_table.setCellWidget(row, 7, actions_widget)
 
-                    delete_button = QPushButton("Delete")
-                    delete_button.setFixedWidth(80)
-                    delete_button.clicked.connect(lambda _, p=product: self.delete_product(p))
-                    delete_button.setToolTip("Delete this product")
-
-                    actions_layout.addWidget(edit_button)
-                    actions_layout.addWidget(delete_button)
-                    self.product_table.setCellWidget(row, 7, actions_widget)
-
-                except NotFoundException:
-                    # Skip this product if it was deleted
-                    continue
-                except Exception as e:
-                    logger.warning(f"Error updating row for product {product.id}: {str(e)}")
-                    continue
-
+            # Adjust table display
             self.product_table.resizeColumnsToContents()
-            self.product_table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
+            self.product_table.horizontalHeader().setSectionResizeMode(
+                7, QHeaderView.ResizeMode.Stretch)
             
+            logger.info("Product table updated successfully")
         except Exception as e:
             logger.error(f"Error updating product table: {str(e)}")
-            # Don't raise the exception - just log it and continue
-            pass
+            raise UIException(f"Failed to update product table: {str(e)}")
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
@@ -300,12 +297,15 @@ class ProductView(QWidget):
         if dialog.exec():
             product_data = dialog.product_data
             try:
+                logger.debug("Creating new product", extra={"data": product_data})
                 product_id = self.product_service.create_product(product_data)
+                logger.debug(f"Product created with ID: {product_id}")
+                
                 if product_id is not None:
-                    self.load_products()
+                    logger.debug("Reloading products list")
+                    self.load_products()  # Reload the product list
                     show_info_message("Success", "Product added successfully.")
                     event_system.product_added.emit(product_id)
-                    event_system.inventory_changed.emit(product_id)
                     self.product_updated.emit()
                     logger.info(f"Product added successfully: ID {product_id}")
                 else:

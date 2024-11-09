@@ -32,10 +32,6 @@ class ProductService:
         """
         validated_data = self._validate_product_data(product_data, is_create=True)
         
-        # Validate barcode if provided
-        if 'barcode' in validated_data:
-            self._validate_barcode_unique(validated_data['barcode'])
-
         # Ensure barcode is in validated_data, even if None
         if 'barcode' not in validated_data:
             validated_data['barcode'] = None
@@ -71,8 +67,9 @@ class ProductService:
                     "name": validated_data['name']
                 })
                 
+                # Clear any caches
                 self.clear_cache()
-                event_system.product_added.emit(product_id)
+                
                 return product_id
             else:
                 raise DatabaseException("Failed to create product: No product ID returned")
@@ -121,25 +118,26 @@ class ProductService:
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
     def get_all_products(self) -> List[Product]:
-        """
-        Get all products.
-
-        Returns:
-            List[Product]: List of all products.
-
-        Raises:
-            DatabaseException: If database operation fails.
-        """
+        """Get all products."""
         query = """
-        SELECT p.*, c.name as category_name 
+        SELECT DISTINCT p.*, c.name as category_name 
         FROM products p
         LEFT JOIN categories c ON p.category_id = c.id
-        ORDER BY p.name
+        ORDER BY p.id
         """
-        rows = DatabaseManager.fetch_all(query)
-        products = [Product.from_db_row(row) for row in rows]
-        logger.info("All products retrieved", extra={"count": len(products)})
-        return products
+        try:
+            rows = DatabaseManager.fetch_all(query)
+            products = []
+            for row in rows:
+                product = Product.from_db_row(row)
+                products.append(product)
+                logger.debug(f"Loaded product: ID={product.id}, Name={product.name}")
+            
+            logger.info(f"Total products loaded: {len(products)}")
+            return products
+        except Exception as e:
+            logger.error(f"Error in get_all_products: {str(e)}")
+            raise
 
     @db_operation(show_dialog=True)
     @handle_exceptions(NotFoundException, ValidationException, DatabaseException, show_dialog=True)
@@ -198,29 +196,56 @@ class ProductService:
     @handle_exceptions(DatabaseException, show_dialog=True)
     def delete_product(self, product_id: int) -> None:
         """
-        Delete a product.
+        Delete a product and all its related records.
 
         Args:
-            product_id: The product ID.
+            product_id: The product ID to delete.
 
         Raises:
             DatabaseException: If database operation fails.
             NotFoundException: If product not found.
         """
         product_id = validate_integer(product_id, min_value=1)
-        query = "DELETE FROM products WHERE id = :product_id"
+        
         try:
-            cursor = DatabaseManager.execute_query(query, {"product_id": product_id})
+            # Begin transaction
+            DatabaseManager.begin_transaction()
+            
+            # First delete related records
+            # Delete from sale_items
+            DatabaseManager.execute_query(
+                "DELETE FROM sale_items WHERE product_id = ?", 
+                (product_id,)
+            )
+            
+            # Delete from purchase_items
+            DatabaseManager.execute_query(
+                "DELETE FROM purchase_items WHERE product_id = ?", 
+                (product_id,)
+            )
+            
+            # Delete from inventory (should cascade automatically but let's be explicit)
+            DatabaseManager.execute_query(
+                "DELETE FROM inventory WHERE product_id = ?", 
+                (product_id,)
+            )
+            
+            # Finally delete the product
+            query = "DELETE FROM products WHERE id = ?"
+            cursor = DatabaseManager.execute_query(query, (product_id,))
+            
             if cursor.rowcount == 0:
-                raise NotFoundException(f"No product found with ID: {product_id}")
-            logger.info("Product deleted", extra={"product_id": product_id})
-            self.clear_cache()
-            event_system.product_deleted.emit(product_id)
+                DatabaseManager.rollback_transaction()
+                raise NotFoundException(f"Product with ID {product_id} not found")
+                
+            # Commit all changes
+            DatabaseManager.commit_transaction()
+            
+            logger.info(f"Product deleted successfully: ID {product_id}")
+            
         except Exception as e:
-            logger.error("Failed to delete product", extra={
-                "error": str(e),
-                "product_id": product_id
-            })
+            DatabaseManager.rollback_transaction()
+            logger.error(f"Failed to delete product", extra={"error": str(e), "product_id": product_id})
             raise DatabaseException(f"Failed to delete product: {str(e)}")
 
     @db_operation(show_dialog=True)

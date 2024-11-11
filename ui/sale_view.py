@@ -688,10 +688,12 @@ class SaleView(QWidget):
         delete_button.setToolTip("Delete this sale")
         delete_button.setMaximumWidth(60)
         
+        """
         if (sale.date is not None and 
             datetime.now() - sale.date > timedelta(hours=96)):
             delete_button.setEnabled(False)
             delete_button.setToolTip("Sales can only be deleted within 96 hours")
+        """
 
         for btn in [view_button, print_button, delete_button]:
             actions_layout.addWidget(btn)
@@ -725,9 +727,11 @@ class SaleView(QWidget):
         """Delete a sale with validation."""
         if sale is None:
             raise ValidationException("No sale selected for deletion")
-            
+
+        """
         if datetime.now() - sale.date > timedelta(hours=96):
             raise ValidationException("Sales can only be deleted within 96 hours of creation")
+        """
 
         if not confirm_action(
             self,

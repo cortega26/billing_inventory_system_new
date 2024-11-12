@@ -193,7 +193,7 @@ class SaleService:
             raise DatabaseException(f"Failed to delete sale: {str(e)}")
 
     @db_operation(show_dialog=True)
-    @handle_exceptions(DatabaseException, show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def update_sale(self, sale_id: int, customer_id: int, date: str, items: List[Dict[str, Any]]) -> None:
         sale_id = validate_integer(sale_id, min_value=1)
         customer_id = validate_integer(customer_id, min_value=1)
@@ -210,6 +210,7 @@ class SaleService:
 
         old_items = self.get_sale_items(sale_id)
 
+        # Revert previous inventory changes
         self._revert_inventory(old_items)
 
         total_amount = 0
@@ -218,22 +219,22 @@ class SaleService:
             product = self.product_service.get_product(item["product_id"])
             if product is None:
                 raise ValidationException(f"Product with ID {item['product_id']} not found")
-            if product.cost_price is None:
-                raise ValidationException(f"Cost price not set for product '{product.name}'")
-            if product.sell_price is None:
-                raise ValidationException(f"Sell price not set for product '{product.name}'")
+            if product.cost_price is None or product.sell_price is None:
+                raise ValidationException(f"Cost/Sell price not set for product '{product.name}'")
             
-            item["profit"] = int((item["sell_price"] - product.cost_price) * item["quantity"])
-            total_amount += int(item["sell_price"] * item["quantity"])
-            total_profit += item["profit"]
+            item_total = round(item["quantity"] * item["sell_price"])
+            item_profit = round(item["quantity"] * (item["sell_price"] - product.cost_price))
+            
+            total_amount += item_total
+            total_profit += item_profit
 
         self._update_sale(sale_id, customer_id, date, total_amount, total_profit)
         self._update_sale_items(sale_id, items)
         self._update_inventory(items)
 
-        logger.info("Sale updated", extra={"sale_id": sale_id, "customer_id": customer_id, "total_amount": total_amount, "total_profit": total_profit})
+        logger.info("Sale updated", extra={"sale_id": sale_id, "customer_id": customer_id})
         event_system.sale_updated.emit(sale_id)
-        self.clear_cache()
+        #self.clear_cache()
 
     @staticmethod
     @db_operation(show_dialog=True)

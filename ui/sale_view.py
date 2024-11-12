@@ -21,11 +21,269 @@ from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
 from typing import List, Optional, Dict, Any
 from utils.decorators import ui_operation, handle_exceptions
 from utils.exceptions import ValidationException, DatabaseException, UIException
-from utils.validation.validators import validate_string, validate_float, validate_date
+from utils.validation.validators import validate_date
 from utils.system.logger import logger
 from utils.ui.sound import SoundEffect
 from datetime import datetime, timedelta
-import os
+
+
+class EditSaleDialog(QDialog):
+    def __init__(self, sale: Sale, sale_service: SaleService, customer_service: CustomerService, 
+                 product_service: ProductService, parent=None):
+        super().__init__(parent)
+        self.sale = sale
+        self.sale_service = sale_service
+        self.customer_service = customer_service
+        self.product_service = product_service
+        self.sale_items = []
+        self.selected_customer_id = sale.customer_id
+        
+        self.setWindowTitle(f"Edit Sale #{sale.id}")
+        self.setup_ui()
+        self.load_sale_data()
+
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        
+        # Customer info section
+        customer_group = QWidget()
+        customer_layout = QHBoxLayout(customer_group)
+        self.customer_info_label = QLabel()
+        customer_layout.addWidget(QLabel("Customer:"))
+        customer_layout.addWidget(self.customer_info_label)
+        layout.addWidget(customer_group)
+
+        # Date section
+        date_group = QWidget()
+        date_layout = QHBoxLayout(date_group)
+        self.date_input = QDateEdit()
+        self.date_input.setCalendarPopup(True)
+        self.date_input.setMinimumWidth(120)
+        date_layout.addWidget(QLabel("Date:"))
+        date_layout.addWidget(self.date_input)
+        date_layout.addStretch()
+        layout.addWidget(date_group)
+
+        # Barcode and search section
+        barcode_group = QWidget()
+        barcode_layout = QHBoxLayout(barcode_group)
+        
+        self.barcode_input = QLineEdit()
+        self.barcode_input.setPlaceholderText("Scan barcode...")
+        self.barcode_input.returnPressed.connect(self.handle_barcode_scan)
+        
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Search products...")
+        search_button = QPushButton("Search")
+        search_button.clicked.connect(self.search_products)
+        
+        barcode_layout.addWidget(QLabel("Barcode:"))
+        barcode_layout.addWidget(self.barcode_input)
+        barcode_layout.addWidget(QLabel("Search:"))
+        barcode_layout.addWidget(self.search_input)
+        barcode_layout.addWidget(search_button)
+        layout.addWidget(barcode_group)
+
+        # Items table
+        self.items_table = create_table(
+            ["Product ID", "Product Name", "Quantity", "Unit Price", "Total", "Actions"]
+        )
+        layout.addWidget(self.items_table)
+
+        # Total amount
+        total_layout = QHBoxLayout()
+        self.total_amount_label = QLabel("Total: $ 0")
+        self.total_amount_label.setStyleSheet("font-size: 16px; font-weight: bold;")
+        total_layout.addStretch()
+        total_layout.addWidget(self.total_amount_label)
+        layout.addLayout(total_layout)
+
+        # Dialog buttons
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | 
+            QDialogButtonBox.StandardButton.Cancel
+        )
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+        # Set dialog size
+        self.resize(800, 600)
+
+    def load_sale_data(self):
+        try:
+            # Load customer info
+            customer = self.customer_service.get_customer(self.sale.customer_id)
+            if customer:
+                display_parts = []
+                if customer.identifier_3or4:
+                    display_parts.append(customer.identifier_3or4)
+                if customer.name:
+                    display_parts.append(customer.name)
+                display_parts.append(customer.identifier_9)
+                self.customer_info_label.setText(" - ".join(display_parts))
+
+            # Set date
+            qdate = QDate.fromString(self.sale.date.strftime("%Y-%m-%d"), "yyyy-MM-dd")
+            self.date_input.setDate(qdate)
+
+            # Load items
+            items = self.sale_service.get_sale_items(self.sale.id)
+            for item in items:
+                # Get the product to ensure we have the correct name
+                product = self.product_service.get_product(item.product_id)
+                item_data = {
+                    "product_id": item.product_id,
+                    "product_name": product.name if product else "Unknown Product",
+                    "quantity": item.quantity,
+                    "sell_price": item.unit_price,
+                    "profit": item.profit
+                }
+                self.sale_items.append(item_data)
+            
+            self.update_items_table()
+
+        except Exception as e:
+            logger.error(f"Error loading sale data: {str(e)}")
+            raise
+
+    def update_items_table(self):
+        """Update the items table display."""
+        self.items_table.setRowCount(len(self.sale_items))
+        total_amount = 0
+        
+        for row, item in enumerate(self.sale_items):
+            self.items_table.setItem(row, 0, NumericTableWidgetItem(item["product_id"]))
+            self.items_table.setItem(row, 1, QTableWidgetItem(item["product_name"]))
+            self.items_table.setItem(row, 2, NumericTableWidgetItem(item["quantity"]))
+            self.items_table.setItem(row, 3, PriceTableWidgetItem(item["sell_price"], format_price))
+            
+            # Calculate and display total for this item
+            item_total = round(item["quantity"] * item["sell_price"])
+            total_amount += item_total
+            self.items_table.setItem(row, 4, PriceTableWidgetItem(item_total, format_price))
+
+            # Actions
+            actions_widget = QWidget()
+            actions_layout = QHBoxLayout(actions_widget)
+            actions_layout.setContentsMargins(0, 0, 0, 0)
+
+            remove_button = QPushButton("Remove")
+            remove_button.clicked.connect(lambda _, i=row: self.remove_item(i))
+            remove_button.setMaximumWidth(60)
+            actions_layout.addWidget(remove_button)
+
+            self.items_table.setCellWidget(row, 5, actions_widget)
+
+        self.total_amount_label.setText(f"Total: {format_price(total_amount)}")
+
+    def handle_barcode_scan(self):
+        """Handle barcode scan event."""
+        barcode = self.barcode_input.text().strip()
+        if not barcode:
+            return
+
+        try:
+            product = self.product_service.get_product_by_barcode(barcode)
+            if product:
+                dialog = SaleItemDialog(product, self)
+                if dialog.exec():
+                    self.add_item(dialog.get_item_data())
+                self.barcode_input.clear()
+            else:
+                self.barcode_input.setStyleSheet("background-color: #ffebee;")
+                QTimer.singleShot(1000, lambda: self.barcode_input.setStyleSheet(""))
+                show_error_message("Error", f"No product found with barcode: {barcode}")
+        except Exception as e:
+            logger.error(f"Error processing barcode: {str(e)}")
+            show_error_message("Error", str(e))
+
+    def search_products(self):
+        """Search for products manually."""
+        search_term = self.search_input.text().strip()
+        if not search_term:
+            return
+
+        try:
+            products = self.product_service.search_products(search_term)
+            if products:
+                if len(products) == 1:
+                    dialog = SaleItemDialog(products[0], self)
+                    if dialog.exec():
+                        self.add_item(dialog.get_item_data())
+                else:
+                    product = self.show_product_selection_dialog(products)
+                    if product:
+                        dialog = SaleItemDialog(product, self)
+                        if dialog.exec():
+                            self.add_item(dialog.get_item_data())
+            else:
+                show_error_message("Not Found", "No products found matching the search term")
+        except Exception as e:
+            logger.error(f"Error searching products: {str(e)}")
+            show_error_message("Error", str(e))
+
+    def add_item(self, item_data: Dict[str, Any]):
+        """Add an item to the sale."""
+        self.sale_items.append(item_data)
+        self.update_items_table()
+
+    def remove_item(self, row: int):
+        """Remove an item from the sale."""
+        if 0 <= row < len(self.sale_items):
+            del self.sale_items[row]
+            self.update_items_table()
+
+    def show_product_selection_dialog(self, products: List[Product]) -> Optional[Product]:
+        """Show dialog for selecting from multiple matching products."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Select Product")
+        layout = QVBoxLayout(dialog)
+
+        product_list = QComboBox()
+        for product in products:
+            display_text = f"{product.name}"
+            if product.barcode:
+                display_text += f" (Barcode: {product.barcode})"
+            product_list.addItem(display_text, product)
+
+        layout.addWidget(QLabel("Select a product:"))
+        layout.addWidget(product_list)
+
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            return product_list.currentData()
+        return None
+
+    @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
+    def accept(self):
+        """Handle dialog acceptance and save changes."""
+        if not self.sale_items:
+            raise ValidationException("Please add at least one item to the sale")
+
+        try:
+            date = self.date_input.date().toString("yyyy-MM-dd")
+            
+            # Update the sale
+            self.sale_service.update_sale(
+                sale_id=self.sale.id,
+                customer_id=self.selected_customer_id,
+                date=date,
+                items=self.sale_items
+            )
+            
+            super().accept()
+            
+        except Exception as e:
+            logger.error(f"Error updating sale: {str(e)}")
+            raise
 
 
 class SaleItemDialog(QDialog):
@@ -249,6 +507,7 @@ class SaleView(QWidget):
         self.date_input = QDateEdit()
         self.date_input.setDate(QDate.currentDate())
         self.date_input.setCalendarPopup(True)
+        self.date_input.setMinimumWidth(120)
         date_layout.addWidget(QLabel("Date:"))
         date_layout.addWidget(self.date_input)
         date_layout.addStretch()
@@ -668,7 +927,6 @@ class SaleView(QWidget):
             self.create_sale_actions(row, sale)
 
     def create_sale_actions(self, row: int, sale: Sale) -> None:
-        """Create action buttons for a sale row."""
         actions_widget = QWidget()
         actions_layout = QHBoxLayout(actions_widget)
         actions_layout.setContentsMargins(0, 0, 0, 0)
@@ -677,6 +935,11 @@ class SaleView(QWidget):
         view_button.clicked.connect(lambda: self._safe_view_sale(sale))
         view_button.setToolTip("View sale details")
         view_button.setMaximumWidth(60)
+
+        edit_button = QPushButton("Edit")
+        edit_button.clicked.connect(lambda: self._safe_edit_sale(sale))
+        edit_button.setToolTip("Edit sale")
+        edit_button.setMaximumWidth(60)
 
         print_button = QPushButton("Print")
         print_button.clicked.connect(lambda: self._safe_print_receipt(sale))
@@ -688,17 +951,51 @@ class SaleView(QWidget):
         delete_button.setToolTip("Delete this sale")
         delete_button.setMaximumWidth(60)
         
-        """
         if (sale.date is not None and 
             datetime.now() - sale.date > timedelta(hours=96)):
+            edit_button.setEnabled(False)
+            edit_button.setToolTip("Sales can only be edited within 96 hours")
             delete_button.setEnabled(False)
             delete_button.setToolTip("Sales can only be deleted within 96 hours")
-        """
 
-        for btn in [view_button, print_button, delete_button]:
+        for btn in [view_button, edit_button, print_button, delete_button]:
             actions_layout.addWidget(btn)
 
         self.sale_table.setCellWidget(row, 8, actions_widget)
+
+    @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
+    def edit_sale(self, sale: Sale) -> None:
+        """Edit an existing sale."""
+        if sale is None:
+            raise ValidationException("No sale selected for editing")
+
+        if datetime.now() - sale.date > timedelta(hours=96):
+            raise ValidationException("Sales can only be edited within 96 hours of creation")
+
+        try:
+            dialog = EditSaleDialog(
+                sale=sale,
+                sale_service=self.sale_service,
+                customer_service=self.customer_service,
+                product_service=self.product_service,
+                parent=self
+            )
+            
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                self.load_sales()
+                show_info_message("Success", "Sale updated successfully")
+                
+        except Exception as e:
+            logger.error(f"Error editing sale: {str(e)}")
+            raise
+
+    def _safe_edit_sale(self, sale: Optional[Sale]) -> None:
+        """Safely handle edit sale action with null check."""
+        if sale is None:
+            show_error_message("Error", "No sale selected")
+            return
+        self.edit_sale(sale)
 
     def _safe_view_sale(self, sale: Optional[Sale]) -> None:
         """Safely handle view sale action with null check."""
@@ -763,9 +1060,9 @@ class SaleView(QWidget):
         self.total_amount_label.setText("Total: $ 0")
 
     def show_context_menu(self, position: QPoint) -> None:
-        """Show context menu for sales table."""
         menu = QMenu()
         view_action = menu.addAction("View")
+        edit_action = menu.addAction("Edit")
         print_action = menu.addAction("Print")
         delete_action = menu.addAction("Delete")
 
@@ -778,14 +1075,17 @@ class SaleView(QWidget):
                     show_error_message("Error", "Sale not found")
                     return
                 
-                # Disable delete action for old sales
-                if sale.date and datetime.now() - sale.date > timedelta(hours=120):
+                # Disable edit/delete actions for old sales
+                if sale.date and datetime.now() - sale.date > timedelta(hours=96):
+                    edit_action.setEnabled(False)
                     delete_action.setEnabled(False)
                 
                 action = menu.exec(self.sale_table.mapToGlobal(position))
                 if action:
                     if action == view_action:
                         self._safe_view_sale(sale)
+                    elif action == edit_action and action.isEnabled():
+                        self._safe_edit_sale(sale)
                     elif action == print_action:
                         self._safe_print_receipt(sale)
                     elif action == delete_action and action.isEnabled():

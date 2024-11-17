@@ -78,3 +78,43 @@ class CheckboxTableWidgetItem(QTableWidgetItem):
         self.setCheckState(
             Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked
         )
+
+
+class DepartmentIdentifierTableWidgetItem(QTableWidgetItem):
+    """Custom table item for department identifiers (3 or 4 digits)"""
+    def __init__(self, value: str):
+        # Handle empty or N/A values
+        if not value or value == "N/A":
+            # Use a very high number for sorting "N/A" at the end
+            self.sort_key = float('inf')
+            display_value = "N/A"
+        else:
+            # For actual department numbers, use numeric value for sorting
+            try:
+                self.sort_key = int(value)
+                display_value = value
+            except ValueError:
+                self.sort_key = float('inf')
+                display_value = value
+
+        super().__init__(display_value)
+        self.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+
+    def __lt__(self, other: "DepartmentIdentifierTableWidgetItem") -> bool:
+        if not isinstance(other, DepartmentIdentifierTableWidgetItem):
+            return super().__lt__(other)
+        
+        # Both are valid numbers - sort by length first, then by value
+        if isinstance(self.sort_key, int) and isinstance(other.sort_key, int):
+            self_str = str(self.sort_key)
+            other_str = str(other.sort_key)
+            
+            # If lengths are different, shorter numbers come first
+            if len(self_str) != len(other_str):
+                return len(self_str) < len(other_str)
+            
+            # If lengths are the same, sort by numeric value
+            return self.sort_key < other.sort_key
+            
+        # Handle "N/A" and invalid values
+        return self.sort_key < other.sort_key

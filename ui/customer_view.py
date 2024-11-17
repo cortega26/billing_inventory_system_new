@@ -8,7 +8,7 @@ from PySide6.QtGui import QAction, QKeySequence
 from services.customer_service import CustomerService
 from utils.helpers import create_table, show_error_message, show_info_message, format_price
 from utils.system.event_system import event_system
-from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
+from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem, DepartmentIdentifierTableWidgetItem
 from typing import Optional
 from models.customer import Customer
 from utils.decorators import ui_operation, handle_exceptions
@@ -204,8 +204,11 @@ class CustomerView(QWidget):
                     # Basic information
                     self.customer_table.setItem(current_row, 0, NumericTableWidgetItem(customer.id))
                     self.customer_table.setItem(current_row, 1, QTableWidgetItem(customer.identifier_9))
+                    
+                    # Use the new custom item for department identifier
                     self.customer_table.setItem(
-                        current_row, 2, QTableWidgetItem(customer.identifier_3or4 or "N/A")
+                        current_row, 2, 
+                        DepartmentIdentifierTableWidgetItem(customer.identifier_3or4 or "N/A")
                     )
                     
                     # Name column
@@ -251,6 +254,12 @@ class CustomerView(QWidget):
 
             # Adjust column widths
             self.customer_table.resizeColumnsToContents()
+            
+            # Enable sorting
+            self.customer_table.setSortingEnabled(True)
+            
+            # Sort by department identifier initially (column 2)
+            self.customer_table.sortItems(2, Qt.SortOrder.AscendingOrder)
             
             logger.debug(f"Finished populating customer table with {current_row} rows")
             

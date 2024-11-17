@@ -82,6 +82,12 @@ class CustomerView(QWidget):
         self.customer_service = CustomerService()
         self.setup_ui()
 
+    def __del__(self):
+        # Disconnect from event system to prevent multiple connections
+        event_system.customer_added.disconnect(self.load_customers)
+        event_system.customer_updated.disconnect(self.load_customers)
+        event_system.customer_deleted.disconnect(self.load_customers)
+
     def setup_ui(self):
         layout = QVBoxLayout(self)
 
@@ -151,8 +157,16 @@ class CustomerView(QWidget):
     def load_customers(self):
         try:
             QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+            
+            # Clear the table first
+            self.customer_table.setRowCount(0)
+            
+            # Force a cache clear
+            self.customer_service.clear_cache()
+            
             customers = self.customer_service.get_all_customers()
             QTimer.singleShot(0, lambda: self.populate_customer_table(customers))
+            logger.info(f"Loaded {len(customers)} customers")
         except Exception as e:
             logger.error(f"Error loading customers: {str(e)}")
             raise DatabaseException(f"Failed to load customers: {str(e)}")
@@ -162,55 +176,88 @@ class CustomerView(QWidget):
     @ui_operation(show_dialog=True)
     @handle_exceptions(UIException, show_dialog=True)
     def populate_customer_table(self, customers):
+        """Populate the customer table with data."""
         try:
+            logger.debug(f"Starting population of customer table with {len(customers)} customers")
+            
+            # Create a set to track displayed customer IDs
+            displayed_customers = set()
+            
+            # Initially set row count to total customers
             self.customer_table.setRowCount(len(customers))
-            for row, customer in enumerate(customers):
-                total_purchases, total_amount = self.customer_service.get_customer_stats(
-                    customer.id
-                )
+            current_row = 0
+            
+            for customer in customers:
+                # Skip if this customer ID is already displayed
+                if customer.id in displayed_customers:
+                    logger.warning(f"Duplicate customer detected: ID {customer.id}, Name: {customer.name}")
+                    continue
+                    
+                displayed_customers.add(customer.id)
                 
-                # Basic information
-                self.customer_table.setItem(row, 0, NumericTableWidgetItem(customer.id))
-                self.customer_table.setItem(row, 1, QTableWidgetItem(customer.identifier_9))
-                self.customer_table.setItem(
-                    row, 2, QTableWidgetItem(customer.identifier_3or4 or "N/A")
-                )
-                
-                # Name column
-                name_item = QTableWidgetItem(customer.name or "")
-                name_item.setToolTip(customer.name if customer.name else "No name provided")
-                self.customer_table.setItem(row, 3, name_item)
-                
-                # Statistics
-                self.customer_table.setItem(row, 4, NumericTableWidgetItem(total_purchases))
-                self.customer_table.setItem(
-                    row, 5, PriceTableWidgetItem(total_amount, format_price)
-                )
+                try:
+                    # Get customer stats
+                    total_purchases, total_amount = self.customer_service.get_customer_stats(
+                        customer.id
+                    )
+                    
+                    # Basic information
+                    self.customer_table.setItem(current_row, 0, NumericTableWidgetItem(customer.id))
+                    self.customer_table.setItem(current_row, 1, QTableWidgetItem(customer.identifier_9))
+                    self.customer_table.setItem(
+                        current_row, 2, QTableWidgetItem(customer.identifier_3or4 or "N/A")
+                    )
+                    
+                    # Name column
+                    name_item = QTableWidgetItem(customer.name or "")
+                    name_item.setToolTip(customer.name if customer.name else "No name provided")
+                    self.customer_table.setItem(current_row, 3, name_item)
+                    
+                    # Statistics
+                    self.customer_table.setItem(current_row, 4, NumericTableWidgetItem(total_purchases))
+                    self.customer_table.setItem(
+                        current_row, 5, PriceTableWidgetItem(total_amount, format_price)
+                    )
 
-                # Actions
-                actions_widget = QWidget()
-                actions_layout = QHBoxLayout(actions_widget)
-                actions_layout.setContentsMargins(0, 0, 0, 0)
+                    # Actions
+                    actions_widget = QWidget()
+                    actions_layout = QHBoxLayout(actions_widget)
+                    actions_layout.setContentsMargins(0, 0, 0, 0)
 
-                edit_button = QPushButton("Edit")
-                edit_button.setFixedWidth(50)
-                edit_button.clicked.connect(lambda _, c=customer: self.edit_customer(c))
-                edit_button.setToolTip("Edit this customer")
+                    edit_button = QPushButton("Edit")
+                    edit_button.setFixedWidth(50)
+                    edit_button.clicked.connect(lambda _, c=customer: self.edit_customer(c))
+                    edit_button.setToolTip("Edit this customer")
 
-                delete_button = QPushButton("Delete")
-                delete_button.setFixedWidth(50)
-                delete_button.clicked.connect(lambda _, c=customer: self.delete_customer(c))
-                delete_button.setToolTip("Delete this customer")
+                    delete_button = QPushButton("Delete")
+                    delete_button.setFixedWidth(50)
+                    delete_button.clicked.connect(lambda _, c=customer: self.delete_customer(c))
+                    delete_button.setToolTip("Delete this customer")
 
-                actions_layout.addWidget(edit_button)
-                actions_layout.addWidget(delete_button)
-                self.customer_table.setCellWidget(row, 6, actions_widget)
+                    actions_layout.addWidget(edit_button)
+                    actions_layout.addWidget(delete_button)
+                    self.customer_table.setCellWidget(current_row, 6, actions_widget)
+
+                    current_row += 1
+                    
+                except Exception as row_error:
+                    logger.error(f"Error processing customer {customer.id}: {str(row_error)}")
+                    continue
+            
+            # Adjust final row count if we skipped duplicates
+            if current_row < len(customers):
+                logger.info(f"Adjusting table row count from {len(customers)} to {current_row} due to duplicates")
+                self.customer_table.setRowCount(current_row)
 
             # Adjust column widths
             self.customer_table.resizeColumnsToContents()
             
+            logger.debug(f"Finished populating customer table with {current_row} rows")
+            
         except Exception as e:
             logger.error(f"Error populating customer table: {str(e)}")
+            # Log the full error details for debugging
+            logger.error("Full error details:", exc_info=True)
             raise UIException(f"Failed to populate customer table: {str(e)}")
 
     @ui_operation(show_dialog=True)

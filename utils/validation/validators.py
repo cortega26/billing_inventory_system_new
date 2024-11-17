@@ -130,29 +130,54 @@ def validate_int_non_negative(value: int) -> int:
     """Validate a non-negative integer value."""
     return validate_integer(value, min_value=0)
 
-def validate_money(value: Any) -> int:
+def validate_money(value: Any, field_name: str = "Amount") -> int:
     """
     Validate a money value (Chilean Pesos).
-    Must be a positive integer.
+    Must be a positive integer not exceeding 1.000.000 CLP.
 
     Args:
         value: Value to validate
+        field_name: Name of field for error messages
 
     Returns:
         int: Validated money value
 
     Raises:
-        ValidationException: If validation fails
+        ValidationException: If value is invalid
     """
     try:
-        money_value = int(value)
+        money_value = int(round(float(value)))
         if not isinstance(money_value, int):
-            raise ValidationException("Money value must be an integer")
+            raise ValidationException(f"{field_name} must be an integer")
         if money_value < 0:
-            raise ValidationException("Money value cannot be negative")
+            raise ValidationException(f"{field_name} cannot be negative")
+        if money_value > 1_000_000:
+            raise ValidationException(f"{field_name} cannot exceed 1.000.000 CLP")
         return money_value
     except (ValueError, TypeError):
-        raise ValidationException("Invalid money value")
+        raise ValidationException(f"Invalid {field_name.lower()} value")
+
+def validate_money_multiplication(amount: int, quantity: float, field_name: str = "Total") -> int:
+    """
+    Validate multiplication of money value by quantity.
+    Result must not exceed 1.000.000 CLP.
+
+    Args:
+        amount: Base amount in CLP
+        quantity: Quantity multiplier
+        field_name: Name of field for error messages
+
+    Returns:
+        int: Validated result
+
+    Raises:
+        ValidationException: If result is invalid
+    """
+    try:
+        result = int(round(float(amount) * quantity))
+        return validate_money(result, field_name)
+    except (ValueError, TypeError):
+        raise ValidationException(f"Invalid {field_name.lower()} calculation")
 
 def validate_quantity(value: Any) -> float:
     """

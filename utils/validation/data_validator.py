@@ -63,8 +63,6 @@ class DataValidationService:
 
     @staticmethod
     @db_operation(show_dialog=True)
-    @staticmethod
-    @db_operation(show_dialog=True)
     def fix_invalid_sales() -> None:
         """
         Fix invalid sales data by removing future sales and orphaned items.

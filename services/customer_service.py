@@ -289,30 +289,50 @@ class CustomerService:
     def get_customers_by_identifier_3or4(self, identifier_3or4: str) -> List[Customer]:
         """
         Get customers by their 3 or 4-digit identifier.
+        Returns a list of unique customers based on identifier_9.
 
         Args:
             identifier_3or4 (str): The 3 or 4-digit identifier.
 
         Returns:
-            List[Customer]: List of matching customers.
+            List[Customer]: List of unique matching customers.
 
         Raises:
             DatabaseException: If database operation fails.
         """
         identifier_3or4 = validate_3or4digit_identifier(identifier_3or4)
         query = """
-        SELECT c.*, ci.identifier_3or4
+        SELECT DISTINCT c.*, ci.identifier_3or4
         FROM customers c
         JOIN customer_identifiers ci ON c.id = ci.customer_id
         WHERE ci.identifier_3or4 = ?
+        ORDER BY c.identifier_9
         """
-        rows = DatabaseManager.fetch_all(query, (identifier_3or4,))
-        customers = [Customer.from_db_row(row) for row in rows]
-        logger.info("Customers retrieved by identifier_3or4", extra={
-            "identifier_3or4": identifier_3or4,
-            "count": len(customers)
-        })
-        return customers
+        try:
+            rows = DatabaseManager.fetch_all(query, (identifier_3or4,))
+            customers = [Customer.from_db_row(row) for row in rows]
+            
+            # Remove duplicates based on identifier_9
+            unique_customers = []
+            seen_phones = set()
+            for customer in customers:
+                if customer.identifier_9 not in seen_phones:
+                    unique_customers.append(customer)
+                    seen_phones.add(customer.identifier_9)
+                else:
+                    logger.warning(f"Duplicate customer found with phone {customer.identifier_9} for department {identifier_3or4}")
+            
+            logger.info(f"Retrieved {len(unique_customers)} unique customers by identifier_3or4", extra={
+                "identifier_3or4": identifier_3or4,
+                "total_found": len(customers),
+                "unique_count": len(unique_customers)
+            })
+            
+            return unique_customers
+            
+        except Exception as e:
+            logger.error(f"Error retrieving customers by identifier_3or4: {str(e)}")
+            raise DatabaseException(f"Failed to retrieve customers: {str(e)}")
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)

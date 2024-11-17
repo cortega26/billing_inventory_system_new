@@ -2,6 +2,37 @@ from dataclasses import dataclass, field
 from typing import Optional, Dict, Any
 from models.category import Category
 from utils.exceptions import ValidationException
+from utils.validation.validators import validate_money
+
+@staticmethod
+def validate_price(price: int, price_type: str) -> None:
+    """
+    Validate a product price according to CLP rules.
+    Must be a positive integer not exceeding 1.000.000 CLP.
+    """
+    try:
+        validate_money(price, price_type)
+    except ValidationException as e:
+        raise ValidationException(f"Invalid {price_type}: {str(e)}")
+
+def calculate_profit_margin(self) -> Optional[float]:
+    """Calculate profit margin percentage."""
+    if self.cost_price is not None and self.sell_price is not None:
+        if self.sell_price > 0:  # Prevent division by zero
+            # Validate both prices first
+            validate_money(self.cost_price, "Cost price")
+            validate_money(self.sell_price, "Sell price")
+            return round((self.sell_price - self.cost_price) / self.sell_price * 100, 2)
+    return None
+
+def calculate_profit(self) -> Optional[int]:
+    """Calculate absolute profit in CLP."""
+    if self.cost_price is not None and self.sell_price is not None:
+        # Validate both prices first
+        validate_money(self.cost_price, "Cost price")
+        validate_money(self.sell_price, "Sell price")
+        return self.sell_price - self.cost_price
+    return None
 
 @dataclass
 class Product:
@@ -92,19 +123,13 @@ class Product:
     @staticmethod
     def validate_price(price: int, price_type: str) -> None:
         """
-        Validate a price value. Must be a positive integer for Chilean Pesos.
-
-        Args:
-            price (int): Price to validate.
-            price_type (str): Type of price (for error messages).
-
-        Raises:
-            ValidationException: If price is invalid.
+        Validate a product price according to CLP rules.
+        Must be a positive integer not exceeding 1.000.000 CLP.
         """
-        if not isinstance(price, int):
-            raise ValidationException(f"{price_type} must be an integer")
-        if price < 0:
-            raise ValidationException(f"{price_type} cannot be negative")
+        try:
+            validate_money(price, price_type)
+        except ValidationException as e:
+            raise ValidationException(f"Invalid {price_type}: {str(e)}")
 
     @staticmethod
     def validate_barcode(barcode: str) -> None:
@@ -172,24 +197,21 @@ class Product:
         self.barcode = new_barcode
 
     def calculate_profit_margin(self) -> Optional[float]:
-        """
-        Calculate the profit margin percentage.
-
-        Returns:
-            Optional[float]: Profit margin as a percentage, or None if prices are not set.
-        """
-        if self.cost_price is not None and self.sell_price is not None and self.cost_price > 0:
-            return round((self.sell_price - self.cost_price) / self.sell_price * 100, 2)
+        """Calculate profit margin percentage."""
+        if self.cost_price is not None and self.sell_price is not None:
+            if self.sell_price > 0:  # Prevent division by zero
+                # Validate both prices first
+                validate_money(self.cost_price, "Cost price")
+                validate_money(self.sell_price, "Sell price")
+                return round((self.sell_price - self.cost_price) / self.sell_price * 100, 2)
         return None
 
     def calculate_profit(self) -> Optional[int]:
-        """
-        Calculate the profit in Chilean Pesos.
-
-        Returns:
-            Optional[int]: Profit amount, or None if prices are not set.
-        """
+        """Calculate absolute profit in CLP."""
         if self.cost_price is not None and self.sell_price is not None:
+            # Validate both prices first
+            validate_money(self.cost_price, "Cost price")
+            validate_money(self.sell_price, "Sell price")
             return self.sell_price - self.cost_price
         return None
 

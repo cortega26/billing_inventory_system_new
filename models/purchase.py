@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 from datetime import datetime
 from utils.exceptions import ValidationException
 from utils.system.logger import logger
+from utils.validation.validators import validate_money, validate_money_multiplication
 
 @dataclass
 class PurchaseItem:
@@ -50,10 +51,8 @@ class PurchaseItem:
             raise ValidationException("Price cannot be negative")
 
     def total_price(self) -> int:
-        """
-        Calculate total price ensuring integer result for Chilean Pesos.
-        """
-        return int(round(self.quantity * self.price))
+        """Calculate total price ensuring proper CLP rounding."""
+        return validate_money_multiplication(self.price, self.quantity, "Total price")
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -123,13 +122,12 @@ class Purchase:
             raise ValidationException(f"Item with id {item_id} not found in the purchase")
 
     def recalculate_total(self) -> None:
-        """
-        Recalculate total amount ensuring integer result.
-        """
+        """Recalculate total amount ensuring proper CLP handling."""
         try:
-            self._total_amount = sum(item.total_price() for item in self.items)
+            total = sum(item.total_price() for item in self.items)
+            self._total_amount = validate_money(total, "Total amount")
         except Exception as e:
-            logger.error(f"Error recalculating total: {str(e)}")
+            logger.error(f"Error calculating total: {str(e)}")
             raise ValidationException("Error calculating total amount")
 
     @property

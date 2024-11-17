@@ -3,6 +3,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from utils.exceptions import ValidationException
 from utils.system.logger import logger
+from utils.validation.validators import validate_money, validate_money_multiplication
 
 @dataclass
 class SaleItem:
@@ -68,11 +69,8 @@ class SaleItem:
             raise ValidationException("Profit must be an integer")
 
     def total_price(self) -> int:
-        """Calculate total price and ensure integer result."""
-        # Convert quantity to float and multiply by integer price
-        total = float(self.quantity) * self.unit_price
-        # Round to nearest integer for Chilean Pesos
-        return int(round(total))
+        """Calculate total price ensuring proper CLP rounding."""
+        return validate_money_multiplication(self.unit_price, self.quantity, "Total price")
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -149,9 +147,14 @@ class Sale:
         self.recalculate_total()
 
     def recalculate_total(self) -> None:
-        """Recalculate totals ensuring integer results."""
-        self.total_amount = sum(item.total_price() for item in self.items)  # Already rounded to int
+        """Recalculate totals ensuring proper CLP handling."""
+        self.total_amount = sum(item.total_price() for item in self.items)
+        # Validate final total
+        self.total_amount = validate_money(self.total_amount, "Total amount")
+        
+        # Calculate and validate total profit
         self.total_profit = sum(item.profit for item in self.items)
+        self.total_profit = validate_money(self.total_profit, "Total profit")
 
     def update_date(self, new_date: datetime) -> None:
         self.validate_date(new_date)

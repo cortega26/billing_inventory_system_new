@@ -57,20 +57,6 @@ class EditInventoryDialog(QDialog):
         self.reason_input = QLineEdit()
         layout.addRow("Reason for Adjustment:", self.reason_input)
 
-        """
-        # Generate barcode option if none exists
-        if not self.item.get('barcode'):
-            self.generate_barcode_cb = QCheckBox("Generate Barcode")
-            layout.addRow(self.generate_barcode_cb)
-
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        buttons.accepted.connect(self.validate_and_accept)
-        buttons.rejected.connect(self.reject)
-        layout.addRow(buttons)
-        """
-
         # Keyboard shortcuts
         QShortcut(QKeySequence(Qt.Key.Key_Return), self, self.validate_and_accept)
         QShortcut(QKeySequence(Qt.Key.Key_Enter), self, self.validate_and_accept)
@@ -91,10 +77,6 @@ class EditInventoryDialog(QDialog):
     def get_reason(self) -> str:
         return self.reason_input.text().strip()
 
-    """
-    def should_generate_barcode(self) -> bool:
-        return hasattr(self, 'generate_barcode_cb') and self.generate_barcode_cb.isChecked()
-    """
 
 class InventoryView(QWidget):
     inventory_updated = Signal()

@@ -24,6 +24,7 @@ from utils.exceptions import ValidationException, DatabaseException, UIException
 from utils.validation.validators import validate_date
 from utils.system.logger import logger
 from utils.ui.sound import SoundEffect
+from utils.validation.validators import validate_money
 from datetime import datetime, timedelta
 
 
@@ -635,10 +636,27 @@ class SaleView(QWidget):
             elif len(identifier) in (3, 4):
                 # Try 3/4-digit identifier
                 customers = self.customer_service.get_customers_by_identifier_3or4(identifier)
-                if len(customers) == 1:
-                    customer = customers[0]
-                elif len(customers) > 1:
-                    customer = self.show_customer_selection_dialog(customers)
+                
+                # Add logging to check for duplicates
+                logger.debug(f"Found {len(customers)} customers for identifier {identifier}")
+                for c in customers:
+                    logger.debug(f"Customer found: ID={c.id}, identifier_9={c.identifier_9}, identifier_3or4={c.identifier_3or4}")
+                
+                # Remove duplicates based on identifier_9 (phone number)
+                unique_customers = []
+                seen_phones = set()
+                for c in customers:
+                    if c.identifier_9 not in seen_phones:
+                        unique_customers.append(c)
+                        seen_phones.add(c.identifier_9)
+                    else:
+                        logger.warning(f"Duplicate customer found with phone {c.identifier_9} for department {identifier}")
+                
+                if len(unique_customers) == 1:
+                    customer = unique_customers[0]
+                elif len(unique_customers) > 1:
+                    customer = self.show_customer_selection_dialog(unique_customers)
+                
             else:
                 show_error_message("Error", "Please enter a 3/4-digit or 9-digit identifier")
                 return
@@ -673,14 +691,14 @@ class SaleView(QWidget):
 
         customer_list = QComboBox()
         for customer in customers:
-            # Format display text in consistent format: "3/4 digits id - Name - 9 digits id"
+            # Format display text with all available information
             display_parts = []
             if customer.identifier_3or4:
-                display_parts.append(customer.identifier_3or4)
+                display_parts.append(f"Dept: {customer.identifier_3or4}")
             if customer.name:
-                display_parts.append(customer.name)
-            display_parts.append(customer.identifier_9)
-            display_text = " - ".join(display_parts)
+                display_parts.append(f"Name: {customer.name}")
+            display_parts.append(f"Phone: {customer.identifier_9}")
+            display_text = " | ".join(display_parts)
             customer_list.addItem(display_text, customer)
 
         layout.addWidget(QLabel("Multiple customers found. Please select one:"))

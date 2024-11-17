@@ -443,7 +443,7 @@ class SaleView(QWidget):
         customer_layout = QHBoxLayout()
         
         self.customer_id_input = QLineEdit()
-        self.customer_id_input.setPlaceholderText("Enter 3/4-digit or 9-digit identifier...")
+        self.customer_id_input.setPlaceholderText("Enter Department number")
         self.customer_id_input.returnPressed.connect(self.select_customer)
         
         # Single label for all customer info
@@ -543,7 +543,7 @@ class SaleView(QWidget):
 
         # Sales history table
         self.sale_table = create_table(
-            ["ID", "Customer ID-9", "Customer ID-3/4", "Customer Name", "Date", 
+            ["ID", "Customer ID-9", "Department", "Customer Name", "Date", 
              "Total Amount", "Total Profit", "Receipt ID", "Actions"]
         )
         self.sale_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)

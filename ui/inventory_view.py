@@ -136,10 +136,12 @@ class InventoryView(QWidget):
         barcode_layout.addWidget(search_button)
 
         # Category filter
+        filter_layout = QHBoxLayout()
         self.category_filter = QComboBox()
         self.category_filter.addItem("All Categories", None)
         self.load_categories()
-        self.category_filter.currentIndexChanged.connect(self.filter_inventory)
+        # Add connection to filter triggering
+        self.category_filter.currentIndexChanged.connect(lambda _: self.filter_inventory())
 
         # Barcode filter
         self.barcode_filter = QComboBox()
@@ -170,6 +172,7 @@ class InventoryView(QWidget):
         self.progress_bar.setVisible(False)
         layout.addWidget(self.progress_bar)
 
+        self.current_inventory = []
         self.load_inventory()
         
         # Connect to event system
@@ -276,7 +279,7 @@ class InventoryView(QWidget):
             self.current_inventory = inventory_items
             
             # Use QTimer to update the UI in the next event loop iteration
-            QTimer.singleShot(0, lambda: self.update_inventory_table(inventory_items))
+            QTimer.singleShot(0, lambda: self.filter_inventory())
             logger.info(f"Loaded {len(inventory_items)} inventory items")
         except Exception as e:
             logger.error(f"Error loading inventory: {str(e)}")

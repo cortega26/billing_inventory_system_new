@@ -91,6 +91,7 @@ class DashboardView(QWidget):
         self.charts_layout.addWidget(self.top_products_chart_view, 1)
 
         layout.addLayout(self.charts_layout)
+        self.setLayout(layout)
 
     def setup_update_timer(self):
         self.update_timer = QTimer(self)
@@ -99,20 +100,35 @@ class DashboardView(QWidget):
 
     @ui_operation()
     def get_total_sales(self) -> str:
-        return f"${self.sale_service.get_total_sales(self.start_date.strftime('%Y-%m-%d'), self.end_date.strftime('%Y-%m-%d')):,.0f}".replace(',', '.')
+        total_sales_value = self.sale_service.get_total_sales(
+            self.start_date.strftime('%Y-%m-%d'),
+            self.end_date.strftime('%Y-%m-%d')
+        )
+        return f"${total_sales_value:,.0f}".replace(',', '.')
 
     @ui_operation()
     def get_total_profits(self) -> str:
-        return f"${self.sale_service.get_total_profits(self.start_date.strftime('%Y-%m-%d'), self.end_date.strftime('%Y-%m-%d')):,.0f}".replace(',', '.')
+        total_profits_value = self.sale_service.get_total_profits(
+            self.start_date.strftime('%Y-%m-%d'),
+            self.end_date.strftime('%Y-%m-%d')
+        )
+        return f"${total_profits_value:,.0f}".replace(',', '.')
 
     @ui_operation()
     def get_inventory_value(self) -> str:
-        return f"${self.inventory_service.get_inventory_value():,.0f}".replace(',', '.')
+        inv_value = self.inventory_service.get_inventory_value()
+        return f"${inv_value:,.0f}".replace(',', '.')
 
     @ui_operation()
     def get_profit_margin(self) -> str:
-        total_sales = self.sale_service.get_total_sales(self.start_date.strftime('%Y-%m-%d'), self.end_date.strftime('%Y-%m-%d'))
-        total_profits = self.sale_service.get_total_profits(self.start_date.strftime('%Y-%m-%d'), self.end_date.strftime('%Y-%m-%d'))
+        total_sales = self.sale_service.get_total_sales(
+            self.start_date.strftime('%Y-%m-%d'),
+            self.end_date.strftime('%Y-%m-%d')
+        )
+        total_profits = self.sale_service.get_total_profits(
+            self.start_date.strftime('%Y-%m-%d'),
+            self.end_date.strftime('%Y-%m-%d')
+        )
         if total_sales > 0:
             profit_margin = (total_profits / total_sales) * 100
             return f"{profit_margin:.2f}%"
@@ -126,14 +142,24 @@ class DashboardView(QWidget):
             self.start_date.strftime("%Y-%m-%d"),
             self.end_date.strftime("%Y-%m-%d")
         )
+
+        # Handle the case of empty data
+        if not weekly_profit_trend:
+            chart.setTitle("Weekly Profit Trend (No Data)")
+            return QChartView(chart)
+
         series = QBarSeries()
         bar_set = QBarSet("Weekly Profit")
         axis_x = QBarCategoryAxis()
         weeks = []
+
         for data in weekly_profit_trend:
-            week_start = QDate.fromString(data['week_start'], "yyyy-MM-dd")
             bar_set.append(data['weekly_profit'])
+            # Convert 'week_start' to a QDate for nice labeling
+            from PySide6.QtCore import QDate
+            week_start = QDate.fromString(data['week_start'], "yyyy-MM-dd")
             weeks.append(week_start.toString("MMM dd"))
+
         series.append(bar_set)
         chart.addSeries(series)
 
@@ -142,29 +168,23 @@ class DashboardView(QWidget):
         series.attachAxis(axis_x)
 
         axis_y = QValueAxis()
-        axis_y.setMin(0)  # Set the minimum value of Y-axis to 0
-        max_profit = max(data['weekly_profit'] for data in weekly_profit_trend)
-        
-        # Round up the max value to the nearest 10000
+        axis_y.setMin(0)
+
+        # Safely do max() with fallback
+        max_profit = max(d['weekly_profit'] for d in weekly_profit_trend)
+        # Round up
         max_y = (ceil(max_profit / 10000) * 10000) + 10000
-        
         axis_y.setMax(max_y)
-        
-        # Set the number of ticks to 6 (5 intervals)
-        tick_count = 6
-        axis_y.setTickCount(tick_count)
-        
-        # Set the label format to display whole numbers
+
+        axis_y.setTickCount(6)
         axis_y.setLabelFormat("%d")
-        
+
         chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
         series.attachAxis(axis_y)
 
-        # Standardize legend position
         chart.legend().setVisible(True)
         chart.legend().setAlignment(Qt.AlignmentFlag.AlignBottom)
 
-        # Adjust the chart margins
         chart.setMargins(QMargins(10, 10, 10, 10))
         chart.layout().setContentsMargins(0, 0, 0, 0)
 
@@ -181,13 +201,20 @@ class DashboardView(QWidget):
             self.end_date.strftime("%Y-%m-%d"),
             limit=5
         )
+
+        # Handle the case of empty data
+        if not top_products:
+            chart.setTitle("Top 5 Profitable Products (No Data)")
+            return QChartView(chart)
+
         series = QBarSeries()
-        
         bar_set = QBarSet("Profit")
         categories = []
+
         for product in top_products:
             bar_set.append(product['total_profit'])
             categories.append(product['name'])
+
         series.append(bar_set)
         chart.addSeries(series)
 
@@ -197,29 +224,22 @@ class DashboardView(QWidget):
         series.attachAxis(axis_x)
 
         axis_y = QValueAxis()
-        axis_y.setMin(0)  # Set the minimum value of Y-axis to 0
-        max_profit = max(product['total_profit'] for product in top_products)
-        
-        # Round up the max value to the nearest 5000
+        axis_y.setMin(0)
+
+        # Safely do max() with fallback
+        max_profit = max(prod['total_profit'] for prod in top_products)
         max_y = (ceil(max_profit / 5000) * 5000) + 5000
-        
         axis_y.setMax(max_y)
-        
-        # Set the number of ticks to 6 (5 intervals)
-        tick_count = 6
-        axis_y.setTickCount(tick_count)
-        
-        # Set the label format to display whole numbers
+
+        axis_y.setTickCount(6)
         axis_y.setLabelFormat("%d")
-        
+
         chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
         series.attachAxis(axis_y)
 
-        # Standardize legend position
         chart.legend().setVisible(True)
         chart.legend().setAlignment(Qt.AlignmentFlag.AlignBottom)
 
-        # Adjust the chart margins
         chart.setMargins(QMargins(10, 10, 10, 10))
         chart.layout().setContentsMargins(0, 0, 0, 0)
 
@@ -232,22 +252,24 @@ class DashboardView(QWidget):
         self.end_date = datetime.now()
         self.start_date = self.end_date - timedelta(days=30)
 
+        # Update the metric widgets
         for i in range(self.layout().count()):
             item = self.layout().itemAt(i)
             if isinstance(item, QHBoxLayout):
+                # This HBox is our top row of MetricWidgets
                 for j in range(item.count()):
                     widget = item.itemAt(j).widget()
                     if isinstance(widget, MetricWidget):
                         widget.update_value()
 
-        # Update charts
+        # Recreate charts
         new_profit_trend_chart = self.create_profit_trend_chart()
         new_top_products_chart = self.create_top_products_chart()
 
-        # Set fixed size policies for new charts
         new_profit_trend_chart.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         new_top_products_chart.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
+        # Replace old charts
         self.charts_layout.replaceWidget(self.profit_trend_chart_view, new_profit_trend_chart)
         self.charts_layout.replaceWidget(self.top_products_chart_view, new_top_products_chart)
 

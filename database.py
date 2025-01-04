@@ -56,21 +56,37 @@ class DatabaseManager:
     @classmethod
     @db_operation(show_dialog=True)
     def execute_query(cls, query: str, params: Optional[Union[Tuple, List, Dict]] = None) -> sqlite3.Cursor:
-        """Execute a single SQL query."""
-        logger.debug(f"Executing query: {query}")
-        logger.debug(f"Query parameters: {params}")
-        
+        """
+        Execute a single SQL query, with optional parameter sanitization/logging.
+        """
+        logger.debug(f"[execute_query] About to execute query:\n    {query}")
+        logger.debug(f"[execute_query] Original parameters: {params}")
+
+        # 1. Basic type-check for params
         if params is not None:
             if not isinstance(params, (tuple, list, dict)):
                 raise ValidationException(f"Invalid params type: {type(params)}")
-            
-            # Convert any Decimal values to strings
+
+            # 2. Convert Decimals -> str so they don't break sqlite
             if isinstance(params, (tuple, list)):
-                params = tuple(str(p) if isinstance(p, Decimal) else p for p in params)
+                params = tuple(
+                    str(p) if isinstance(p, Decimal) else p
+                    for p in params
+                )
             elif isinstance(params, dict):
-                params = {k: str(v) if isinstance(v, Decimal) else v for k, v in params.items()}
-            
-            logger.debug(f"Sanitized parameters: {params}")
+                params = {
+                    k: str(v) if isinstance(v, Decimal) else v
+                    for k, v in params.items()
+                }
+
+            # 3. Optional: If you're worried about accidental `None` overwrites,
+            #    you can log if 'None' or 'NULL' is present in params.
+            #    (This can catch suspicious usage, e.g. overwriting name with None.)
+            for i, p in enumerate(params if isinstance(params, (tuple, list)) else params.values()):
+                if p is None:
+                    logger.debug(f"[execute_query] WARNING: Param #{i} is None => Could lead to 'NULL' in DB column")
+
+            logger.debug(f"[execute_query] Sanitized parameters: {params}")
 
         with cls.get_db_connection() as conn:
             cursor = conn.cursor()
@@ -79,13 +95,20 @@ class DatabaseManager:
                     cursor.execute(query, params)
                 else:
                     cursor.execute(query)
+
                 conn.commit()
-                logger.debug("Query executed successfully")
+                
+                # 4. Optional logging: Rowcount can help you see if the UPDATE actually affected rows
+                logger.debug(f"[execute_query] Query executed successfully. "
+                            f"Rowcount={cursor.rowcount} rows affected.")
+
                 return cursor
+
             except sqlite3.Error as e:
                 conn.rollback()
-                logger.error(f"Query execution error: {e}")
+                logger.error(f"[execute_query] Query execution error: {e}")
                 raise DatabaseException(f"Query execution error: {e}")
+
 
     @classmethod
     @db_operation(show_dialog=True)

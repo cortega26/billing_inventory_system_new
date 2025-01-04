@@ -9,7 +9,7 @@ from services.customer_service import CustomerService
 from utils.helpers import create_table, show_error_message, show_info_message, format_price
 from utils.system.event_system import event_system
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem, DepartmentIdentifierTableWidgetItem
-from typing import Optional
+from typing import Optional, List
 from models.customer import Customer
 from utils.decorators import ui_operation, handle_exceptions
 from utils.exceptions import ValidationException, DatabaseException, UIException
@@ -154,120 +154,218 @@ class CustomerView(QWidget):
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
-    def load_customers(self):
+    def load_customers(self, _ignored_id=None) -> None:
+        """
+        Load all customers into the table (re-fetch from the DB).
+        _ignored_id is an unused parameter (emitted by the signal).
+        """
+        logger.debug(f"(load_customers) Called with _ignored_id={_ignored_id}")
+
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
-            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-            
-            # Clear the table first
-            self.customer_table.setRowCount(0)
-            
-            # Force a cache clear
+            # Force a fresh read from DB
             self.customer_service.clear_cache()
-            
             customers = self.customer_service.get_all_customers()
-            QTimer.singleShot(0, lambda: self.populate_customer_table(customers))
-            logger.info(f"Loaded {len(customers)} customers")
+            logger.debug(f"(load_customers) Fetched {len(customers)} customers from DB")
+
+            # Now populate the table
+            self.populate_customer_table(customers)
+
         except Exception as e:
-            logger.error(f"Error loading customers: {str(e)}")
-            raise DatabaseException(f"Failed to load customers: {str(e)}")
+            logger.error(f"(load_customers) Error loading customers: {str(e)}", exc_info=True)
+            raise UIException(f"Failed to load customers: {str(e)}")
+
         finally:
             QApplication.restoreOverrideCursor()
 
+
+        """
+        try:
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+
+            # [New Log 2] Log that we're about to force cache clear (if you do that)
+            self.customer_service.clear_cache()
+            logger.debug("(load_customers) Cache cleared before fetching all customers")
+
+            # [New Log 3] Log the call to get all customers
+            logger.debug("(load_customers) Calling get_all_customers() now")
+            customers = self.customer_service.get_all_customers()
+
+            # [New Log 4] Log how many customers were fetched
+            logger.debug(f"(load_customers) Received {len(customers)} customers from DB")
+
+            # 1) Clear the table first (in case it was partially populated)
+            self.customer_table.setRowCount(0)
+
+            # 2) Populate
+            logger.debug("(load_customers) About to populate_customer_table(...)")
+            self.populate_customer_table(customers)
+            logger.debug("(load_customers) Finished populate_customer_table(...)")
+
+        except Exception as e:
+            logger.error(f"(load_customers) Error loading customers: {str(e)}", exc_info=True)
+            raise UIException(f"Failed to load customers: {str(e)}")
+
+        finally:
+            QApplication.restoreOverrideCursor()
+        """
+
+
     @ui_operation(show_dialog=True)
     @handle_exceptions(UIException, show_dialog=True)
-    def populate_customer_table(self, customers):
-        """Populate the customer table with data."""
+    def populate_customer_table(self, customers: List[Customer]) -> None:
+        """
+        Populate the customer table with a list of Customer objects,
+        ensuring stable row→customer_id mapping.
+        """
         try:
-            logger.debug(f"Starting population of customer table with {len(customers)} customers")
-            
-            # Create a set to track displayed customer IDs
-            displayed_customers = set()
-            
-            # Initially set row count to total customers
-            self.customer_table.setRowCount(len(customers))
-            current_row = 0
-            
-            for customer in customers:
-                # Skip if this customer ID is already displayed
-                if customer.id in displayed_customers:
-                    logger.warning(f"Duplicate customer detected: ID {customer.id}, Name: {customer.name}")
-                    continue
-                    
-                displayed_customers.add(customer.id)
-                
-                try:
-                    # Get customer stats
-                    total_purchases, total_amount = self.customer_service.get_customer_stats(
-                        customer.id
-                    )
-                    
-                    # Basic information
-                    self.customer_table.setItem(current_row, 0, NumericTableWidgetItem(customer.id))
-                    self.customer_table.setItem(current_row, 1, QTableWidgetItem(customer.identifier_9))
-                    
-                    # Use the new custom item for department identifier
-                    self.customer_table.setItem(
-                        current_row, 2, 
-                        DepartmentIdentifierTableWidgetItem(customer.identifier_3or4 or "N/A")
-                    )
-                    
-                    # Name column
-                    name_item = QTableWidgetItem(customer.name or "")
-                    name_item.setToolTip(customer.name if customer.name else "No name provided")
-                    self.customer_table.setItem(current_row, 3, name_item)
-                    
-                    # Statistics
-                    self.customer_table.setItem(current_row, 4, NumericTableWidgetItem(total_purchases))
-                    self.customer_table.setItem(
-                        current_row, 5, PriceTableWidgetItem(total_amount, format_price)
-                    )
+            logger.debug(f"(populate_customer_table) Starting with {len(customers)} raw customers")
 
-                    # Actions
+            # 1) Disable sorting while we populate rows
+            self.customer_table.setSortingEnabled(False)
+
+            # 2) Remove duplicates by ID
+            displayed_ids = set()
+            unique_customers = []
+            for cust in customers:
+                if cust.id not in displayed_ids:
+                    unique_customers.append(cust)
+                    displayed_ids.add(cust.id)
+                else:
+                    logger.warning(f"Skipping duplicate customer ID: {cust.id}")
+
+            logger.debug(f"(populate_customer_table) Unique customers count: {len(unique_customers)}")
+
+            # 3) Clear all rows, then set to exact count
+            self.customer_table.setRowCount(0)
+            self.customer_table.setRowCount(len(unique_customers))
+
+            # 4) Fill each row
+            for row, cust in enumerate(unique_customers):
+                try:
+                    total_purchases, total_amount = self.customer_service.get_customer_stats(cust.id)
+
+                    # Column 0: Customer ID
+                    self.customer_table.setItem(row, 0, NumericTableWidgetItem(cust.id))
+
+                    # Column 1: 9-digit Identifier
+                    self.customer_table.setItem(row, 1, QTableWidgetItem(cust.identifier_9))
+
+                    # Column 2: 3 or 4-digit Identifier
+                    identifier_item = DepartmentIdentifierTableWidgetItem(cust.identifier_3or4 or "N/A")
+                    self.customer_table.setItem(row, 2, identifier_item)
+
+                    # Column 3: Name
+                    name_item = QTableWidgetItem(cust.name or "")
+                    name_item.setToolTip(cust.name if cust.name else "No name provided")
+                    self.customer_table.setItem(row, 3, name_item)
+
+                    # Column 4: Total Purchases
+                    self.customer_table.setItem(row, 4, NumericTableWidgetItem(total_purchases))
+
+                    # Column 5: Total Amount
+                    self.customer_table.setItem(row, 5, PriceTableWidgetItem(total_amount, format_price))
+
+                    # Column 6: Actions (Edit / Delete)
                     actions_widget = QWidget()
                     actions_layout = QHBoxLayout(actions_widget)
                     actions_layout.setContentsMargins(0, 0, 0, 0)
 
                     edit_button = QPushButton("Edit")
                     edit_button.setFixedWidth(50)
-                    edit_button.clicked.connect(lambda _, c=customer: self.edit_customer(c))
-                    edit_button.setToolTip("Edit this customer")
+                    # Capture only the ID => always re-lookup from DB
+                    edit_button.clicked.connect(lambda _, cid=cust.id: self.edit_customer_by_id(cid))
 
                     delete_button = QPushButton("Delete")
                     delete_button.setFixedWidth(50)
-                    delete_button.clicked.connect(lambda _, c=customer: self.delete_customer(c))
-                    delete_button.setToolTip("Delete this customer")
+                    delete_button.clicked.connect(lambda _, cid=cust.id: self.delete_customer_by_id(cid))
 
                     actions_layout.addWidget(edit_button)
                     actions_layout.addWidget(delete_button)
-                    self.customer_table.setCellWidget(current_row, 6, actions_widget)
+                    self.customer_table.setCellWidget(row, 6, actions_widget)
 
-                    current_row += 1
-                    
                 except Exception as row_error:
-                    logger.error(f"Error processing customer {customer.id}: {str(row_error)}")
+                    logger.error(f"Error filling row {row} for customer {cust.id}: {row_error}", exc_info=True)
                     continue
-            
-            # Adjust final row count if we skipped duplicates
-            if current_row < len(customers):
-                logger.info(f"Adjusting table row count from {len(customers)} to {current_row} due to duplicates")
-                self.customer_table.setRowCount(current_row)
 
-            # Adjust column widths
+            # 5) Adjust columns for best display
             self.customer_table.resizeColumnsToContents()
-            
-            # Enable sorting
+
+            # 6) Re-enable sorting AFTER population
             self.customer_table.setSortingEnabled(True)
-            
-            # Sort by department identifier initially (column 2)
-            self.customer_table.sortItems(2, Qt.SortOrder.AscendingOrder)
-            
-            logger.debug(f"Finished populating customer table with {current_row} rows")
-            
+            # (Optional) Default sort by 2nd column or any column you prefer
+            # self.customer_table.sortItems(2, Qt.SortOrder.AscendingOrder)
+
+            logger.debug(f"(populate_customer_table) Finished with {len(unique_customers)} rows")
+
         except Exception as e:
-            logger.error(f"Error populating customer table: {str(e)}")
-            # Log the full error details for debugging
-            logger.error("Full error details:", exc_info=True)
+            logger.error(f"Error populating customer table: {str(e)}", exc_info=True)
             raise UIException(f"Failed to populate customer table: {str(e)}")
+
+    @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
+    def edit_customer_by_id(self, customer_id: int):
+        """
+        Edit a customer identified by customer_id.
+        This approach always re-fetches from DB, ensuring correct data
+        even if the table was sorted or partially re-drawn.
+        """
+        logger.debug(f"[edit_customer_by_id] Editing customer with ID={customer_id}")
+        try:
+            customer = self.customer_service.get_customer(customer_id)
+            if not customer:
+                show_error_message("Error", f"No customer found with ID={customer_id}")
+                return
+
+            dialog = EditCustomerDialog(customer, self)
+            if dialog.exec():
+                new_name = dialog.name_input.text().strip() or customer.name
+                self.customer_service.update_customer(
+                    customer.id,
+                    identifier_9=dialog.identifier_9_input.text().strip(),
+                    name=new_name,
+                    identifier_3or4=(dialog.identifier_3or4_input.text().strip() or None)
+                )
+                self.load_customers()
+                show_info_message("Success", "Customer updated successfully.")
+                event_system.customer_updated.emit(customer.id)
+                self.customer_updated.emit()
+                logger.info(f"Customer updated successfully: ID {customer.id}")
+        except Exception as e:
+            logger.error(f"[edit_customer_by_id] Error updating customer ID={customer_id}: {str(e)}", exc_info=True)
+            raise
+
+    @ui_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
+    def delete_customer_by_id(self, customer_id: int):
+        """
+        Delete a customer identified by customer_id.
+        """
+        logger.debug(f"[delete_customer_by_id] Deleting customer with ID={customer_id}")
+        try:
+            customer = self.customer_service.get_customer(customer_id)
+            if not customer:
+                raise ValidationException(f"Customer with ID {customer_id} not found.")
+
+            display_name = customer.get_display_name()
+            reply = QMessageBox.question(
+                self,
+                "Delete Customer",
+                f"Are you sure you want to delete customer {display_name}?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                self.customer_service.delete_customer(customer_id)
+                self.load_customers()
+                show_info_message("Success", "Customer deleted successfully.")
+                event_system.customer_deleted.emit(customer_id)
+                self.customer_updated.emit()
+                logger.info(f"Customer deleted successfully: ID {customer_id}")
+        except Exception as e:
+            logger.error(f"[delete_customer_by_id] Error deleting customer ID={customer_id}: {str(e)}", exc_info=True)
+            raise
+
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
@@ -295,26 +393,47 @@ class CustomerView(QWidget):
     @ui_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
     def edit_customer(self, customer: Optional[Customer]):
+        """
+        Edit a customer's info (9-digit, 3/4-digit, name).
+        Updates DB, then reloads the table.
+        """
         if customer is None:
             raise ValidationException("No customer selected for editing.")
+
+        # *** new log statement ***
+        logger.debug(f"[edit_customer] Starting edit for Customer ID={customer.id}, current name='{customer.name}'")
 
         dialog = EditCustomerDialog(customer, self)
         if dialog.exec():
             try:
+                new_name = dialog.name_input.text().strip()
+                # If user typed nothing, keep old name
+                if not new_name:
+                    new_name = customer.name
+                    # *** new log statement ***
+                    logger.debug(f"[edit_customer] User left name blank; reusing old name='{new_name}'")
+
                 self.customer_service.update_customer(
                     customer.id,
                     identifier_9=dialog.identifier_9_input.text().strip(),
-                    name=dialog.name_input.text().strip() or None,
+                    name=new_name,
                     identifier_3or4=dialog.identifier_3or4_input.text().strip() or None
                 )
+
+                # *** new log statement ***
+                logger.debug(f"[edit_customer] Done updating DB for ID={customer.id}, calling load_customers() next")
+
                 self.load_customers()
+
                 show_info_message("Success", "Customer updated successfully.")
                 event_system.customer_updated.emit(customer.id)
                 self.customer_updated.emit()
                 logger.info(f"Customer updated successfully: ID {customer.id}")
+
             except Exception as e:
-                logger.error(f"Error updating customer: {str(e)}")
+                logger.error(f"[edit_customer] Error updating customer ID={customer.id}: {str(e)}", exc_info=True)
                 raise
+
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)

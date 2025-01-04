@@ -63,7 +63,7 @@ DEBUG_LEVEL_MAP: Dict[DebugLevel, int] = {
 }
 
 # Set the desired debug level
-DEBUG_LEVEL: int = DEBUG_LEVEL_MAP[DebugLevel(int(os.environ.get("DEBUG_LEVEL", DebugLevel.WARNING)))]
+DEBUG_LEVEL: int = DEBUG_LEVEL_MAP[DebugLevel(int(os.environ.get("DEBUG_LEVEL", DebugLevel.INFO)))]
 
 class Config:
     """Thread-safe singleton class for managing application configuration."""

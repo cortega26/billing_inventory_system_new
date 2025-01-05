@@ -216,15 +216,19 @@ class CustomerView(QWidget):
     def populate_customer_table(self, customers: List[Customer]) -> None:
         """
         Populate the customer table with a list of Customer objects,
-        ensuring stable row→customer_id mapping.
+        ensuring stable row→customer_id mapping and preserving any pre-existing sort.
         """
         try:
             logger.debug(f"(populate_customer_table) Starting with {len(customers)} raw customers")
 
-            # 1) Disable sorting while we populate rows
+            # 1) Capture the current sorting state (column + order) if any
+            prev_col = self.customer_table.horizontalHeader().sortIndicatorSection()
+            prev_order = self.customer_table.horizontalHeader().sortIndicatorOrder()
+
+            # 2) Disable sorting while we repopulate rows
             self.customer_table.setSortingEnabled(False)
 
-            # 2) Remove duplicates by ID
+            # 3) Deduplicate or transform as needed
             displayed_ids = set()
             unique_customers = []
             for cust in customers:
@@ -236,11 +240,11 @@ class CustomerView(QWidget):
 
             logger.debug(f"(populate_customer_table) Unique customers count: {len(unique_customers)}")
 
-            # 3) Clear all rows, then set to exact count
+            # 4) Clear old rows, set to new count
             self.customer_table.setRowCount(0)
             self.customer_table.setRowCount(len(unique_customers))
 
-            # 4) Fill each row
+            # 5) Fill each row
             for row, cust in enumerate(unique_customers):
                 try:
                     total_purchases, total_amount = self.customer_service.get_customer_stats(cust.id)
@@ -264,7 +268,9 @@ class CustomerView(QWidget):
                     self.customer_table.setItem(row, 4, NumericTableWidgetItem(total_purchases))
 
                     # Column 5: Total Amount
-                    self.customer_table.setItem(row, 5, PriceTableWidgetItem(total_amount, format_price))
+                    self.customer_table.setItem(
+                        row, 5, PriceTableWidgetItem(total_amount, format_price)
+                    )
 
                     # Column 6: Actions (Edit / Delete)
                     actions_widget = QWidget()
@@ -273,7 +279,6 @@ class CustomerView(QWidget):
 
                     edit_button = QPushButton("Edit")
                     edit_button.setFixedWidth(50)
-                    # Capture only the ID => always re-lookup from DB
                     edit_button.clicked.connect(lambda _, cid=cust.id: self.edit_customer_by_id(cid))
 
                     delete_button = QPushButton("Delete")
@@ -288,13 +293,15 @@ class CustomerView(QWidget):
                     logger.error(f"Error filling row {row} for customer {cust.id}: {row_error}", exc_info=True)
                     continue
 
-            # 5) Adjust columns for best display
+            # 6) Resize columns for a neat look
             self.customer_table.resizeColumnsToContents()
 
-            # 6) Re-enable sorting AFTER population
+            # 7) Re-enable sorting
             self.customer_table.setSortingEnabled(True)
-            # (Optional) Default sort by 2nd column or any column you prefer
-            # self.customer_table.sortItems(2, Qt.SortOrder.AscendingOrder)
+
+            # 8) Restore the previous sort (column + order), so if the user
+            #    had it sorted by column #2 descending, it stays that way.
+            self.customer_table.sortItems(prev_col, prev_order)
 
             logger.debug(f"(populate_customer_table) Finished with {len(unique_customers)} rows")
 

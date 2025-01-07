@@ -1,5 +1,5 @@
 from typing import List, Optional, Dict, Any
-from database import DatabaseManager
+from database.database_manager import DatabaseManager
 from models.product import Product
 from PySide6.QtCore import QTimer
 from utils.validation.validators import validate_string, validate_integer
@@ -8,7 +8,6 @@ from utils.exceptions import NotFoundException, ValidationException, DatabaseExc
 from utils.system.logger import logger
 from utils.system.event_system import event_system
 from functools import lru_cache
-import re
 
 class ProductService:
     @db_operation(show_dialog=True)
@@ -257,30 +256,25 @@ class ProductService:
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
     def get_product_by_barcode(self, barcode: str) -> Optional[Product]:
-        """
-        Get a product by its barcode.
-
-        Args:
-            barcode: The product barcode.
-
-        Returns:
-            Optional[Product]: The product if found.
-
-        Raises:
-            DatabaseException: If database operation fails.
-        """
+        """Get a product by barcode."""
+        logger.debug(f"Getting product by barcode: {barcode}")
         query = """
-        SELECT p.*, c.name as category_name 
-        FROM products p
-        LEFT JOIN categories c ON p.category_id = c.id
-        WHERE p.barcode = :barcode
+            SELECT p.*, c.name as category_name 
+            FROM products p
+            LEFT JOIN categories c ON p.category_id = c.id
+            WHERE p.barcode = ?
         """
-        row = DatabaseManager.fetch_one(query, {"barcode": barcode})
-        if row:
-            logger.info("Product retrieved by barcode", extra={"barcode": barcode})
-            return Product.from_db_row(row)
-        logger.info("No product found with barcode", extra={"barcode": barcode})
-        return None
+        try:
+            row = DatabaseManager.fetch_one(query, (barcode,))
+            if row:
+                logger.debug(f"Found product row: {row}")
+                product = Product.from_db_row(row)
+                logger.debug(f"Created product object: {vars(product)}")
+                return product
+            return None
+        except Exception as e:
+            logger.error(f"Error getting product by barcode: {str(e)}")
+            raise DatabaseException(f"Failed to get product: {str(e)}")
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)

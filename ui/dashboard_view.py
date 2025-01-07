@@ -17,6 +17,7 @@ from utils.system.logger import logger
 from utils.decorators import ui_operation
 from typing import Callable, Union
 from math import ceil
+from utils.exceptions import UIException
 
 class MetricWidget(QFrame):
     def __init__(self, label: str, value_func: Callable[[], Union[str, int, float]]):
@@ -55,16 +56,12 @@ class DashboardView(QWidget):
         self.inventory_service = InventoryService()
         self.customer_service = CustomerService()
         self.analytics_service = AnalyticsService()
+        
         self.end_date = datetime.now()
-        self.start_date = self.end_date - timedelta(days=30)
+        self.start_date = self.end_date - timedelta(days=28)  # Last 4 weeks
+        
+        logger.debug("Dashboard view initialized")
         self.setup_ui()
-        self.setup_update_timer()
-        self.setup_event_connections()
-
-    def setup_event_connections(self):
-        event_system.sale_added.connect(self.update_dashboard)
-        event_system.purchase_added.connect(self.update_dashboard)
-        event_system.inventory_changed.connect(self.update_dashboard)
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
@@ -93,10 +90,38 @@ class DashboardView(QWidget):
         layout.addLayout(self.charts_layout)
         self.setLayout(layout)
 
-    def setup_update_timer(self):
-        self.update_timer = QTimer(self)
-        self.update_timer.timeout.connect(self.update_dashboard)
-        self.update_timer.start(600000)  # Update every 10 minutes
+    def update_dashboard(self):
+        try:
+            # Update metrics
+            for widget in self.findChildren(MetricWidget):
+                if isinstance(widget, MetricWidget):
+                    widget.update_value()
+
+            # Recreate charts
+            new_profit_trend_chart = self.create_profit_trend_chart()
+            new_top_products_chart = self.create_top_products_chart()
+
+            # Replace old charts
+            self.charts_layout.replaceWidget(self.profit_trend_chart_view, new_profit_trend_chart)
+            self.charts_layout.replaceWidget(self.top_products_chart_view, new_top_products_chart)
+
+            self.profit_trend_chart_view.deleteLater()
+            self.top_products_chart_view.deleteLater()
+
+            self.profit_trend_chart_view = new_profit_trend_chart
+            self.top_products_chart_view = new_top_products_chart
+
+            logger.info("Dashboard updated successfully")
+        except Exception as e:
+            logger.error("Failed to update dashboard", extra={"error": str(e)})
+            raise UIException(f"Dashboard update failed: {str(e)}")
+
+    def refresh(self):
+        try:
+            self.update_dashboard()
+            logger.debug("Dashboard refresh completed")
+        except Exception as e:
+            logger.error("Dashboard refresh failed", extra={"error": str(e)})
 
     @ui_operation()
     def get_total_sales(self) -> str:
@@ -246,40 +271,3 @@ class DashboardView(QWidget):
         chart_view = QChartView(chart)
         chart_view.setRenderHint(QPainter.RenderHint.Antialiasing)
         return chart_view
-
-    @ui_operation()
-    def update_dashboard(self, *args):
-        self.end_date = datetime.now()
-        self.start_date = self.end_date - timedelta(days=30)
-
-        # Update the metric widgets
-        for i in range(self.layout().count()):
-            item = self.layout().itemAt(i)
-            if isinstance(item, QHBoxLayout):
-                # This HBox is our top row of MetricWidgets
-                for j in range(item.count()):
-                    widget = item.itemAt(j).widget()
-                    if isinstance(widget, MetricWidget):
-                        widget.update_value()
-
-        # Recreate charts
-        new_profit_trend_chart = self.create_profit_trend_chart()
-        new_top_products_chart = self.create_top_products_chart()
-
-        new_profit_trend_chart.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        new_top_products_chart.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-
-        # Replace old charts
-        self.charts_layout.replaceWidget(self.profit_trend_chart_view, new_profit_trend_chart)
-        self.charts_layout.replaceWidget(self.top_products_chart_view, new_top_products_chart)
-
-        self.profit_trend_chart_view.deleteLater()
-        self.top_products_chart_view.deleteLater()
-
-        self.profit_trend_chart_view = new_profit_trend_chart
-        self.top_products_chart_view = new_top_products_chart
-
-        logger.info("Dashboard updated successfully")
-
-    def refresh(self):
-        self.update_dashboard()

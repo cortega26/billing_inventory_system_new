@@ -1,5 +1,5 @@
 from typing import List, Dict, Any, Optional
-from database import DatabaseManager
+from database.database_manager import DatabaseManager
 from models.inventory import Inventory
 from utils.system.event_system import event_system
 from utils.decorators import db_operation, handle_exceptions
@@ -22,9 +22,8 @@ class InventoryService:
             # Round to 3 decimal places for precision
             new_quantity = round(inventory.quantity + quantity_change, 3)
             if new_quantity < 0:
-                raise ValidationException(
-                    f"Insufficient inventory for product ID {product_id}. Current: {inventory.quantity:.3f}, Change: {quantity_change:.3f}"
-                )
+                logger.warning(f"Attempted negative inventory for product {product_id}")
+                raise ValidationException("Inventory cannot be negative")
             InventoryService._update_inventory_quantity(product_id, new_quantity)
         else:
             if quantity_change < 0:
@@ -35,7 +34,10 @@ class InventoryService:
 
         InventoryService.clear_cache()
         event_system.inventory_changed.emit(product_id)
-        logger.info("Inventory updated", extra={"product_id": product_id, "quantity_change": quantity_change})
+        logger.info(f"Inventory updated for product {product_id}", extra={
+            "quantity_change": quantity_change,
+            "new_quantity": new_quantity
+        })
 
     @staticmethod
     @db_operation(show_dialog=True)
@@ -55,37 +57,58 @@ class InventoryService:
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
     def get_all_inventory() -> List[Dict[str, Any]]:
+        """Get all inventory items with product and category details."""
         query = """
-            SELECT i.*, p.name as product_name, p.barcode,
-                COALESCE(c.name, 'Uncategorized') as category_name, 
-                p.category_id
+            SELECT 
+                i.product_id,
+                i.quantity,
+                p.name as product_name,
+                p.barcode,
+                COALESCE(c.name, 'Uncategorized') as category_name
             FROM inventory i
             JOIN products p ON i.product_id = p.id
             LEFT JOIN categories c ON p.category_id = c.id
             ORDER BY p.name
         """
+        
         try:
-            result = DatabaseManager.fetch_all(query)
-            logger.info(f"Retrieved {len(result)} inventory items")
-            return result
+            rows = DatabaseManager.fetch_all(query)
+            inventory_items = []
+            
+            for row in rows:
+                item = {
+                    'product_id': row['product_id'],
+                    'product_name': row['product_name'],
+                    'category_name': row['category_name'],
+                    'quantity': float(row['quantity']),
+                    'barcode': row['barcode'] or 'No barcode'
+                }
+                inventory_items.append(item)
+                
+            return inventory_items
+            
         except Exception as e:
-            logger.error(f"Error retrieving inventory: {str(e)}")
-            raise DatabaseException(f"Failed to retrieve inventory: {str(e)}")
+            logger.error(f"Error fetching inventory: {str(e)}")
+            raise DatabaseException(f"Failed to fetch inventory: {str(e)}")
 
     @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
-    def set_quantity(product_id: int, quantity: float) -> None:
-        product_id = validate_integer(product_id, min_value=1)
-        quantity = validate_float_non_negative(quantity)
-        
-        # Round to 3 decimal places
-        quantity = round(quantity, 3)
-        
-        InventoryService._update_inventory_quantity(product_id, quantity)
-        InventoryService.clear_cache()
-        event_system.inventory_changed.emit(product_id)
-        logger.info("Inventory quantity set", extra={"product_id": product_id, "new_quantity": quantity})
+    def set_quantity(product_id: int, new_quantity: float) -> None:
+        try:
+            product_id = validate_integer(product_id, min_value=1)
+            new_quantity = validate_float_non_negative(new_quantity)
+            
+            query = "UPDATE inventory SET quantity = ? WHERE product_id = ?"
+            DatabaseManager.execute_query(query, (new_quantity, product_id))
+            
+            InventoryService.clear_cache()
+            event_system.inventory_changed.emit(product_id)
+            event_system.inventory_updated.emit()
+            
+        except Exception as e:
+            logger.error(f"Failed to update inventory quantity: {str(e)}")
+            raise DatabaseException(f"Failed to update inventory: {str(e)}")
 
     @staticmethod
     @db_operation(show_dialog=True)
@@ -216,6 +239,55 @@ class InventoryService:
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
     def get_inventory_turnover(start_date: str, end_date: str) -> Dict[int, float]:
+        start_date = validate_string(start_date)
+        end_date = validate_string(end_date)
+        query = """
+            WITH sales_data AS (
+                SELECT si.product_id, SUM(si.quantity) as total_sold
+                FROM sale_items si
+                JOIN sales s ON si.sale_id = s.id
+                WHERE s.date BETWEEN ? AND ?
+                GROUP BY si.product_id
+            ),
+            avg_inventory AS (
+                SELECT product_id, AVG(quantity) as avg_quantity
+                FROM inventory
+                GROUP BY product_id
+            )
+            SELECT sd.product_id, 
+                   CASE WHEN ai.avg_quantity > 0 
+                        THEN sd.total_sold / ai.avg_quantity 
+                        ELSE 0 
+                   END as turnover_ratio
+            FROM sales_data sd
+            JOIN avg_inventory ai ON sd.product_id = ai.product_id
+        """
+        result = DatabaseManager.fetch_all(query, (start_date, end_date))
+        turnover_ratios = {row['product_id']: round(float(row['turnover_ratio']), 3) 
+                          for row in result}
+        logger.info("Inventory turnover calculated", extra={
+            "start_date": start_date,
+            "end_date": end_date,
+            "product_count": len(turnover_ratios)
+        })
+        return turnover_ratios
+
+    @staticmethod
+    def get_low_stock_products() -> List[Dict[str, Any]]:
+        query = """
+            SELECT p.id, p.name, i.quantity
+            FROM products p
+            JOIN inventory i ON p.id = i.product_id
+            WHERE i.quantity < 10
+        """
+        products = DatabaseManager.fetch_all(query)
+        logger.debug("Retrieved low stock products", extra={
+            "count": len(products)
+        })
+        return products
+
+    @staticmethod
+    def calculate_inventory_turnover(start_date: str, end_date: str) -> Dict[int, float]:
         start_date = validate_string(start_date)
         end_date = validate_string(end_date)
         query = """

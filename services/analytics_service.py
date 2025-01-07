@@ -1,5 +1,5 @@
 from typing import List, Dict, Any, Tuple
-from database import DatabaseManager
+from database.database_manager import DatabaseManager
 from functools import lru_cache
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import ValidationException, DatabaseException
@@ -317,3 +317,18 @@ class AnalyticsService:
             return start_of_year.isoformat(), today.isoformat()
         else:
             raise ValueError("Invalid range type")
+
+    def _validate_date_range(self, start_date: str, end_date: str) -> None:
+        """Validate date range for analytics queries."""
+        try:
+            start = datetime.fromisoformat(start_date)
+            end = datetime.fromisoformat(end_date)
+            today = datetime.now()
+            
+            if start > today or end > today:
+                raise ValidationException("Date range cannot be in the future")
+            if start > end:
+                raise ValidationException("Start date must be before end date")
+                
+        except ValueError as e:
+            raise ValidationException(f"Invalid date format: {str(e)}")

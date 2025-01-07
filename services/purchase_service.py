@@ -1,5 +1,5 @@
 from typing import List, Dict, Any, Optional
-from database import DatabaseManager
+from database.database_manager import DatabaseManager
 from models.purchase import Purchase, PurchaseItem
 from services.inventory_service import InventoryService
 from utils.validation.validators import validate_string, validate_date, validate_integer, validate_float_non_negative

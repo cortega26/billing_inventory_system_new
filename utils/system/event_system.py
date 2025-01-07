@@ -27,6 +27,7 @@ class EventSystem(QObject):
 
     # Inventory-related signals
     inventory_changed = Signal(int)  # Emits the ID of the product whose inventory changed
+    inventory_updated = Signal()  # Add if missing
 
     # Customer-related signals
     customer_added = Signal(int)  # Emits the ID of the added customer
@@ -80,7 +81,7 @@ class EventSystem(QObject):
         """
         if event_name in self._signal_map:
             self._signal_map[event_name].emit(*args)
-            logger.debug(f"Event emitted: {event_name}", args=args)
+            logger.debug(f"Event emitted: {event_name}", extra={"args": args})
         else:
             logger.error(f"Unknown event: {event_name}")
             raise ValueError(f"Unknown event: {event_name}")
@@ -98,7 +99,7 @@ class EventSystem(QObject):
         """
         if event_name in self._signal_map:
             self._signal_map[event_name].connect(slot)
-            logger.debug(f"Connected to event: {event_name}", slot=slot.__name__)
+            logger.debug(f"Connected to event: {event_name}", extra={"slot_name": slot.__name__})
         else:
             logger.error(f"Unknown event: {event_name}")
             raise ValueError(f"Unknown event: {event_name}")
@@ -122,7 +123,7 @@ class EventSystem(QObject):
                 logger.debug(f"Disconnected all slots from event: {event_name}")
             else:
                 self._signal_map[event_name].disconnect(slot)
-                logger.debug(f"Disconnected from event: {event_name}", slot=slot.__name__)
+                logger.debug(f"Disconnected from event: {event_name}", extra={"slot_name": slot.__name__})
         else:
             logger.error(f"Unknown event: {event_name}")
             raise ValueError(f"Unknown event: {event_name}")

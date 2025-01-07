@@ -1,9 +1,9 @@
-from typing import List, Dict, Any, Optional, Tuple, Union
-from database import DatabaseManager
+from typing import List, Dict, Any, Optional, Tuple
+from database.database_manager import DatabaseManager
 from models.customer import Customer
 from utils.validation.validators import (
-    validate_9digit_identifier,
-    validate_3or4digit_identifier,
+    validate_9digit_identifier as validate_identifier_9,
+    validate_3or4digit_identifier as validate_identifier_3or4,
     validate_integer,
     validate_string
 )
@@ -39,29 +39,29 @@ class CustomerService:
             DatabaseException: If database operation fails.
         """
         logger.debug(f"Creating customer with identifier_9: {identifier_9}")
-        identifier_9 = validate_9digit_identifier(sanitize_html(str(identifier_9)))
+        identifier_9 = validate_identifier_9(sanitize_html(str(identifier_9)))
         
         if name is not None:
             temp_customer = Customer(id=0, identifier_9="000000000", name=name)
             name = temp_customer.name  # This will be the normalized version
         
         if identifier_3or4:
-            identifier_3or4 = validate_3or4digit_identifier(sanitize_html(identifier_3or4))
+            identifier_3or4 = validate_identifier_3or4(sanitize_html(identifier_3or4))
 
         query = "INSERT INTO customers (identifier_9, name) VALUES (?, ?)"
+        params = (identifier_9, name)
         try:
-            cursor = DatabaseManager.execute_query(query, (identifier_9, name))
+            cursor = DatabaseManager.execute_query(query, params)
             customer_id = cursor.lastrowid
 
             if customer_id is not None and identifier_3or4:
                 self.update_identifier_3or4(customer_id, identifier_3or4)
 
+            self.clear_cache()
             logger.info("Customer created", extra={
                 "customer_id": customer_id,
-                "identifier_9": identifier_9,
-                "name": name
+                "identifier_9": identifier_9
             })
-            self.clear_cache()
             event_system.customer_added.emit(customer_id)
             return customer_id
         except Exception as e:
@@ -87,7 +87,7 @@ class CustomerService:
         """
         customer_id = validate_integer(customer_id, min_value=1)
         if identifier_3or4 is not None:
-            identifier_3or4 = validate_3or4digit_identifier(sanitize_html(identifier_3or4))
+            identifier_3or4 = validate_identifier_3or4(sanitize_html(identifier_3or4))
 
         delete_query = "DELETE FROM customer_identifiers WHERE customer_id = ?"
         insert_query = "INSERT INTO customer_identifiers (customer_id, identifier_3or4) VALUES (?, ?)"
@@ -111,7 +111,6 @@ class CustomerService:
         event_system.customer_updated.emit(customer_id)
 
     @db_operation(show_dialog=True)
-    @handle_exceptions(NotFoundException, DatabaseException, show_dialog=True)
     def get_customer(self, customer_id: int) -> Optional[Customer]:
         """
         Get a customer by ID.
@@ -134,14 +133,13 @@ class CustomerService:
         WHERE c.id = ?
         """
         row = DatabaseManager.fetch_one(query, (customer_id,))
-        if row:
-            logger.info("Customer retrieved", extra={"customer_id": customer_id})
-            return Customer.from_db_row(row)
-        else:
-            logger.warning("Customer not found", extra={"customer_id": customer_id})
-            raise NotFoundException(f"Customer with ID {customer_id} not found")
+        if not row:
+            logger.warning(f"Customer not found", extra={"customer_id": customer_id})
+            return None
+        logger.debug("Customer retrieved", extra={"customer_id": customer_id})
+        return Customer.from_db_row(row)
 
-    @lru_cache(maxsize=1)
+    @lru_cache(maxsize=100)
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
     def get_all_customers(self) -> List[Customer]:
@@ -173,7 +171,7 @@ class CustomerService:
 
             # *** new log statement ***
             for i, cust in enumerate(customers[:5]):  # just log first 5 for brevity
-                logger.debug(f"[get_all_customers] Customer #{i} => ID={cust.id}, name='{cust.name}', ident_9='{cust.identifier_9}', dept_3or4='{cust.identifier_3or4}'")
+                logger.debug(f"[get_all_customers] Customer #{i} => ID={cust.id}...")
 
             logger.info("All customers retrieved", extra={"count": len(customers)})
             return customers
@@ -182,91 +180,67 @@ class CustomerService:
             raise DatabaseException(f"Failed to fetch customers: {str(e)}")
 
     @db_operation(show_dialog=True)
-    @handle_exceptions(NotFoundException, ValidationException, DatabaseException, show_dialog=True)
-    def update_customer(
-        self,
-        customer_id: int,
-        identifier_9: str,
-        name: Optional[str] = None,
-        identifier_3or4: Optional[str] = None
-    ) -> None:
-        """
-        Update a customer's information.
-
-        Args:
-            customer_id (int): The customer ID.
-            identifier_9 (str): The 9-digit identifier.
-            name (Optional[str]): The customer's name.
-            identifier_3or4 (Optional[str]): The 3 or 4-digit identifier.
-
-        Raises:
-            ValidationException: If validation fails.
-            DatabaseException: If database operation fails.
-            NotFoundException: If customer not found.
-        """
-        params: List[Union[str, int]] = []
-        logger.debug(f"[update_customer] Starting partial update for customer_id={customer_id}, name={name}")
-
-        # Basic validation
-        customer_id = validate_integer(customer_id, min_value=1)
-        identifier_9 = sanitize_html(identifier_9)
-        identifier_9 = validate_9digit_identifier(identifier_9)
-
-        # We'll build the UPDATE statement dynamically
-        set_clauses = ["identifier_9 = ?"]
-        params = [identifier_9]
+    @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
+    def update_customer(self, customer_id: int, **kwargs):
+        """Update customer details by ID."""
+        logger.debug(f"[update_customer] Starting with kwargs: {kwargs}")
         
-        # If name is explicitly not None, let's overwrite it
-        if name is not None:
-            logger.debug("[update_customer] We have a non-None 'name'; normalizing it.")
-            # Force your normalization logic
-            temp_cust = Customer(id=0, identifier_9="000000000", name=name)
-            normalized_name = temp_cust.name
-            set_clauses.append("name = ?")
-            if normalized_name is not None:
-                params.append(normalized_name)
-            else:
-                logger.warning("[update_customer] Normalized 'name' is None; skipping update")
-        else:
-            logger.debug("[update_customer] 'name' is None => NOT overwriting existing DB name")
-
-        
-        # This next piece is the existing logic for identifier_3or4
-        # We won't add it to the same UPDATE because apparently it's stored in a separate table
-        # so let's keep your existing usage of update_identifier_3or4(...) 
-        # after we do the partial update for the main "customers" table.
-
-        # Build the final dynamic UPDATE query
-        set_stmt = ", ".join(set_clauses)
-        query = f"UPDATE customers SET {set_stmt} WHERE id = ?"
-        params.append(customer_id)
-
-        logger.debug("[update_customer] Final SQL: {query}")
-        logger.debug("[update_customer] Final params: {params}")
-
         try:
-            cursor = DatabaseManager.execute_query(query, tuple(params))
-            if cursor.rowcount == 0:
-                raise NotFoundException(f"Customer with ID {customer_id} not found")
+            customer_id = validate_integer(customer_id, min_value=1)
+            customer_updates = {}
+            
+            # Debug log the validation steps
+            logger.debug("[update_customer] Starting field validation")
+            
+            if 'name' in kwargs:
+                logger.debug(f"[update_customer] Validating name: {kwargs['name']}")
+                name = kwargs['name']
+                if name is not None:
+                    validate_string(name, max_length=50)
+                customer_updates['name'] = name
+                
+            if 'identifier_9' in kwargs:
+                logger.debug(f"[update_customer] Validating identifier_9: {kwargs['identifier_9']}")
+                identifier_9 = validate_identifier_9(kwargs['identifier_9'])
+                customer_updates['identifier_9'] = identifier_9
 
-            # Now handle the identifier_3or4 logic in a separate method
-            self.update_identifier_3or4(customer_id, identifier_3or4)
+            # Log the SQL query before execution
+            if customer_updates:
+                update_fields = []
+                params = []
+                for key, value in customer_updates.items():
+                    update_fields.append(f"{key} = ?")
+                    params.append(value)
+                
+                query = """
+                    UPDATE customers 
+                    SET {} 
+                    WHERE id = ?
+                """.format(", ".join(update_fields))
+                params.append(customer_id)
+                
+                # Debug log the actual SQL and parameters
+                logger.debug(f"[update_customer] Executing SQL: {query}")
+                logger.debug(f"[update_customer] With parameters: {params}")
+                
+                DatabaseManager.execute_query(query, tuple(params))
 
-            logger.info("Customer updated successfully", extra={
-                "customer_id": customer_id,
-                "identifier_9": identifier_9,
-                "name": name  # might be None
-            })
+            # Handle identifier_3or4 separately
+            if 'identifier_3or4' in kwargs:
+                logger.debug(f"[update_customer] Handling identifier_3or4: {kwargs['identifier_3or4']}")
+                identifier_3or4 = kwargs['identifier_3or4']
+                if identifier_3or4:
+                    identifier_3or4 = validate_identifier_3or4(identifier_3or4)
+                self.update_identifier_3or4(customer_id, identifier_3or4)
+
+            logger.debug("[update_customer] Update completed successfully")
             self.clear_cache()
-
-            logger.debug("[update_customer] Emitting customer_updated signal for ID={customer_id}")
-            event_system.customer_updated.emit(customer_id)
-
+            
         except Exception as e:
-            logger.error("Failed to update customer", extra={
-                "error": str(e),
-                "customer_id": customer_id
-            })
+            logger.error(
+                f"[update_customer] Error: {str(e)}", 
+                extra={"exc_info": True}
+            )
             raise DatabaseException(f"Failed to update customer: {str(e)}")
 
     @db_operation(show_dialog=True)
@@ -317,7 +291,7 @@ class CustomerService:
         Raises:
             DatabaseException: If database operation fails.
         """
-        identifier_9 = validate_9digit_identifier(identifier_9)
+        identifier_9 = validate_identifier_9(identifier_9)
         query = """
         SELECT c.*, ci.identifier_3or4
         FROM customers c
@@ -348,7 +322,7 @@ class CustomerService:
         Raises:
             DatabaseException: If database operation fails.
         """
-        identifier_3or4 = validate_3or4digit_identifier(identifier_3or4)
+        identifier_3or4 = validate_identifier_3or4(identifier_3or4)
         query = """
         SELECT DISTINCT c.*, ci.identifier_3or4
         FROM customers c
@@ -455,7 +429,6 @@ class CustomerService:
         logger.debug("Customer cache cleared")
 
     @db_operation(show_dialog=True)
-    @handle_exceptions(DatabaseException, show_dialog=True)
     def get_customer_purchase_history(self, customer_id: int, limit: int = 10) -> List[Dict[str, Any]]:
         """
         Get customer purchase history.

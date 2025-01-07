@@ -16,7 +16,6 @@ class Application:
         logger.info("Initializing the application")
         try:
             init_db()
-            # Use the new validation service
             DataValidationService.validate_all_data()
             logger.info("Database initialized and validated successfully")
         except DatabaseException as e:
@@ -34,7 +33,7 @@ class Application:
 
         window = MainWindow()
         window.show()
-        logger.info("Application started")
+        logger.debug("Application started")
         sys.exit(app.exec())
 
     @staticmethod
@@ -42,7 +41,7 @@ class Application:
         theme = config.get('theme', 'default')
         if theme != 'default':
             app.setStyle(theme)
-        logger.info(f"Applied theme: {theme}")
+        logger.debug(f"Applied theme: {theme}")
 
     @staticmethod
     def shutdown():

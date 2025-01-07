@@ -1,5 +1,3 @@
-# File: utils/validation/data_validator.py
-
 import sqlite3
 from typing import Tuple, List, Dict, Any
 from database import DatabaseManager
@@ -122,7 +120,6 @@ class DataValidationService:
         except Exception as e:
             logger.error(f"Error during sales fix: {e}")
             logger.error("Full error details:", exc_info=True)
-            raise
             raise
 
     @staticmethod

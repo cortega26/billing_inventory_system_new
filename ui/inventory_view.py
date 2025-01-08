@@ -223,6 +223,7 @@ class InventoryView(QWidget):
         """Search for products manually."""
         search_term = self.search_input.text().strip()
         if not search_term:
+            self.filter_inventory()
             return
 
         try:

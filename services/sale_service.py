@@ -116,7 +116,7 @@ class SaleService:
             # 5) Emit the event => the UI's Sales Tab is presumably listening for this
             event_system.sale_added.emit(sale_id)
 
-            # ***** CLEAR THE CACHED get_all_sales *****
+            # 6) Clear the cached get_all_sales
             SaleService.get_all_sales.cache_clear()
 
             return sale_id

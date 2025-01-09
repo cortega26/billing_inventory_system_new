@@ -5,8 +5,6 @@ from database import init_db
 from utils.system.logger import logger
 from utils.exceptions import DatabaseException, AppException
 from utils.decorators import handle_exceptions
-from config import config, APP_NAME, APP_VERSION
-from utils.validation.data_validator import DataValidationService
 
 
 class Application:
@@ -16,8 +14,6 @@ class Application:
         logger.info("Initializing the application")
         try:
             init_db()
-            DataValidationService.validate_all_data()
-            logger.info("Database initialized and validated successfully")
         except DatabaseException as e:
             logger.critical(f"Failed to initialize database: {e}")
             raise AppException(f"Failed to initialize database: {e}")
@@ -26,28 +22,11 @@ class Application:
     @handle_exceptions(AppException, show_dialog=True)
     def run():
         app = QApplication(sys.argv)
-        app.setApplicationName(APP_NAME)
-        app.setApplicationVersion(APP_VERSION)
-
-        Application.apply_theme(app)
-
         window = MainWindow()
         window.show()
-        logger.debug("Application started")
+        logger.info("Application started")
         sys.exit(app.exec())
 
-    @staticmethod
-    def apply_theme(app: QApplication):
-        theme = config.get('theme', 'default')
-        if theme != 'default':
-            app.setStyle(theme)
-        logger.debug(f"Applied theme: {theme}")
-
-    @staticmethod
-    def shutdown():
-        logger.info("Application shutting down")
-        # Perform any necessary cleanup here
-        # For example, close database connections, save application state, etc.
 
 if __name__ == "__main__":
     try:
@@ -55,6 +34,3 @@ if __name__ == "__main__":
         Application.run()
     except AppException as e:
         logger.critical(f"An unhandled error occurred: {e}")
-        sys.exit(1)
-    finally:
-        Application.shutdown()

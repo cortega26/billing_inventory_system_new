@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
     QComboBox, QFormLayout, QHeaderView, QAbstractItemView, QProgressBar, 
     QMenu, QApplication
 )
-from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction, QKeySequence
 from services.product_service import ProductService
 from services.category_service import CategoryService
@@ -16,7 +16,7 @@ from typing import Optional, List, Any
 from models.product import Product
 from models.category import Category
 from utils.decorators import ui_operation, handle_exceptions
-from utils.validation.validators import validate_string, validate_float, validate_integer
+from utils.validation.validators import validate_string, validate_float
 from utils.exceptions import ValidationException, DatabaseException, UIException, NotFoundException
 from utils.system.logger import logger
 

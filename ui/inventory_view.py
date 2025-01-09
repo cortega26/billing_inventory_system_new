@@ -13,7 +13,7 @@ from utils.helpers import (
 )
 from utils.system.event_system import event_system
 from utils.ui.table_items import NumericTableWidgetItem
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from utils.decorators import ui_operation, handle_exceptions
 from utils.exceptions import ValidationException, DatabaseException, UIException
 from utils.validation.validators import validate_string
@@ -79,7 +79,7 @@ class EditInventoryDialog(QDialog):
 
 
 class InventoryView(QWidget):
-    inventory_updated = Signal()
+    #inventory_updated = Signal()
 
     def __init__(self):
         super().__init__()
@@ -90,7 +90,7 @@ class InventoryView(QWidget):
         self.setup_ui()
         self.setup_scan_sound()
         self.connect_signals()
-        event_system.inventory_updated.connect(self.on_inventory_updated)
+        #event_system.inventory_updated.connect(self.load_categories)
 
     def connect_signals(self):
         """Set up event connections."""
@@ -288,7 +288,7 @@ class InventoryView(QWidget):
             self.inventory_table.insertRow(row)
             try:
                 # Basic info
-                self.inventory_table.setItem(row, 0, QTableWidgetItem(str(item['product_id'])))
+                self.inventory_table.setItem(row, 0, NumericTableWidgetItem(item['product_id']))
                 self.inventory_table.setItem(row, 1, QTableWidgetItem(item['product_name']))
                 self.inventory_table.setItem(row, 2, QTableWidgetItem(item['category_name']))
                 self.inventory_table.setItem(row, 3, NumericTableWidgetItem(float(item['quantity'])))
@@ -389,48 +389,58 @@ class InventoryView(QWidget):
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
-    def filter_inventory(self):
+    def filter_inventory(self, _: bool = False):
         """Filter inventory based on category and barcode status."""
-        logger.debug("Starting filter_inventory")  # DEBUG - Entry point
+        logger.debug("Starting filter_inventory")
         try:
             category_id = self.category_filter.currentData()
             barcode_filter = self.barcode_filter.currentText()
             search_term = self.search_input.text().strip().lower()
 
             filtered_items = self.current_inventory
-            logger.debug(f"Initial items to filter (first item): {filtered_items[:1]}")  # DEBUG - Pre-filter
-            
-            # Filter by category
-            if category_id is not None:
-                filtered_items = [
-                    item for item in filtered_items
-                    if item.get("category_id") == category_id
-                ]
-                logger.debug(f"After category filter (first item): {filtered_items[:1]}")  # DEBUG - Post category filter
-            
-            # Filter by barcode status
-            if barcode_filter != "All Products":
-                filtered_items = [
-                    item for item in filtered_items
-                    if (barcode_filter == "With Barcode" and item.get("barcode")) or
-                       (barcode_filter == "Without Barcode" and not item.get("barcode"))
-                ]
-            
-            # Filter by search term
-            if search_term:
-                filtered_items = [
-                    item for item in filtered_items
-                    if search_term in str(item.get("product_name", "")).lower() or
-                       search_term in str(item.get("product_id", "")).lower() or
-                       search_term in str(item.get("category_name", "")).lower() or
-                       (item.get("barcode") and search_term in item["barcode"].lower())
-                ]
+
+            # Apply category filter
+            filtered_items = self.filter_by_category(filtered_items, category_id)
+            logger.debug(f"After category filter: {len(filtered_items)} items")
+
+            # Apply barcode filter
+            filtered_items = self.filter_by_barcode(filtered_items, barcode_filter)
+            logger.debug(f"After barcode filter: {len(filtered_items)} items")
+
+            # Apply search term filter
+            filtered_items = self.filter_by_search_term(filtered_items, search_term)
+            logger.debug(f"After search term filter: {len(filtered_items)} items")
 
             self.update_inventory_table(filtered_items)
             logger.info(f"Filtered inventory: {len(filtered_items)} items")
         except Exception as e:
             logger.error(f"Error filtering inventory: {str(e)}")
             raise DatabaseException(f"Failed to filter inventory: {str(e)}")
+
+    def filter_by_category(self, items: List[Dict[str, Any]], category_id: Optional[int]) -> List[Dict[str, Any]]:
+        if category_id is None:
+            return items
+        return [item for item in items if item.get("category_id") == category_id]
+
+    def filter_by_barcode(self, items: List[Dict[str, Any]], barcode_filter: str) -> List[Dict[str, Any]]:
+        if barcode_filter == "All Products":
+            return items
+        elif barcode_filter == "With Barcode":
+            return [item for item in items if item.get("barcode")]
+        elif barcode_filter == "Without Barcode":
+            return [item for item in items if not item.get("barcode")]
+        return items
+
+    def filter_by_search_term(self, items: List[Dict[str, Any]], search_term: str) -> List[Dict[str, Any]]:
+        if not search_term:
+            return items
+        return [
+            item for item in items
+            if search_term in str(item.get("product_name", "")).lower() or
+               search_term in str(item.get("product_id")).lower() or
+               search_term in str(item.get("category_name", "")).lower() or
+               (item.get("barcode") and search_term in item["barcode"].lower())
+        ]
 
     def show_context_menu(self, position):
         """Show context menu for inventory table."""
@@ -482,6 +492,3 @@ class InventoryView(QWidget):
             self.load_inventory()
         else:
             super().keyPressEvent(event)
-
-    def on_inventory_updated(self, product_id):
-        self.load_inventory()  # Refresh the entire inventory table

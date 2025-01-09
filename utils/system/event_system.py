@@ -57,6 +57,7 @@ class EventSystem(QObject):
             "sale_updated": self.sale_updated,
             "sale_deleted": self.sale_deleted,
             "inventory_changed": self.inventory_changed,
+            "inventory_updated": self.inventory_updated,
             "customer_added": self.customer_added,
             "customer_updated": self.customer_updated,
             "customer_deleted": self.customer_deleted,

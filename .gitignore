@@ -50,3 +50,10 @@ backup/
 *.db-shm
 *.db-wal
 
+# Other specific files
+config.ini
+file_extractor.py
+billing_inventory_system_new.txt
+search.py
+
+

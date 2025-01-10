@@ -54,13 +54,13 @@ logging.basicConfig(
 
 # Constants with added typing
 COMMON_EXTENSIONS: List[str] = [
-    ".css", ".csv", ".html", ".ini", ".js", ".json",
+    ".css", ".csv", ".html", ".ini", ".js", ".json", ".sql",
     ".log", ".md", ".py", ".txt", ".xml", ".yaml", ".yml"
 ]
 
 DEFAULT_EXCLUDE: List[str] = [
-    ".git", ".vscode", "__pycache__", "venv", 
-    "node_modules", ".venv", ".pytest_cache"
+    ".git", ".vscode", "__pycache__", "venv", "logs",
+    ".venv", ".pytest_cache", "test"
 ]
 
 SPECIFICATION_FILES: List[str] = ["README.md", "SPECIFICATIONS.md"]

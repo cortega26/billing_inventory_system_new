@@ -282,25 +282,37 @@ class InventoryView(QWidget):
 
     def update_inventory_table(self, inventory_items: List[Dict[str, Any]]) -> None:
         """Update the inventory table with the given items."""
+        logger.debug(f"Updating inventory table with {len(inventory_items)} items")
+        self.inventory_table.setSortingEnabled(False)  # Disable sorting during update
         self.inventory_table.setRowCount(0)
         
         for row, item in enumerate(inventory_items):
             self.inventory_table.insertRow(row)
             try:
-                # Basic info
-                self.inventory_table.setItem(row, 0, NumericTableWidgetItem(item['product_id']))
-                self.inventory_table.setItem(row, 1, QTableWidgetItem(item['product_name']))
-                self.inventory_table.setItem(row, 2, QTableWidgetItem(item['category_name']))
-                self.inventory_table.setItem(row, 3, NumericTableWidgetItem(float(item['quantity'])))
-                self.inventory_table.setItem(row, 4, QTableWidgetItem(item['barcode']))
+                # Product ID (Numeric Sorting)
+                self.inventory_table.setItem(row, 0, NumericTableWidgetItem(int(item['product_id'])))
                 
-                # Add edit button
+                # Product Name
+                self.inventory_table.setItem(row, 1, QTableWidgetItem(item['product_name']))
+                
+                # Category Name
+                self.inventory_table.setItem(row, 2, QTableWidgetItem(item['category_name']))
+                
+                # Barcode
+                self.inventory_table.setItem(row, 3, QTableWidgetItem(item['barcode']))
+                
+                # Quantity (Already using NumericTableWidgetItem)
+                self.inventory_table.setItem(row, 4, NumericTableWidgetItem(float(item['quantity'])))
+                
+                # Add edit button in Actions column
                 actions_widget = QWidget()
                 actions_layout = QHBoxLayout(actions_widget)
                 actions_layout.setContentsMargins(0, 0, 0, 0)
                 
                 edit_button = QPushButton("Edit")
-                edit_button.clicked.connect(lambda _, i=item: self.edit_inventory(i))
+                # Use functools.partial to correctly bind the current item
+                from functools import partial
+                edit_button.clicked.connect(partial(self.edit_inventory, item))
                 edit_button.setMaximumWidth(60)
                 actions_layout.addWidget(edit_button)
                 
@@ -309,6 +321,10 @@ class InventoryView(QWidget):
             except Exception as e:
                 logger.error(f"Error updating row {row}: {str(e)}", extra={"item": item})
                 continue
+        
+        self.inventory_table.setSortingEnabled(True)  # Re-enable sorting after update
+        logger.debug("Inventory table updated successfully")
+
 
     def generate_barcode(self, item: Dict[str, Any]) -> None:
         """Generate a new barcode for a product."""

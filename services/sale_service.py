@@ -94,9 +94,11 @@ class SaleService:
             for item in items:
                 qty = float(item["quantity"])
                 unit_price = int(item["sell_price"])
-                line_profit = int(item["profit"])
+                # item["profit"] is already quantity * (unit_price - cost_price)
+
+                # Sum up sale totals
                 total_amount += int(round(qty * unit_price))
-                total_profit += int(round(qty * line_profit))
+                total_profit += int(item["profit"])
 
             # generate receipt ID from date
             sale_date_obj = datetime.strptime(sale_date_str, "%Y-%m-%d")

@@ -301,21 +301,20 @@ class AnalyticsService:
     @staticmethod
     def get_date_range(range_type: str) -> Tuple[str, str]:
         today = datetime.now().date()
-        if range_type == 'today':
-            return today.isoformat(), today.isoformat()
-        elif range_type == 'yesterday':
-            yesterday = today - timedelta(days=1)
-            return yesterday.isoformat(), yesterday.isoformat()
-        elif range_type == 'this_week':
-            start_of_week = today - timedelta(days=today.weekday())
-            return start_of_week.isoformat(), today.isoformat()
-        elif range_type == 'this_month':
-            start_of_month = today.replace(day=1)
-            return start_of_month.isoformat(), today.isoformat()
-        elif range_type == 'this_year':
-            start_of_year = today.replace(month=1, day=1)
-            return start_of_year.isoformat(), today.isoformat()
+        date_ranges = {
+            'today': (today, today),
+            'yesterday': (today - timedelta(days=1), today - timedelta(days=1)),
+            'this_week': (today - timedelta(days=today.weekday()), today),
+            'this_month': (today.replace(day=1), today),
+            'this_year': (today.replace(month=1, day=1), today)
+        }
+
+        if range_type in date_ranges:
+            start_date, end_date = date_ranges[range_type]
+            logger.debug(f"Date range for {range_type}: {start_date} to {end_date}")
+            return start_date.isoformat(), end_date.isoformat()
         else:
+            logger.error(f"Invalid range type: {range_type}")
             raise ValueError("Invalid range type")
 
     def _validate_date_range(self, start_date: str, end_date: str) -> None:

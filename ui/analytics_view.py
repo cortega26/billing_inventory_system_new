@@ -26,6 +26,7 @@ class AnalyticsView(QWidget):
         self.setup_ui()
         self.setup_update_timer()
 
+    @handle_exceptions(UIException, show_dialog=True)
     def setup_ui(self):
         layout = QVBoxLayout(self)
 
@@ -103,6 +104,7 @@ class AnalyticsView(QWidget):
         self.update_timer = QTimer(self)
         self.update_timer.timeout.connect(self.update_analytics)
         self.update_timer.start(300000)  # Update every 5 minutes
+        logger.info("Update timer setup completed.")
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)

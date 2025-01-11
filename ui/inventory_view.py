@@ -1,9 +1,9 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, 
-    QTableWidgetItem, QDialog, QFormLayout, QProgressBar, QMenu, QApplication,
-    QComboBox, QDoubleSpinBox
+    QTableWidgetItem, QDialog, QFormLayout, QProgressBar, QMenu, QComboBox,
+    QDoubleSpinBox, QDialogButtonBox, QMessageBox
 )
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
@@ -57,6 +57,16 @@ class EditInventoryDialog(QDialog):
         self.reason_input = QLineEdit()
         layout.addRow("Reason for Adjustment:", self.reason_input)
 
+        # Add a QDialogButtonBox with Ok/Cancel
+        self.button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
+            parent=self
+            )
+        # Connect signals
+        self.button_box.accepted.connect(self.validate_and_accept)
+        self.button_box.rejected.connect(self.reject)
+        layout.addRow(self.button_box)
+
         # Keyboard shortcuts
         QShortcut(QKeySequence(Qt.Key.Key_Return), self, self.validate_and_accept)
         QShortcut(QKeySequence(Qt.Key.Key_Enter), self, self.validate_and_accept)
@@ -64,9 +74,39 @@ class EditInventoryDialog(QDialog):
     @ui_operation(show_dialog=True)
     @handle_exceptions(ValidationException, show_dialog=True)
     def validate_and_accept(self):
+        # Step 1) Ensure reason is provided if adjustment != 0
         if self.adjustment_input.value() != 0 and not self.reason_input.text().strip():
-            raise ValidationException("Please provide a reason for the adjustment.")
-        self.accept()
+            QMessageBox.critical(self, "Error", "Please provide a reason for adjustment.")
+            return
+
+        # Step 2) Actually call the DB update code:
+        new_quantity = round(self.quantity_input.value(), 3)
+        adjustment = round(self.adjustment_input.value(), 3)
+        reason = self.reason_input.text().strip() or "No reason"
+
+        try:
+            # If user wants to directly set the quantity:
+            # InventoryService.set_quantity(product_id, new_quantity)
+            #  -- or --
+            # If user wants to "adjust" the quantity by `adjustment`:
+            # InventoryService.adjust_inventory(product_id, adjustment, reason)
+            
+            product_id = self.item["product_id"]
+            from services.inventory_service import InventoryService
+
+            if adjustment != 0:
+                # Use the adjust_inventory approach
+                InventoryService.adjust_inventory(product_id, adjustment, reason)
+            else:
+                # Use the set_quantity approach
+                InventoryService.set_quantity(product_id, new_quantity)
+
+            # All done, close the dialog with success
+            self.accept()
+
+        except Exception as e:
+            QMessageBox.critical(self, "Update Error", str(e))
+            return
 
     def get_new_quantity(self) -> float:
         return self.quantity_input.value()
@@ -391,7 +431,8 @@ class InventoryView(QWidget):
             
             dialog = EditInventoryDialog(edit_item, self)
             if dialog.exec() == QDialog.DialogCode.Accepted:
-                self.load_inventory()
+                self.load_inventory()  # Refresh the main table
+                show_info_message("Success", "Inventory updated successfully.")
         except Exception as e:
             logger.error(f"Error editing inventory: {str(e)}")
             show_error_message("Error", str(e))

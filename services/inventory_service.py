@@ -196,40 +196,6 @@ class InventoryService:
         logger.debug("Clearing inventory cache")
         InventoryService.get_all_inventory.cache_clear()
 
-    """
-    @staticmethod
-    @db_operation(show_dialog=True)
-    def _update_inventory_quantity(product_id: int, new_quantity: float) -> None:
-        product_id = validate_integer(product_id, min_value=1)
-        new_quantity = validate_float(new_quantity, min_value=0)  # Ensure non-negative inventory
-        
-        # Round to 3 decimal places
-        new_quantity = round(new_quantity, 3)
-        
-        query = "UPDATE inventory SET quantity = ? WHERE product_id = ?"
-        DatabaseManager.execute_query(query, (str(new_quantity), product_id))
-        logger.debug("Inventory quantity updated", extra={
-            "product_id": product_id,
-            "new_quantity": new_quantity
-        })
-
-    @staticmethod
-    @db_operation(show_dialog=True)
-    def _create_inventory_item(product_id: int, quantity: float) -> None:
-        product_id = validate_integer(product_id, min_value=1)
-        quantity = validate_float(quantity, min_value=0)  # Ensure non-negative initial quantity
-        
-        # Round to 3 decimal places
-        quantity = round(quantity, 3)
-        
-        query = "INSERT INTO inventory (product_id, quantity) VALUES (?, ?)"
-        DatabaseManager.execute_query(query, (product_id, str(quantity)))
-        logger.debug("New inventory item created", extra={
-            "product_id": product_id,
-            "initial_quantity": quantity
-        })
-    """
-
     @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)

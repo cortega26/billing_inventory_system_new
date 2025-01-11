@@ -21,31 +21,6 @@ class SaleService:
         self.customer_service = CustomerService()
         self.product_service = ProductService()
 
-    @staticmethod
-    @db_operation(show_dialog=True)
-    def diagnose_sales_data():
-        query = "SELECT * FROM sales"
-        rows = DatabaseManager.fetch_all(query)
-        for row in rows:
-            print(f"Sale ID: {row['id']}")
-            print(f"  customer_id: {row['customer_id']}")
-            print(f"  date: {row['date']}")
-            print(f"  total_amount: {row['total_amount']}")
-            print(f"  total_profit: {row['total_profit']}")
-            print(f"  receipt_id: {row['receipt_id']}")
-            print("---")
-
-        query = "SELECT * FROM sale_items"
-        rows = DatabaseManager.fetch_all(query)
-        for row in rows:
-            print(f"Sale Item ID: {row['id']}")
-            print(f"  sale_id: {row['sale_id']}")
-            print(f"  product_id: {row['product_id']}")
-            print(f"  quantity: {row['quantity']}")
-            print(f"  price: {row['price']}")
-            print(f"  profit: {row['profit']}")
-            print("---")
-
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def create_sale(self, customer_id: int, date: str, items: List[Dict[str, Any]]) -> int:
@@ -117,6 +92,8 @@ class SaleService:
 
             # 5) Emit the event => the UI's Sales Tab is presumably listening for this
             event_system.sale_added.emit(sale_id)
+
+            self._update_inventory(items)
 
             # 6) Clear the cached get_all_sales
             SaleService.get_all_sales.cache_clear()

@@ -875,21 +875,6 @@ class SaleView(QWidget):
                 self.clear_sale()
                 show_info_message("Success", "Sale completed successfully")
                 
-                # Ask about printing receipt
-                reply = QMessageBox.question(
-                    self,
-                    "Print Receipt",
-                    "Would you like to print the receipt?",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    QMessageBox.StandardButton.Yes
-                )
-                
-                if reply == QMessageBox.StandardButton.Yes:
-                    sale = self.sale_service.get_sale(sale_id)
-                    if sale:
-                        self.print_receipt(sale)
-                    else:
-                        raise ValidationException(f"Sale with ID {sale_id} not found")
             else:
                 raise DatabaseException("Failed to create sale")
                 

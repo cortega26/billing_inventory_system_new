@@ -216,8 +216,8 @@ class SaleService:
             raise ValidationException(f"Sale with ID {sale_id} not found.")
 
         sale_datetime = datetime.fromisoformat(sale.date.isoformat())
-        if datetime.now() - sale_datetime > timedelta(hours=96):
-            raise ValidationException("Sales can only be edited within 96 hours of creation.")
+        if datetime.now() - sale_datetime > timedelta(hours=240):
+            raise ValidationException("Sales can only be edited within 240 hours of creation.")
 
         old_items = self.get_sale_items(sale_id)
 

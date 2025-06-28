@@ -123,7 +123,6 @@ class DataValidationService:
             logger.error(f"Error during sales fix: {e}")
             logger.error("Full error details:", exc_info=True)
             raise
-            raise
 
     @staticmethod
     def validate_all_data():

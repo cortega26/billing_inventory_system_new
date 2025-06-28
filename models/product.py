@@ -4,36 +4,6 @@ from models.category import Category
 from utils.exceptions import ValidationException
 from utils.validation.validators import validate_money
 
-@staticmethod
-def validate_price(price: int, price_type: str) -> None:
-    """
-    Validate a product price according to CLP rules.
-    Must be a positive integer not exceeding 1.000.000 CLP.
-    """
-    try:
-        validate_money(price, price_type)
-    except ValidationException as e:
-        raise ValidationException(f"Invalid {price_type}: {str(e)}")
-
-def calculate_profit_margin(self) -> Optional[float]:
-    """Calculate profit margin percentage."""
-    if self.cost_price is not None and self.sell_price is not None:
-        if self.sell_price > 0:  # Prevent division by zero
-            # Validate both prices first
-            validate_money(self.cost_price, "Cost price")
-            validate_money(self.sell_price, "Sell price")
-            return round((self.sell_price - self.cost_price) / self.sell_price * 100, 2)
-    return None
-
-def calculate_profit(self) -> Optional[int]:
-    """Calculate absolute profit in CLP."""
-    if self.cost_price is not None and self.sell_price is not None:
-        # Validate both prices first
-        validate_money(self.cost_price, "Cost price")
-        validate_money(self.sell_price, "Sell price")
-        return self.sell_price - self.cost_price
-    return None
-
 @dataclass
 class Product:
     """

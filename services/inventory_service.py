@@ -23,15 +23,24 @@ class InventoryService:
             # Round to 3 decimal places for precision
             new_quantity = round(inventory.quantity + quantity_change, 3)
             if new_quantity < 0:
-                logger.warning(f"Attempted negative inventory for product {product_id}")
+                logger.warning(
+                    "Attempted negative inventory for product %s", product_id
+                )
                 raise ValidationException("Inventory cannot be negative")
-            InventoryService._modify_inventory(product_id, new_quantity, action="update")
+            InventoryService._modify_inventory(
+                product_id, new_quantity, action="update"
+            )
         else:
             if quantity_change < 0:
                 raise ValidationException(
                     f"Cannot decrease quantity for non-existent inventory item. Product ID: {product_id}"
                 )
-            InventoryService._modify_inventory(product_id, quantity_change, action="create")
+            # When creating a new inventory record the resulting quantity equals
+            # the provided change.
+            new_quantity = round(quantity_change, 3)
+            InventoryService._modify_inventory(
+                product_id, new_quantity, action="create"
+            )
 
         InventoryService.clear_cache()
         event_system.inventory_changed.emit(product_id)

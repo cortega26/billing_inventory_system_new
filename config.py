@@ -63,7 +63,7 @@ DEBUG_LEVEL_MAP: Dict[DebugLevel, int] = {
 }
 
 # Set the desired debug level
-DEBUG_LEVEL: int = DEBUG_LEVEL_MAP[DebugLevel(int(os.environ.get("DEBUG_LEVEL", DebugLevel.WARNING)))]
+DEBUG_LEVEL = logging.INFO  # This should control the global level
 
 class Config:
     """Thread-safe singleton class for managing application configuration."""
@@ -73,6 +73,7 @@ class Config:
     _lock = threading.Lock()
     _cache_ttl: int = 300  # 5 minutes
     _last_load_time: float = 0
+    _config_file: Optional[Path] = None
 
     def __new__(cls) -> 'Config':
         """Ensure singleton instance."""
@@ -212,6 +213,13 @@ class Config:
             cls._config = None
             cls._last_load_time = 0
         cls._load_config()
+
+    @classmethod
+    def _reset_for_testing(cls, config_file=None):
+        """Reset singleton state for testing."""
+        cls._instance = None
+        cls._config = None
+        cls._config_file = config_file
 
 # Global instance of Config
 config = Config()

@@ -1,5 +1,3 @@
-# File: utils/validation/data_validator.py
-
 import sqlite3
 from typing import Tuple, List, Dict, Any
 from database import DatabaseManager

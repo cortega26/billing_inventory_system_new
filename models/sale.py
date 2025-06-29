@@ -106,7 +106,8 @@ class Sale:
             return cls(
                 id=int(row["id"]),
                 customer_id=int(row["customer_id"]),
-                date=datetime.fromisoformat(row["date"]),
+                #date=datetime.fromisoformat(row["date"]),
+                date=datetime.strptime(row["date"], "%Y-%m-%d"),
                 total_amount=int(row["total_amount"]),
                 total_profit=int(row["total_profit"]),
                 receipt_id=row.get("receipt_id")

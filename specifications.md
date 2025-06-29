@@ -104,7 +104,7 @@
 
 ### Performance Specifications
 
-- Annual volume: ~3,650 sales, ~156 purchases
+- Annual volume: ~5,000 sales, ~156 purchases
 - No strict performance requirements
 - Optimize common searches:
   - Customer lookups

@@ -44,17 +44,25 @@ def matches_pattern(pattern: str) -> Callable[[str], bool]:
 def has_length(min_length: int, max_length: int) -> Callable[[Any], bool]:
     return lambda value: min_length <= len(value) <= max_length
 
-def validate_string(value: str, min_length: int = 1, max_length: int = 100, pattern: Optional[str] = None) -> str:
-    validators = [is_non_empty_string, has_length(min_length, max_length)]
-    if pattern:
-        validators.append(matches_pattern(pattern))
-    error_message = f"Invalid string. Length should be between {min_length} and {max_length} characters."
-    return validate_and_sanitize(
-        value,
-        validators,
-        sanitize_html,
-        error_message
-    )
+def validate_string(value: str, min_length: int = 0, max_length: Optional[int] = 100) -> str:
+    """Validate a string value."""
+    if not isinstance(value, str):
+        raise ValidationException("Value must be a string")
+    
+    # Normalize whitespace
+    value = " ".join(value.split())
+    
+    if len(value) < min_length:
+        raise ValidationException(f"Value must be at least {min_length} characters long")
+    
+    if max_length is not None and len(value) > max_length:
+        raise ValidationException(f"Value cannot exceed {max_length} characters")
+    
+    # Use Python string methods instead of REGEXP
+    if not all(c.isalnum() or c.isspace() or c in '-.' for c in value):
+        raise ValidationException("Value contains invalid characters")
+    
+    return value
 
 def validate_integer(value: Any, min_value: Optional[int] = None, max_value: Optional[int] = None) -> int:
     """
@@ -237,29 +245,44 @@ def validate_boolean(value: Any) -> bool:
             return False
     raise ValidationException(f"Invalid boolean value: {value}")
 
+def validate_with_pattern(value: str, pattern: str, error_message: str = "Invalid format") -> str:
+    """Validate string with regex pattern."""
+    if not re.match(pattern, value):
+        raise ValidationException(error_message)
+    return value
+
 def validate_email(value: str) -> str:
-    return validate_string(value, pattern=r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+    value = validate_string(value)
+    return validate_with_pattern(value, r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', "Invalid email format")
 
 def validate_phone(value: str) -> str:
-    return validate_string(value, pattern=r'^\+?1?\d{9,15}$')
+    value = validate_string(value)
+    return validate_with_pattern(value, r'^\+?1?\d{9,15}$', "Invalid phone format")
 
 def validate_url(value: str) -> str:
-    return validate_string(value, pattern=r'^(http:\/\/www\.|https:\/\/www\.|http:\/\/|https:\/\/)?[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,5}(:[0-9]{1,5})?(\/.*)?$')
+    value = validate_string(value)
+    return validate_with_pattern(value, r'^(http:\/\/www\.|https:\/\/www\.|http:\/\/|https:\/\/)?[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,5}(:[0-9]{1,5})?(\/.*)?$', "Invalid URL format")
 
 def validate_identifier(value: str, length: Union[int, Tuple[int, ...]]) -> str:
+    """Validate numeric identifier with specific length(s)."""
+    value = validate_string(value)
+    
     if isinstance(length, int):
         pattern = fr"^\d{{{length}}}$"
         error_message = f"Identifier must be exactly {length} digits"
     else:
         pattern = fr"^\d{{{','.join(map(str, length))}}}$"
         error_message = f"Identifier must be {' or '.join(map(str, length))} digits"
-    return validate_string(value, pattern=pattern)
+    
+    return validate_with_pattern(value, pattern, error_message)
 
 def validate_9digit_identifier(value: str) -> str:
-    return validate_string(value, min_length=9, max_length=9, pattern=r'^\d{9}$')
+    """Validate a 9-digit identifier."""
+    return validate_identifier(value, length=9)
 
 def validate_3or4digit_identifier(value: str) -> str:
-    return validate_string(value, min_length=3, max_length=4, pattern=r'^\d{3,4}$')
+    """Validate a 3 or 4-digit identifier."""
+    return validate_identifier(value, length=(3, 4))
 
 def validate_list(value: Any, item_validator: Callable[[Any], Any], 
                  min_length: int = 0, max_length: Optional[int] = None) -> List[Any]:

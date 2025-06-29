@@ -1,9 +1,9 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, 
-    QTableWidgetItem, QDialog, QFormLayout, QProgressBar, QMenu, QApplication,
-    QComboBox, QDoubleSpinBox
+    QTableWidgetItem, QDialog, QFormLayout, QProgressBar, QMenu, QComboBox,
+    QDoubleSpinBox, QDialogButtonBox, QMessageBox
 )
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
@@ -13,7 +13,7 @@ from utils.helpers import (
 )
 from utils.system.event_system import event_system
 from utils.ui.table_items import NumericTableWidgetItem
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from utils.decorators import ui_operation, handle_exceptions
 from utils.exceptions import ValidationException, DatabaseException, UIException
 from utils.validation.validators import validate_string
@@ -57,6 +57,16 @@ class EditInventoryDialog(QDialog):
         self.reason_input = QLineEdit()
         layout.addRow("Reason for Adjustment:", self.reason_input)
 
+        # Add a QDialogButtonBox with Ok/Cancel
+        self.button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
+            parent=self
+            )
+        # Connect signals
+        self.button_box.accepted.connect(self.validate_and_accept)
+        self.button_box.rejected.connect(self.reject)
+        layout.addRow(self.button_box)
+
         # Keyboard shortcuts
         QShortcut(QKeySequence(Qt.Key.Key_Return), self, self.validate_and_accept)
         QShortcut(QKeySequence(Qt.Key.Key_Enter), self, self.validate_and_accept)
@@ -64,9 +74,39 @@ class EditInventoryDialog(QDialog):
     @ui_operation(show_dialog=True)
     @handle_exceptions(ValidationException, show_dialog=True)
     def validate_and_accept(self):
+        # Step 1) Ensure reason is provided if adjustment != 0
         if self.adjustment_input.value() != 0 and not self.reason_input.text().strip():
-            raise ValidationException("Please provide a reason for the adjustment.")
-        self.accept()
+            QMessageBox.critical(self, "Error", "Please provide a reason for adjustment.")
+            return
+
+        # Step 2) Actually call the DB update code:
+        new_quantity = round(self.quantity_input.value(), 3)
+        adjustment = round(self.adjustment_input.value(), 3)
+        reason = self.reason_input.text().strip() or "No reason"
+
+        try:
+            # If user wants to directly set the quantity:
+            # InventoryService.set_quantity(product_id, new_quantity)
+            #  -- or --
+            # If user wants to "adjust" the quantity by `adjustment`:
+            # InventoryService.adjust_inventory(product_id, adjustment, reason)
+            
+            product_id = self.item["product_id"]
+            from services.inventory_service import InventoryService
+
+            if adjustment != 0:
+                # Use the adjust_inventory approach
+                InventoryService.adjust_inventory(product_id, adjustment, reason)
+            else:
+                # Use the set_quantity approach
+                InventoryService.set_quantity(product_id, new_quantity)
+
+            # All done, close the dialog with success
+            self.accept()
+
+        except Exception as e:
+            QMessageBox.critical(self, "Update Error", str(e))
+            return
 
     def get_new_quantity(self) -> float:
         return self.quantity_input.value()
@@ -79,7 +119,7 @@ class EditInventoryDialog(QDialog):
 
 
 class InventoryView(QWidget):
-    inventory_updated = Signal()
+    #inventory_updated = Signal()
 
     def __init__(self):
         super().__init__()
@@ -90,13 +130,15 @@ class InventoryView(QWidget):
         self.setup_ui()
         self.setup_scan_sound()
         self.connect_signals()
+        #event_system.inventory_updated.connect(self.load_categories)
 
     def connect_signals(self):
-        """Set up event connections with delay to ensure database operations complete."""
+        """Set up event connections."""
         event_system.product_added.connect(self.handle_product_change)
         event_system.product_updated.connect(self.handle_product_change)
         event_system.product_deleted.connect(self.handle_product_change)
         event_system.inventory_changed.connect(self.handle_product_change)
+        event_system.inventory_updated.connect(self.load_inventory)
 
     def handle_product_change(self, product_id: int) -> None:
         """Handle product changes with a small delay to ensure DB operations complete."""
@@ -221,6 +263,7 @@ class InventoryView(QWidget):
         """Search for products manually."""
         search_term = self.search_input.text().strip()
         if not search_term:
+            self.filter_inventory()
             return
 
         try:
@@ -269,59 +312,59 @@ class InventoryView(QWidget):
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
     def load_inventory(self, _: Any = None) -> None:
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setValue(0)
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        """Load all inventory items."""
         try:
-            # Force a fresh read by clearing the cache first
-            self.inventory_service.clear_cache()
-            inventory_items = self.inventory_service.get_all_inventory()
-            self.current_inventory = inventory_items
-            
-            # Use QTimer to update the UI in the next event loop iteration
-            QTimer.singleShot(0, lambda: self.filter_inventory())
-            logger.info(f"Loaded {len(inventory_items)} inventory items")
+            self.current_inventory = self.inventory_service.get_all_inventory()
+            self.update_inventory_table(self.current_inventory)
         except Exception as e:
             logger.error(f"Error loading inventory: {str(e)}")
-            raise DatabaseException(f"Failed to load inventory: {str(e)}")
-        finally:
-            QApplication.restoreOverrideCursor()
-            self.progress_bar.setValue(100)
-            QTimer.singleShot(1000, lambda: self.progress_bar.setVisible(False))
+            show_error_message("Error", f"Failed to load inventory: {str(e)}")
 
-    def update_inventory_table(self, inventory_items: List[Dict[str, Any]]):
-        """Update the inventory table display."""
-        try:
-            self.inventory_table.setRowCount(len(inventory_items))
-            for row, item in enumerate(inventory_items):
-                self.inventory_table.setItem(row, 0, NumericTableWidgetItem(item["product_id"]))
-                self.inventory_table.setItem(row, 1, QTableWidgetItem(item["product_name"]))
-                self.inventory_table.setItem(row, 2, QTableWidgetItem(item["category_name"]))
+    def update_inventory_table(self, inventory_items: List[Dict[str, Any]]) -> None:
+        """Update the inventory table with the given items."""
+        logger.debug(f"Updating inventory table with {len(inventory_items)} items")
+        self.inventory_table.setSortingEnabled(False)  # Disable sorting during update
+        self.inventory_table.setRowCount(0)
+        
+        for row, item in enumerate(inventory_items):
+            self.inventory_table.insertRow(row)
+            try:
+                # Product ID (Numeric Sorting)
+                self.inventory_table.setItem(row, 0, NumericTableWidgetItem(int(item['product_id'])))
                 
-                # Barcode column
-                barcode_item = QTableWidgetItem(item.get("barcode", ""))
-                if not item.get("barcode"):
-                    barcode_item.setForeground(Qt.GlobalColor.gray)
-                    barcode_item.setText("No barcode")
-                self.inventory_table.setItem(row, 3, barcode_item)
+                # Product Name
+                self.inventory_table.setItem(row, 1, QTableWidgetItem(item['product_name']))
                 
-                self.inventory_table.setItem(row, 4, NumericTableWidgetItem(item["quantity"]))
-
-                # Actions
+                # Category Name
+                self.inventory_table.setItem(row, 2, QTableWidgetItem(item['category_name']))
+                
+                # Barcode
+                self.inventory_table.setItem(row, 3, QTableWidgetItem(item['barcode']))
+                
+                # Quantity (Already using NumericTableWidgetItem)
+                self.inventory_table.setItem(row, 4, NumericTableWidgetItem(float(item['quantity'])))
+                
+                # Add edit button in Actions column
                 actions_widget = QWidget()
                 actions_layout = QHBoxLayout(actions_widget)
                 actions_layout.setContentsMargins(0, 0, 0, 0)
-
+                
                 edit_button = QPushButton("Edit")
-                edit_button.clicked.connect(lambda _, i=item: self.edit_inventory(i))
+                # Use functools.partial to correctly bind the current item
+                from functools import partial
+                edit_button.clicked.connect(partial(self.edit_inventory, item))
                 edit_button.setMaximumWidth(60)
                 actions_layout.addWidget(edit_button)
+                
                 self.inventory_table.setCellWidget(row, 5, actions_widget)
+                
+            except Exception as e:
+                logger.error(f"Error updating row {row}: {str(e)}", extra={"item": item})
+                continue
+        
+        self.inventory_table.setSortingEnabled(True)  # Re-enable sorting after update
+        logger.debug("Inventory table updated successfully")
 
-            logger.info(f"Updated inventory table with {len(inventory_items)} items")
-        except Exception as e:
-            logger.error(f"Error updating inventory table: {str(e)}")
-            raise UIException(f"Failed to update inventory table: {str(e)}")
 
     def generate_barcode(self, item: Dict[str, Any]) -> None:
         """Generate a new barcode for a product."""
@@ -329,19 +372,15 @@ class InventoryView(QWidget):
             # Generate a unique 12-digit barcode
             while True:
                 barcode = ''.join(random.choices(string.digits, k=12))
-                # Check if barcode already exists
                 if not self.product_service.get_product_by_barcode(barcode):
                     break
             
             # Update product with new barcode
-            product = self.product_service.get_product(item['product_id'])
-            if product:
-                self.product_service.update_product(product.id, {'barcode': barcode})
-                self.scan_sound.play()
-                show_info_message("Success", f"Generated barcode: {barcode}")
-                self.load_inventory()
-            else:
-                raise ValidationException(f"Product with ID {item['product_id']} not found")
+            product_id = item['product_id']
+            self.product_service.update_product(product_id, {'barcode': barcode})
+            self.scan_sound.play()
+            show_info_message("Success", f"Generated barcode: {barcode}")
+            self.load_inventory()
         except Exception as e:
             logger.error(f"Error generating barcode: {str(e)}")
             show_error_message("Error", str(e))
@@ -359,9 +398,12 @@ class InventoryView(QWidget):
                 # Filter inventory to show only this product
                 filtered_items = [
                     item for item in self.current_inventory 
-                    if item['product_id'] == product.id
+                    if str(item['product_id']) == str(product.id)  # Convert both to strings for comparison
                 ]
-                self.update_inventory_table(filtered_items)
+                if filtered_items:
+                    self.update_inventory_table(filtered_items)
+                else:
+                    show_error_message("Not Found", "Product exists but has no inventory")
             else:
                 self.barcode_input.setStyleSheet("background-color: #ffebee;")
                 QTimer.singleShot(1000, lambda: self.barcode_input.setStyleSheet(""))
@@ -375,40 +417,25 @@ class InventoryView(QWidget):
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
-    def edit_inventory(self, item: Dict[str, Any]):
+    def edit_inventory(self, item: Dict[str, Any]) -> None:
         """Edit inventory item."""
-        dialog = EditInventoryDialog(item, self)
-        if dialog.exec():
-            new_quantity = dialog.get_new_quantity()
-            adjustment = dialog.get_adjustment()
-            reason = dialog.get_reason()
-
-            try:
-                if adjustment != 0:
-                    self.inventory_service.adjust_inventory(
-                        item["product_id"], 
-                        adjustment, 
-                        reason
-                    )
-                else:
-                    self.inventory_service.set_quantity(
-                        item["product_id"], 
-                        new_quantity
-                    )
-
-                """
-                # Generate barcode if requested
-                if dialog.should_generate_barcode():
-                    self.generate_barcode(item)
-                """
-
-                self.load_inventory()
-                show_info_message("Success", "Inventory updated successfully")
-                self.inventory_updated.emit()
-                logger.info(f"Inventory updated for product ID: {item['product_id']}")
-            except Exception as e:
-                logger.error(f"Error updating inventory: {str(e)}")
-                raise DatabaseException(f"Failed to update inventory: {str(e)}")
+        try:
+            # Convert dictionary to expected format
+            edit_item = {
+                'product_id': item['product_id'],
+                'product_name': item['product_name'],
+                'category_name': item['category_name'],
+                'quantity': item['quantity'],
+                'barcode': item['barcode']
+            }
+            
+            dialog = EditInventoryDialog(edit_item, self)
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                self.load_inventory()  # Refresh the main table
+                show_info_message("Success", "Inventory updated successfully.")
+        except Exception as e:
+            logger.error(f"Error editing inventory: {str(e)}")
+            show_error_message("Error", str(e))
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
@@ -419,31 +446,58 @@ class InventoryView(QWidget):
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
-    def filter_inventory(self):
+    def filter_inventory(self, _: bool = False):
         """Filter inventory based on category and barcode status."""
+        logger.debug("Starting filter_inventory")
         try:
             category_id = self.category_filter.currentData()
             barcode_filter = self.barcode_filter.currentText()
             search_term = self.search_input.text().strip().lower()
 
-            filtered_items = [
-                item for item in self.current_inventory
-                if (category_id is None or item["category_id"] == category_id) and
-                (barcode_filter == "All Products" or 
-                 (barcode_filter == "With Barcode" and item.get("barcode")) or
-                 (barcode_filter == "Without Barcode" and not item.get("barcode"))) and
-                (not search_term or
-                 search_term in item["product_name"].lower() or
-                 search_term in str(item["product_id"]).lower() or
-                 search_term in item["category_name"].lower() or
-                 (item.get("barcode") and search_term in item["barcode"].lower()))
-            ]
+            filtered_items = self.current_inventory
+
+            # Apply category filter
+            filtered_items = self.filter_by_category(filtered_items, category_id)
+            logger.debug(f"After category filter: {len(filtered_items)} items")
+
+            # Apply barcode filter
+            filtered_items = self.filter_by_barcode(filtered_items, barcode_filter)
+            logger.debug(f"After barcode filter: {len(filtered_items)} items")
+
+            # Apply search term filter
+            filtered_items = self.filter_by_search_term(filtered_items, search_term)
+            logger.debug(f"After search term filter: {len(filtered_items)} items")
 
             self.update_inventory_table(filtered_items)
             logger.info(f"Filtered inventory: {len(filtered_items)} items")
         except Exception as e:
             logger.error(f"Error filtering inventory: {str(e)}")
             raise DatabaseException(f"Failed to filter inventory: {str(e)}")
+
+    def filter_by_category(self, items: List[Dict[str, Any]], category_id: Optional[int]) -> List[Dict[str, Any]]:
+        if category_id is None:
+            return items
+        return [item for item in items if item.get("category_id") == category_id]
+
+    def filter_by_barcode(self, items: List[Dict[str, Any]], barcode_filter: str) -> List[Dict[str, Any]]:
+        if barcode_filter == "All Products":
+            return items
+        elif barcode_filter == "With Barcode":
+            return [item for item in items if item.get("barcode")]
+        elif barcode_filter == "Without Barcode":
+            return [item for item in items if not item.get("barcode")]
+        return items
+
+    def filter_by_search_term(self, items: List[Dict[str, Any]], search_term: str) -> List[Dict[str, Any]]:
+        if not search_term:
+            return items
+        return [
+            item for item in items
+            if search_term in str(item.get("product_name", "")).lower() or
+               search_term in str(item.get("product_id")).lower() or
+               search_term in str(item.get("category_name", "")).lower() or
+               (item.get("barcode") and search_term in item["barcode"].lower())
+        ]
 
     def show_context_menu(self, position):
         """Show context menu for inventory table."""

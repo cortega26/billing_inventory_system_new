@@ -291,22 +291,17 @@ class SaleItemDialog(QDialog):
     def __init__(self, product: Product, parent=None):
         super().__init__(parent)
         self.product = product
-        self.setWindowTitle(f"Add {product.name}")
+        self.setWindowTitle("Add Item")
         self.setup_ui()
-        
-        # Focus quantity input by default
-        self.quantity_input.setFocus()
-        self.quantity_input.selectAll()
+        self.setup_product_details(product)
 
     def setup_ui(self):
         layout = QFormLayout(self)
-
-        # Product info
-        product_info = QLabel(f"{self.product.name}")
-        if self.product.barcode:
-            product_info.setToolTip(f"Barcode: {self.product.barcode}")
-        layout.addRow("Product:", product_info)
-
+        
+        # Product name label
+        self.product_name_label = QLabel()
+        layout.addRow("Product:", self.product_name_label)
+        
         # Quantity input - Allow 3 decimal places
         self.quantity_input = QDoubleSpinBox()
         self.quantity_input.setMinimum(0.001)
@@ -321,10 +316,9 @@ class SaleItemDialog(QDialog):
         self.price_input.setMinimum(1)
         self.price_input.setMaximum(1000000000)
         self.price_input.setPrefix("$ ")
-        # Use custom formatting for the display
         self.price_input.valueChanged.connect(self.format_price_display)
         if self.product.sell_price:
-            self.price_input.setValue(self.product.sell_price)
+            self.price_input.setValue(int(self.product.sell_price))
         layout.addRow("Unit Price:", self.price_input)
 
         # Total and profit preview
@@ -358,23 +352,21 @@ class SaleItemDialog(QDialog):
     def update_total(self) -> None:
         """Calculate total and profit with proper rounding for Chilean Pesos."""
         try:
-            quantity = round(self.quantity_input.value(), 3)  # 3 decimal places for quantity
-            price = int(self.price_input.value())  # Integer price (Chilean Pesos)
+            quantity = self.quantity_input.value()
+            unit_price = self.price_input.value()
+            total = int(quantity * unit_price)
             
-            # Calculate total (round to nearest peso)
-            total = int(round(quantity * price))
-            self.total_label.setText(f"$ {total:,}".replace(",", "."))
-            
-            # Calculate profit if cost price is available
+            # Calculate profit
             if self.product.cost_price is not None:
-                profit = int(round(quantity * (price - self.product.cost_price)))
+                profit = int(round(quantity * (unit_price - self.product.cost_price)))
                 self.profit_label.setText(f"$ {profit:,}".replace(",", "."))
             else:
-                self.profit_label.setText("N/A")
+                profit = 0
+            
+            self.total_label.setText(format_price(total))
+            self.profit_label.setText(format_price(profit))
         except Exception as e:
             logger.error(f"Error updating totals: {str(e)}")
-            self.total_label.setText("Error")
-            self.profit_label.setText("Error")
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(ValidationException, show_dialog=True)
@@ -419,6 +411,17 @@ class SaleItemDialog(QDialog):
             logger.error(f"Error preparing item data: {str(e)}")
             raise ValidationException("Invalid item data")
 
+    def setup_product_details(self, product: Product):
+        """Set up product details in the form."""
+        try:
+            self.product = product
+            self.product_name_label.setText(product.name)
+            self.quantity_input.setValue(1)
+            self.quantity_input.setFocus()
+        except Exception as e:
+            logger.error(f"Error setting up product details: {str(e)}")
+            show_error_message("Error", f"Failed to set up product details: {str(e)}")
+
 
 class SaleView(QWidget):
     sale_updated = Signal()
@@ -430,6 +433,7 @@ class SaleView(QWidget):
         self.product_service = ProductService()
         self.setup_ui()
         self.setup_scan_sound()
+        event_system.sale_added.connect(self.load_sales)
 
     def setup_scan_sound(self) -> None:
         """Initialize the sound system."""
@@ -871,21 +875,6 @@ class SaleView(QWidget):
                 self.clear_sale()
                 show_info_message("Success", "Sale completed successfully")
                 
-                # Ask about printing receipt
-                reply = QMessageBox.question(
-                    self,
-                    "Print Receipt",
-                    "Would you like to print the receipt?",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    QMessageBox.StandardButton.Yes
-                )
-                
-                if reply == QMessageBox.StandardButton.Yes:
-                    sale = self.sale_service.get_sale(sale_id)
-                    if sale:
-                        self.print_receipt(sale)
-                    else:
-                        raise ValidationException(f"Sale with ID {sale_id} not found")
             else:
                 raise DatabaseException("Failed to create sale")
                 
@@ -895,7 +884,7 @@ class SaleView(QWidget):
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
-    def load_sales(self):
+    def load_sales(self, sale_id=None):
         """Load all sales."""
         try:
             QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
@@ -970,11 +959,11 @@ class SaleView(QWidget):
         delete_button.setMaximumWidth(60)
         
         if (sale.date is not None and 
-            datetime.now() - sale.date > timedelta(hours=96)):
+            datetime.now() - sale.date > timedelta(hours=1240)):
             edit_button.setEnabled(False)
-            edit_button.setToolTip("Sales can only be edited within 96 hours")
+            edit_button.setToolTip("Sales can only be edited within 1240 hours")
             delete_button.setEnabled(False)
-            delete_button.setToolTip("Sales can only be deleted within 96 hours")
+            delete_button.setToolTip("Sales can only be deleted within 1240 hours")
 
         for btn in [view_button, edit_button, print_button, delete_button]:
             actions_layout.addWidget(btn)
@@ -988,8 +977,8 @@ class SaleView(QWidget):
         if sale is None:
             raise ValidationException("No sale selected for editing")
 
-        if datetime.now() - sale.date > timedelta(hours=96):
-            raise ValidationException("Sales can only be edited within 96 hours of creation")
+        if datetime.now() - sale.date > timedelta(hours=1240):
+            raise ValidationException("Sales can only be edited within 1240 hours of creation")
 
         try:
             dialog = EditSaleDialog(
@@ -1043,11 +1032,6 @@ class SaleView(QWidget):
         if sale is None:
             raise ValidationException("No sale selected for deletion")
 
-        """
-        if datetime.now() - sale.date > timedelta(hours=96):
-            raise ValidationException("Sales can only be deleted within 96 hours of creation")
-        """
-
         if not confirm_action(
             self,
             "Delete Sale",
@@ -1094,7 +1078,7 @@ class SaleView(QWidget):
                     return
                 
                 # Disable edit/delete actions for old sales
-                if sale.date and datetime.now() - sale.date > timedelta(hours=96):
+                if sale.date and datetime.now() - sale.date > timedelta(hours=1240):
                     edit_action.setEnabled(False)
                     delete_action.setEnabled(False)
                 

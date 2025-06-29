@@ -1,5 +1,5 @@
 from typing import List, Dict, Any, Optional
-from database import DatabaseManager
+from database.database_manager import DatabaseManager
 from models.sale import Sale, SaleItem
 from services.inventory_service import InventoryService
 from services.customer_service import CustomerService
@@ -14,85 +14,96 @@ from datetime import datetime, timedelta
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 
+
 class SaleService:
     def __init__(self):
         self.inventory_service = InventoryService()
         self.customer_service = CustomerService()
         self.product_service = ProductService()
 
-    @staticmethod
-    @db_operation(show_dialog=True)
-    def diagnose_sales_data():
-        query = "SELECT * FROM sales"
-        rows = DatabaseManager.fetch_all(query)
-        for row in rows:
-            print(f"Sale ID: {row['id']}")
-            print(f"  customer_id: {row['customer_id']}")
-            print(f"  date: {row['date']}")
-            print(f"  total_amount: {row['total_amount']}")
-            print(f"  total_profit: {row['total_profit']}")
-            print(f"  receipt_id: {row['receipt_id']}")
-            print("---")
-
-        query = "SELECT * FROM sale_items"
-        rows = DatabaseManager.fetch_all(query)
-        for row in rows:
-            print(f"Sale Item ID: {row['id']}")
-            print(f"  sale_id: {row['sale_id']}")
-            print(f"  product_id: {row['product_id']}")
-            print(f"  quantity: {row['quantity']}")
-            print(f"  price: {row['price']}")
-            print(f"  profit: {row['profit']}")
-            print("---")
-
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
-    def create_sale(self, customer_id: int, date: str, items: List[Dict[str, Any]]) -> Optional[int]:
-        date = validate_date(date)
-        self._validate_sale_items(items)
-        total_amount = 0
-        total_profit = 0
-        
-        for item in items:
-            product = self.product_service.get_product(item["product_id"])
-            if product is None:
-                raise ValidationException(f"Product with ID {item['product_id']} not found")
-            if product.cost_price is None:
-                raise ValidationException(f"Cost price not set for product '{product.name}'")
-            if product.sell_price is None:
-                raise ValidationException(f"Sell price not set for product '{product.name}'")
-            
-            # Calculate using integers for money amounts and float for quantities
-            quantity = float(item["quantity"])
-            sell_price = int(item["sell_price"])
-            item_total = int(round(quantity * sell_price))  # Round to nearest peso
-            item_profit = int(round(quantity * (sell_price - product.cost_price)))  # Round profit to nearest peso
-            
-            item["profit"] = item_profit
-            total_amount += item_total
-            total_profit += item_profit
-
-        receipt_id = self.generate_receipt_id(datetime.fromisoformat(date))
-
-        query = "INSERT INTO sales (customer_id, date, total_amount, total_profit, receipt_id) VALUES (?, ?, ?, ?, ?)"
+    def create_sale(self, customer_id: int, date: str, items: List[Dict[str, Any]]) -> int:
+        """
+        1) Insert a new 'sales' row with zero placeholders for total_amount / total_profit.
+        2) Insert sale_items for this sale.
+        3) Calculate final totals, generate receipt_id, and update 'sales' row.
+        4) Emit sale_added event so UI (Sales Tab) refreshes automatically.
+        """
         try:
-            cursor = DatabaseManager.execute_query(query, (customer_id, date, total_amount, total_profit, receipt_id))
+            # If no date was provided, use today's date in "YYYY-MM-DD" format
+            sale_date_str = date or datetime.now().strftime("%Y-%m-%d")
+
+            # 1) Create the sale row with placeholders
+            insert_query = """
+                INSERT INTO sales (customer_id, date, total_amount, total_profit)
+                VALUES (?, ?, 0, 0)
+            """
+            cursor = DatabaseManager.execute_query(insert_query, (customer_id, sale_date_str))
             sale_id = cursor.lastrowid
-
             if sale_id is None:
-                raise ValidationException("Failed to create sale record")
+                raise DatabaseException("Failed to get new sale ID after insert.")
 
-            self._insert_sale_items(sale_id, items)
+            # 2) Insert all sale items referencing this sale_id
+            items_query = """
+                INSERT INTO sale_items (sale_id, product_id, quantity, price, profit)
+                VALUES (?, ?, ?, ?, ?)
+            """
+            # Convert your 'items' list into the parameters needed
+            batch_params = []
+            for item in items:
+                # item might look like:
+                # { "product_id": 123, "quantity": 2.0, "sell_price": 1000, "profit": 300 }
+                batch_params.append((
+                    sale_id,
+                    int(item["product_id"]),
+                    float(item["quantity"]),
+                    int(item["sell_price"]),
+                    int(item["profit"])
+                ))
+            DatabaseManager.executemany(items_query, batch_params)
+
+            # 3) Compute final totals + receipt ID
+            total_amount = 0
+            total_profit = 0
+            for item in items:
+                qty = float(item["quantity"])
+                unit_price = int(item["sell_price"])
+                # item["profit"] is already quantity * (unit_price - cost_price)
+
+                # Sum up sale totals
+                total_amount += int(round(qty * unit_price))
+                total_profit += int(item["profit"])
+
+            # generate receipt ID from date
+            sale_date_obj = datetime.strptime(sale_date_str, "%Y-%m-%d")
+            receipt_id = self.generate_receipt_id(sale_date_obj)
+
+            # 4) Update the 'sales' row with correct totals & receipt_id
+            update_query = """
+                UPDATE sales
+                SET total_amount = ?, total_profit = ?, receipt_id = ?
+                WHERE id = ?
+            """
+            DatabaseManager.execute_query(
+                update_query,
+                (total_amount, total_profit, receipt_id, sale_id)
+            )
+
+            # 5) Emit the event => the UI's Sales Tab is presumably listening for this
+            event_system.sale_added.emit(sale_id)
+
             self._update_inventory(items)
 
-            logger.info("Sale created", extra={"sale_id": sale_id, "customer_id": customer_id, 
-                                             "total_amount": total_amount, "total_profit": total_profit})
-            event_system.sale_added.emit(sale_id)
-            self.clear_cache()
+            # 6) Clear the cached get_all_sales
+            SaleService.get_all_sales.cache_clear()
+
             return sale_id
+
         except Exception as e:
-            logger.error("Failed to create sale", extra={"error": str(e), "customer_id": customer_id})
+            logger.error(f"Error in create_sale: {str(e)}", extra={"exc_info": True})
             raise DatabaseException(f"Failed to create sale: {str(e)}")
+
 
     @db_operation(show_dialog=True)
     @handle_exceptions(NotFoundException, DatabaseException, show_dialog=True)
@@ -205,8 +216,8 @@ class SaleService:
             raise ValidationException(f"Sale with ID {sale_id} not found.")
 
         sale_datetime = datetime.fromisoformat(sale.date.isoformat())
-        if datetime.now() - sale_datetime > timedelta(hours=96):
-            raise ValidationException("Sales can only be edited within 96 hours of creation.")
+        if datetime.now() - sale_datetime > timedelta(hours=1240):
+            raise ValidationException("Sales can only be edited within 1240 hours of creation.")
 
         old_items = self.get_sale_items(sale_id)
 
@@ -553,3 +564,16 @@ class SaleService:
         } for row in rows]
         logger.info("Sales distribution by category retrieved", extra={"start_date": start_date, "end_date": end_date, "count": len(distribution)})
         return distribution
+
+    @lru_cache(maxsize=100)
+    def get_product_details(self, product_id: int) -> Optional[Dict[str, Any]]:
+        product = self.product_service.get_product(product_id)
+        return product.to_dict() if product else None
+
+    def calculate_total_amount(self, items: List[Dict[str, Any]]) -> int:
+        """Calculate total amount for a sale."""
+        return sum(int(item['quantity'] * item['sell_price']) for item in items)
+
+    def calculate_total_profit(self, items: List[Dict[str, Any]]) -> int:
+        """Calculate total profit for a sale."""
+        return sum(int(item['profit']) for item in items)

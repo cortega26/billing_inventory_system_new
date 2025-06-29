@@ -82,7 +82,8 @@ class Purchase:
         return cls(
             id=row["id"],
             supplier=row["supplier"],
-            date=datetime.fromisoformat(row["date"]),
+            #date=datetime.fromisoformat(row["date"]),
+            date=datetime.strptime(row["date"], '%Y-%m-%d'),
         )
 
     @staticmethod

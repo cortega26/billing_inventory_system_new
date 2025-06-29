@@ -33,11 +33,11 @@ handlers:
         encoding: utf8
 
 root:
-    level: DEBUG
+    level: INFO
     handlers: [console, file_handler, error_file_handler]
 
 loggers:
     inventory_system:
-        level: DEBUG
+        level: INFO
         handlers: [console, file_handler, error_file_handler]
         propagate: no

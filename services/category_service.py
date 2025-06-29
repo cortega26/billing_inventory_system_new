@@ -1,5 +1,5 @@
 from typing import List, Optional, Dict, Any
-from database import DatabaseManager
+from database.database_manager import DatabaseManager
 from models.category import Category
 from utils.validation.validators import validate_string, validate_integer
 from utils.sanitizers import sanitize_html, sanitize_sql

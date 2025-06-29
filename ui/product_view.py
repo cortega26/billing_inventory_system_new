@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
     QComboBox, QFormLayout, QHeaderView, QAbstractItemView, QProgressBar, 
     QMenu, QApplication
 )
-from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction, QKeySequence
 from services.product_service import ProductService
 from services.category_service import CategoryService
@@ -16,7 +16,7 @@ from typing import Optional, List, Any
 from models.product import Product
 from models.category import Category
 from utils.decorators import ui_operation, handle_exceptions
-from utils.validation.validators import validate_string, validate_float, validate_integer
+from utils.validation.validators import validate_string, validate_float
 from utils.exceptions import ValidationException, DatabaseException, UIException, NotFoundException
 from utils.system.logger import logger
 
@@ -39,18 +39,18 @@ class EditProductDialog(QDialog):
         self.category_combo.addItem("Uncategorized", None)
         for category in self.categories:
             self.category_combo.addItem(category.name, category.id)
-        if self.product and self.product.category:
-            index = self.category_combo.findData(self.product.category.id)
+        if self.product and self.product.category_id:
+            index = self.category_combo.findData(self.product.category_id)
             if index >= 0:
                 self.category_combo.setCurrentIndex(index)
 
         self.cost_price_input = QDoubleSpinBox()
         self.cost_price_input.setMaximum(1000000000)
-        self.cost_price_input.setValue(self.product.cost_price or 0 if self.product else 0)
+        self.cost_price_input.setValue(float(self.product.cost_price) if self.product and self.product.cost_price else 0)
 
         self.sell_price_input = QDoubleSpinBox()
         self.sell_price_input.setMaximum(1000000000)
-        self.sell_price_input.setValue(self.product.sell_price or 0 if self.product else 0)
+        self.sell_price_input.setValue(float(self.product.sell_price) if self.product and self.product.sell_price else 0)
 
         layout.addRow("Name:", self.name_input)
         layout.addRow("Description:", self.description_input)
@@ -254,14 +254,13 @@ class ProductView(QWidget):
                     self.product_table.setItem(row, 0, NumericTableWidgetItem(product.id))
                     self.product_table.setItem(row, 1, QTableWidgetItem(product.name))
                     self.product_table.setItem(row, 2, QTableWidgetItem(product.description or ""))
-                    self.product_table.setItem(row, 3, QTableWidgetItem(
-                        product.category.name if product.category else ""))
+                    self.product_table.setItem(row, 3, QTableWidgetItem(product.category_name or "Uncategorized"))
                     self.product_table.setItem(row, 4, PriceTableWidgetItem(
-                        product.cost_price, format_price))
+                        float(product.cost_price) if product.cost_price else 0, format_price))
                     self.product_table.setItem(row, 5, PriceTableWidgetItem(
-                        product.sell_price, format_price))
+                        float(product.sell_price) if product.sell_price else 0, format_price))
                     self.product_table.setItem(row, 6, PercentageTableWidgetItem(
-                        product.calculate_profit_margin()))
+                        float(product.calculate_profit_margin())))
 
                     # Create action buttons
                     actions_widget = QWidget()
@@ -417,7 +416,7 @@ class ProductView(QWidget):
             
             # First apply category filter
             if self.current_category_id is not None:
-                products = [p for p in products if p.category and p.category.id == self.current_category_id]
+                products = [p for p in products if p.category_id == self.current_category_id]
 
             # Then apply search filter
             if search_term:

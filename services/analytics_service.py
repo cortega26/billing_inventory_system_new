@@ -1,5 +1,5 @@
 from typing import List, Dict, Any, Tuple
-from database import DatabaseManager
+from database.database_manager import DatabaseManager
 from functools import lru_cache
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import ValidationException, DatabaseException
@@ -66,21 +66,29 @@ class AnalyticsService:
         })
         return result
 
+    ###########################################################################
+    # FIX 1: Summation & date truncation for daily-based "Sales Trend"
+    ###########################################################################
     @staticmethod
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def get_sales_trend(start_date: str, end_date: str) -> List[Dict[str, Any]]:
+        """
+        Returns a list of { 'date': 'YYYY-MM-DD', 'daily_sales': sum_of_that_day, 'sale_count': ...}
+        ensuring the line chart can parse date with "yyyy-MM-dd" and sums daily totals.
+        """
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         query = """
-            SELECT date, 
-                   total_amount as daily_sales,
-                   COUNT(*) as sale_count
+            SELECT
+                strftime('%Y-%m-%d', date) as date,
+                SUM(total_amount) as daily_sales,
+                COUNT(*) as sale_count
             FROM sales
             WHERE date BETWEEN ? AND ?
-            GROUP BY date
-            ORDER BY date
+            GROUP BY strftime('%Y-%m-%d', date)
+            ORDER BY strftime('%Y-%m-%d', date)
         """
         result = DatabaseManager.fetch_all(query, (start_date, end_date))
         logger.info("Sales trend retrieved", extra={"start_date": start_date, "end_date": end_date})
@@ -192,14 +200,15 @@ class AnalyticsService:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         query = """
-            SELECT date, 
-                total_amount as daily_revenue,
-                total_profit as daily_profit,
+            SELECT
+                strftime('%Y-%m-%d', date) as date,
+                SUM(total_amount) as daily_revenue,
+                SUM(total_profit) as daily_profit,
                 COUNT(*) as sale_count
             FROM sales
             WHERE date BETWEEN ? AND ?
-            GROUP BY date
-            ORDER BY date
+            GROUP BY strftime('%Y-%m-%d', date)
+            ORDER BY strftime('%Y-%m-%d', date)
         """
         result = DatabaseManager.fetch_all(query, (start_date, end_date))
         logger.info(f"Retrieved profit trend: {len(result)} days")
@@ -301,19 +310,33 @@ class AnalyticsService:
     @staticmethod
     def get_date_range(range_type: str) -> Tuple[str, str]:
         today = datetime.now().date()
-        if range_type == 'today':
-            return today.isoformat(), today.isoformat()
-        elif range_type == 'yesterday':
-            yesterday = today - timedelta(days=1)
-            return yesterday.isoformat(), yesterday.isoformat()
-        elif range_type == 'this_week':
-            start_of_week = today - timedelta(days=today.weekday())
-            return start_of_week.isoformat(), today.isoformat()
-        elif range_type == 'this_month':
-            start_of_month = today.replace(day=1)
-            return start_of_month.isoformat(), today.isoformat()
-        elif range_type == 'this_year':
-            start_of_year = today.replace(month=1, day=1)
-            return start_of_year.isoformat(), today.isoformat()
+        date_ranges = {
+            'today': (today, today),
+            'yesterday': (today - timedelta(days=1), today - timedelta(days=1)),
+            'this_week': (today - timedelta(days=today.weekday()), today),
+            'this_month': (today.replace(day=1), today),
+            'this_year': (today.replace(month=1, day=1), today)
+        }
+
+        if range_type in date_ranges:
+            start_date, end_date = date_ranges[range_type]
+            logger.debug(f"Date range for {range_type}: {start_date} to {end_date}")
+            return start_date.isoformat(), end_date.isoformat()
         else:
+            logger.error(f"Invalid range type: {range_type}")
             raise ValueError("Invalid range type")
+
+    def _validate_date_range(self, start_date: str, end_date: str) -> None:
+        """Validate date range for analytics queries."""
+        try:
+            start = datetime.fromisoformat(start_date)
+            end = datetime.fromisoformat(end_date)
+            today = datetime.now()
+            
+            if start > today or end > today:
+                raise ValidationException("Date range cannot be in the future")
+            if start > end:
+                raise ValidationException("Start date must be before end date")
+                
+        except ValueError as e:
+            raise ValidationException(f"Invalid date format: {str(e)}")

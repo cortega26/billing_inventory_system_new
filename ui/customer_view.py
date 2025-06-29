@@ -81,12 +81,20 @@ class CustomerView(QWidget):
         super().__init__()
         self.customer_service = CustomerService()
         self.setup_ui()
+        # Connect signals
+        event_system.customer_added.connect(self.load_customers)
 
-    def __del__(self):
-        # Disconnect from event system to prevent multiple connections
-        event_system.customer_added.disconnect(self.load_customers)
-        event_system.customer_updated.disconnect(self.load_customers)
-        event_system.customer_deleted.disconnect(self.load_customers)
+    def cleanup(self):
+        """Cleanup method to properly disconnect signals."""
+        try:
+            event_system.customer_added.disconnect(self.load_customers)
+        except Exception:
+            pass  # Ignore disconnection errors during cleanup
+
+    def closeEvent(self, event):
+        """Handle widget close event."""
+        self.cleanup()
+        super().closeEvent(event)
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
@@ -172,8 +180,8 @@ class CustomerView(QWidget):
             self.populate_customer_table(customers)
 
         except Exception as e:
-            logger.error(f"(load_customers) Error loading customers: {str(e)}", exc_info=True)
-            raise UIException(f"Failed to load customers: {str(e)}")
+            logger.error(f"(load_customers) Error loading customers: {str(e)}")
+            show_error_message("Error", f"Failed to load customers: {str(e)}")
 
         finally:
             QApplication.restoreOverrideCursor()
@@ -290,7 +298,7 @@ class CustomerView(QWidget):
                     self.customer_table.setCellWidget(row, 6, actions_widget)
 
                 except Exception as row_error:
-                    logger.error(f"Error filling row {row} for customer {cust.id}: {row_error}", exc_info=True)
+                    logger.error(f"Error filling row {row} for customer {cust.id}: {row_error}")
                     continue
 
             # 6) Resize columns for a neat look
@@ -306,7 +314,7 @@ class CustomerView(QWidget):
             logger.debug(f"(populate_customer_table) Finished with {len(unique_customers)} rows")
 
         except Exception as e:
-            logger.error(f"Error populating customer table: {str(e)}", exc_info=True)
+            logger.error(f"Error populating customer table: {str(e)}")
             raise UIException(f"Failed to populate customer table: {str(e)}")
 
     @ui_operation(show_dialog=True)
@@ -326,20 +334,34 @@ class CustomerView(QWidget):
 
             dialog = EditCustomerDialog(customer, self)
             if dialog.exec():
-                new_name = dialog.name_input.text().strip() or customer.name
+                # Get the new values
+                new_identifier_9 = dialog.identifier_9_input.text().strip()
+                new_identifier_3or4 = dialog.identifier_3or4_input.text().strip() or None
+                new_name = dialog.name_input.text().strip() or None  # Changed to handle empty string case
+
+                # Validate the name before updating
+                if new_name:
+                    try:
+                        validate_string(new_name, max_length=50)
+                    except ValidationException as e:
+                        show_error_message("Validation Error", str(e))
+                        return
+
+                # Update the customer
                 self.customer_service.update_customer(
                     customer.id,
-                    identifier_9=dialog.identifier_9_input.text().strip(),
+                    identifier_9=new_identifier_9,
                     name=new_name,
-                    identifier_3or4=(dialog.identifier_3or4_input.text().strip() or None)
+                    identifier_3or4=new_identifier_3or4
                 )
+                
                 self.load_customers()
                 show_info_message("Success", "Customer updated successfully.")
                 event_system.customer_updated.emit(customer.id)
                 self.customer_updated.emit()
                 logger.info(f"Customer updated successfully: ID {customer.id}")
         except Exception as e:
-            logger.error(f"[edit_customer_by_id] Error updating customer ID={customer_id}: {str(e)}", exc_info=True)
+            logger.error(f"[edit_customer_by_id] Error updating customer ID={customer_id}: {str(e)}")
             raise
 
     @ui_operation(show_dialog=True)
@@ -370,7 +392,7 @@ class CustomerView(QWidget):
                 self.customer_updated.emit()
                 logger.info(f"Customer deleted successfully: ID {customer_id}")
         except Exception as e:
-            logger.error(f"[delete_customer_by_id] Error deleting customer ID={customer_id}: {str(e)}", exc_info=True)
+            logger.error(f"[delete_customer_by_id] Error deleting customer ID={customer_id}: {str(e)}")
             raise
 
 
@@ -438,7 +460,7 @@ class CustomerView(QWidget):
                 logger.info(f"Customer updated successfully: ID {customer.id}")
 
             except Exception as e:
-                logger.error(f"[edit_customer] Error updating customer ID={customer.id}: {str(e)}", exc_info=True)
+                logger.error(f"[edit_customer] Error updating customer ID={customer.id}: {str(e)}")
                 raise
 
 

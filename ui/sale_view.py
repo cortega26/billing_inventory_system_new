@@ -959,11 +959,11 @@ class SaleView(QWidget):
         delete_button.setMaximumWidth(60)
         
         if (sale.date is not None and 
-            datetime.now() - sale.date > timedelta(hours=240)):
+            datetime.now() - sale.date > timedelta(hours=1240)):
             edit_button.setEnabled(False)
-            edit_button.setToolTip("Sales can only be edited within 240 hours")
+            edit_button.setToolTip("Sales can only be edited within 1240 hours")
             delete_button.setEnabled(False)
-            delete_button.setToolTip("Sales can only be deleted within 240 hours")
+            delete_button.setToolTip("Sales can only be deleted within 1240 hours")
 
         for btn in [view_button, edit_button, print_button, delete_button]:
             actions_layout.addWidget(btn)
@@ -977,8 +977,8 @@ class SaleView(QWidget):
         if sale is None:
             raise ValidationException("No sale selected for editing")
 
-        if datetime.now() - sale.date > timedelta(hours=240):
-            raise ValidationException("Sales can only be edited within 240 hours of creation")
+        if datetime.now() - sale.date > timedelta(hours=1240):
+            raise ValidationException("Sales can only be edited within 1240 hours of creation")
 
         try:
             dialog = EditSaleDialog(
@@ -1078,7 +1078,7 @@ class SaleView(QWidget):
                     return
                 
                 # Disable edit/delete actions for old sales
-                if sale.date and datetime.now() - sale.date > timedelta(hours=240):
+                if sale.date and datetime.now() - sale.date > timedelta(hours=1240):
                     edit_action.setEnabled(False)
                     delete_action.setEnabled(False)
                 

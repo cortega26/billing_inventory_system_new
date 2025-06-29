@@ -66,21 +66,29 @@ class AnalyticsService:
         })
         return result
 
+    ###########################################################################
+    # FIX 1: Summation & date truncation for daily-based "Sales Trend"
+    ###########################################################################
     @staticmethod
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def get_sales_trend(start_date: str, end_date: str) -> List[Dict[str, Any]]:
+        """
+        Returns a list of { 'date': 'YYYY-MM-DD', 'daily_sales': sum_of_that_day, 'sale_count': ...}
+        ensuring the line chart can parse date with "yyyy-MM-dd" and sums daily totals.
+        """
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         query = """
-            SELECT date, 
-                   total_amount as daily_sales,
-                   COUNT(*) as sale_count
+            SELECT
+                strftime('%Y-%m-%d', date) as date,
+                SUM(total_amount) as daily_sales,
+                COUNT(*) as sale_count
             FROM sales
             WHERE date BETWEEN ? AND ?
-            GROUP BY date
-            ORDER BY date
+            GROUP BY strftime('%Y-%m-%d', date)
+            ORDER BY strftime('%Y-%m-%d', date)
         """
         result = DatabaseManager.fetch_all(query, (start_date, end_date))
         logger.info("Sales trend retrieved", extra={"start_date": start_date, "end_date": end_date})
@@ -192,14 +200,15 @@ class AnalyticsService:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         query = """
-            SELECT date, 
-                total_amount as daily_revenue,
-                total_profit as daily_profit,
+            SELECT
+                strftime('%Y-%m-%d', date) as date,
+                SUM(total_amount) as daily_revenue,
+                SUM(total_profit) as daily_profit,
                 COUNT(*) as sale_count
             FROM sales
             WHERE date BETWEEN ? AND ?
-            GROUP BY date
-            ORDER BY date
+            GROUP BY strftime('%Y-%m-%d', date)
+            ORDER BY strftime('%Y-%m-%d', date)
         """
         result = DatabaseManager.fetch_all(query, (start_date, end_date))
         logger.info(f"Retrieved profit trend: {len(result)} days")

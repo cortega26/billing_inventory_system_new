@@ -9,6 +9,7 @@ from utils.system.logger import logger
 from utils.system.event_system import event_system
 from functools import lru_cache
 
+
 class PurchaseService:
     @staticmethod
     @db_operation(show_dialog=True)
@@ -19,14 +20,15 @@ class PurchaseService:
         supplier = validate_string(supplier, max_length=100)
         date = validate_date(date)
         PurchaseService._validate_purchase_items(items)
-        
+
         # Calculate total amount with proper integer handling for money
         total_amount = sum(
             int(round(item["quantity"] * item["cost_price"]))
             for item in items
         )
 
-        purchase_id = PurchaseService._insert_purchase(supplier, date, total_amount)
+        purchase_id = PurchaseService._insert_purchase(
+            supplier, date, total_amount)
 
         if purchase_id is None:
             raise ValidationException("Failed to create purchase record")
@@ -53,11 +55,14 @@ class PurchaseService:
         if row:
             purchase = Purchase.from_db_row(row)
             purchase.items = PurchaseService.get_purchase_items(purchase_id)
-            logger.info("Purchase retrieved", extra={"purchase_id": purchase_id})
+            logger.info("Purchase retrieved", extra={
+                        "purchase_id": purchase_id})
             return purchase
         else:
-            logger.warning("Purchase not found", extra={"purchase_id": purchase_id})
-            raise NotFoundException(f"Purchase with ID {purchase_id} not found")
+            logger.warning("Purchase not found", extra={
+                           "purchase_id": purchase_id})
+            raise NotFoundException(
+                f"Purchase with ID {purchase_id} not found")
 
     @staticmethod
     @lru_cache(maxsize=1)
@@ -122,7 +127,7 @@ class PurchaseService:
         supplier = validate_string(supplier, max_length=100)
         date = validate_date(date)
         PurchaseService._validate_purchase_items(items)
-        
+
         old_items = PurchaseService.get_purchase_items(purchase_id)
         PurchaseService._revert_inventory(old_items)
 
@@ -132,7 +137,8 @@ class PurchaseService:
             for item in items
         )
 
-        PurchaseService._update_purchase(purchase_id, supplier, date, total_amount)
+        PurchaseService._update_purchase(
+            purchase_id, supplier, date, total_amount)
         PurchaseService._update_purchase_items(purchase_id, items)
         PurchaseService._update_inventory(items)
 
@@ -146,26 +152,30 @@ class PurchaseService:
 
     @staticmethod
     def _validate_purchase_items(items: List[Dict[str, Any]]) -> None:
-        """Validate purchase items with proper quantity and price handling."""
         if not items:
             raise ValidationException("Purchase must have at least one item")
+        if len(items) > 1000:  # Prevent DOS attacks
+            raise ValidationException("Too many items in single purchase")
+
         for item in items:
             try:
-                # Validate quantity as float with 3 decimal places
-                quantity = validate_float_non_negative(float(item.get("quantity", 0)))
-                if round(quantity, 3) != quantity:
-                    raise ValidationException("Quantity cannot have more than 3 decimal places")
-                
-                # Validate cost_price as integer (Chilean Pesos)
-                cost_price = validate_integer(item.get("cost_price", 0))
-                if not isinstance(cost_price, int):
-                    raise ValidationException("Cost price must be an integer")
-                
-                if quantity <= 0 or cost_price <= 0:
-                    raise ValidationException("Item quantity and cost price must be positive")
-                    
-            except (ValueError, TypeError):
-                raise ValidationException("Invalid quantity or cost price format")
+                # Sanitize inputs before any DB operation
+                product_id = int(item.get("product_id", 0))
+                if product_id <= 0 or product_id > 2147483647:  # SQLite INTEGER max
+                    raise ValidationException(
+                        f"Invalid product ID: {product_id}")
+
+                quantity = float(item.get("quantity", 0))
+                if quantity <= 0 or quantity > 9999999.999:
+                    raise ValidationException(f"Invalid quantity: {quantity}")
+
+                cost_price = int(item.get("cost_price", 0))
+                if cost_price < 0 or cost_price > 1000000:
+                    raise ValidationException(
+                        f"Invalid cost price: {cost_price}")
+
+            except (ValueError, TypeError) as e:
+                raise ValidationException(f"Invalid item data: {str(e)}")
 
     @staticmethod
     @db_operation(show_dialog=True)
@@ -173,7 +183,8 @@ class PurchaseService:
         supplier: str, date: str, total_amount: int
     ) -> Optional[int]:
         query = "INSERT INTO purchases (supplier, date, total_amount) VALUES (?, ?, ?)"
-        cursor = DatabaseManager.execute_query(query, (supplier, date, total_amount))
+        cursor = DatabaseManager.execute_query(
+            query, (supplier, date, total_amount))
         return cursor.lastrowid
 
     @staticmethod
@@ -188,7 +199,8 @@ class PurchaseService:
             quantity_str = str(round(float(item["quantity"]), 3))
             DatabaseManager.execute_query(
                 query,
-                (purchase_id, item["product_id"], quantity_str, item["cost_price"])
+                (purchase_id, item["product_id"],
+                 quantity_str, item["cost_price"])
             )
 
             update_query = "UPDATE products SET cost_price = ? WHERE id = ?"
@@ -239,11 +251,12 @@ class PurchaseService:
             WHERE supplier = ? AND date BETWEEN ? AND ?
             ORDER BY date DESC
         """
-        rows = DatabaseManager.fetch_all(query, (supplier, start_date, end_date))
-        purchases = [{"id": row["id"], 
-                     "date": row["date"], 
-                     "total_amount": row["total_amount"]} 
-                    for row in rows]
+        rows = DatabaseManager.fetch_all(
+            query, (supplier, start_date, end_date))
+        purchases = [{"id": row["id"],
+                     "date": row["date"],
+                      "total_amount": row["total_amount"]}
+                     for row in rows]
         logger.info("Purchases by supplier retrieved", extra={
             "supplier": supplier,
             "start_date": start_date,
@@ -260,7 +273,8 @@ class PurchaseService:
         end_date = validate_date(end_date)
         interval = validate_string(interval, max_length=10)
         if interval not in ['day', 'week', 'month']:
-            raise ValidationException("Invalid interval. Must be 'day', 'week', or 'month'")
+            raise ValidationException(
+                "Invalid interval. Must be 'day', 'week', or 'month'")
 
         date_format = {
             'day': '%Y-%m-%d',
@@ -279,10 +293,10 @@ class PurchaseService:
             ORDER BY period
         """
         rows = DatabaseManager.fetch_all(query, (start_date, end_date))
-        trends = [{"period": row["period"], 
-                  "purchase_count": row["purchase_count"], 
-                  "total_amount": row["total_amount"]} 
-                 for row in rows]
+        trends = [{"period": row["period"],
+                  "purchase_count": row["purchase_count"],
+                   "total_amount": row["total_amount"]}
+                  for row in rows]
         logger.info("Purchase trends retrieved", extra={
             "start_date": start_date,
             "end_date": end_date,

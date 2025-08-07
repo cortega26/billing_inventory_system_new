@@ -5,9 +5,10 @@ from utils.exceptions import DatabaseException
 from utils.system.logger import logger
 from utils.decorators import db_operation
 
+
 class DataValidationService:
     """Service for validating data integrity across the application."""
-    
+
     @staticmethod
     @db_operation(show_dialog=True)
     def diagnose_sales_data() -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
@@ -16,7 +17,7 @@ class DataValidationService:
         Returns tuple of (invalid_sales, orphaned_items)
         """
         logger.info("Starting sales data diagnosis")
-        
+
         invalid_sales = []
         orphaned_items = []
 
@@ -28,7 +29,7 @@ class DataValidationService:
             WHERE date > date('now')
             GROUP BY s.id
         """
-        
+
         # Check for orphaned sale items
         orphaned_items_query = """
             SELECT si.*
@@ -36,7 +37,7 @@ class DataValidationService:
             LEFT JOIN sales s ON si.sale_id = s.id
             WHERE s.id IS NULL
         """
-        
+
         try:
             with DatabaseManager.get_db_connection() as conn:
                 # Check future dates
@@ -66,42 +67,41 @@ class DataValidationService:
         Fix invalid sales data by removing future sales and orphaned items.
         """
         logger.info("Starting sales data fix")
-        
+
         try:
             invalid_sales, orphaned_items = DataValidationService.diagnose_sales_data()
-            
+
             if not invalid_sales and not orphaned_items:
                 logger.info("No invalid sales data found")
                 return
 
             with DatabaseManager.get_db_connection() as conn:
                 if invalid_sales:
-                    # Delete sale items first (foreign key constraint)
-                    sale_ids = [sale['id'] for sale in invalid_sales]
-                    placeholders = ','.join('?' * len(sale_ids))
-                    
-                    # Log the specific items being deleted
-                    logger.info(f"Deleting sale items for sales: {sale_ids}")
-                    delete_items_query = f"""
-                        DELETE FROM sale_items 
-                        WHERE sale_id IN ({placeholders})
-                    """
-                    cursor = conn.execute(delete_items_query, sale_ids)
-                    logger.info(f"Deleted {cursor.rowcount} sale items")
-                    
-                    # Then delete the sales
-                    logger.info(f"Deleting invalid sales: {sale_ids}")
-                    delete_sales_query = f"""
-                        DELETE FROM sales 
-                        WHERE id IN ({placeholders})
-                    """
-                    cursor = conn.execute(delete_sales_query, sale_ids)
-                    logger.info(f"Deleted {cursor.rowcount} invalid sales")
+                    # Validate and sanitize IDs first
+                    sale_ids = []
+                    for sale in invalid_sales:
+                        try:
+                            sale_id = int(sale.get('id', 0))
+                            if 0 < sale_id <= 2147483647:
+                                sale_ids.append(sale_id)
+                        except (ValueError, TypeError):
+                            logger.error(
+                                f"Invalid sale ID skipped: {sale.get('id')}")
+                            continue
+
+                    if sale_ids:
+                        # Use parameterized query with validated IDs
+                        placeholders = ','.join(['?' for _ in sale_ids])
+                        delete_items_query = f"""
+                            DELETE FROM sale_items 
+                            WHERE sale_id IN ({placeholders})
+                        """
+                        cursor = conn.execute(delete_items_query, sale_ids)
 
                 if orphaned_items:
                     item_ids = [item['id'] for item in orphaned_items]
                     placeholders = ','.join('?' * len(item_ids))
-                    
+
                     logger.info(f"Deleting orphaned items: {item_ids}")
                     delete_orphaned_query = f"""
                         DELETE FROM sale_items 
@@ -115,11 +115,11 @@ class DataValidationService:
 
         except sqlite3.Error as e:
             logger.error(f"Database error during fix: {e}")
-            logger.error("Failed SQL operations details:", exc_info=True)
+            logger.error("Failed SQL operations details:")
             raise DatabaseException(f"Database error during fix: {e}")
         except Exception as e:
             logger.error(f"Error during sales fix: {e}")
-            logger.error("Full error details:", exc_info=True)
+            logger.error("Full error details:")
             raise
 
     @staticmethod
@@ -131,27 +131,33 @@ class DataValidationService:
         try:
             # Validate sales data
             invalid_sales, orphaned_items = DataValidationService.diagnose_sales_data()
-            
+
             if invalid_sales or orphaned_items:
-                logger.warning(f"Found {len(invalid_sales)} invalid sales and {len(orphaned_items)} orphaned items")
+                logger.warning(
+                    f"Found {len(invalid_sales)} invalid sales and {len(orphaned_items)} orphaned items")
                 try:
                     logger.info("Attempting to fix invalid data...")
                     DataValidationService.fix_invalid_sales()
-                    
+
                     # Verify the fix
                     remaining_invalid, remaining_orphaned = DataValidationService.diagnose_sales_data()
                     if remaining_invalid or remaining_orphaned:
                         logger.error("Failed to fix all invalid data!")
-                        logger.error(f"Remaining invalid sales: {len(remaining_invalid)}")
-                        logger.error(f"Remaining orphaned items: {len(remaining_orphaned)}")
+                        logger.error(
+                            f"Remaining invalid sales: {len(remaining_invalid)}")
+                        logger.error(
+                            f"Remaining orphaned items: {len(remaining_orphaned)}")
                     else:
                         logger.info("Successfully fixed all invalid data")
-                        
+
                 except Exception as fix_error:
-                    logger.error(f"Error while fixing invalid data: {str(fix_error)}")
+                    logger.error(
+                        f"Error while fixing invalid data: {str(fix_error)}")
                     # Log the specific items that failed to be fixed
-                    logger.error(f"Failed to fix invalid sales: {invalid_sales}")
-                    logger.error(f"Failed to fix orphaned items: {orphaned_items}")
+                    logger.error(
+                        f"Failed to fix invalid sales: {invalid_sales}")
+                    logger.error(
+                        f"Failed to fix orphaned items: {orphaned_items}")
             else:
                 logger.info("All sales data is valid")
 
@@ -159,8 +165,9 @@ class DataValidationService:
             # Example:
             # DataValidationService.validate_inventory_data()
             # DataValidationService.validate_customer_data()
-            
+
         except Exception as e:
             logger.error(f"Error during data validation: {e}")
             # Log full details of the error for debugging
-            logger.error(f"Full validation error details: {str(e)}", exc_info=True)
+            logger.error(
+                f"Full validation error details: {str(e)}")

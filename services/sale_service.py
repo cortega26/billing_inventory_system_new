@@ -132,39 +132,56 @@ class SaleService:
     @lru_cache(maxsize=1)
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
+    @staticmethod
     def get_all_sales() -> List[Sale]:
-        logger.info("Starting get_all_sales method")
-        query = """
-        SELECT s.*, 
-               COALESCE(s.total_amount, 0) as total_amount,
-               COALESCE(s.total_profit, 0) as total_profit
-        FROM sales s
-        ORDER BY s.date DESC
+        """Get all sales with items in optimized queries."""
+        # Get all sales
+        sales_query = """
+            SELECT s.*, 
+                COALESCE(s.total_amount, 0) as total_amount,
+                COALESCE(s.total_profit, 0) as total_profit
+            FROM sales s
+            ORDER BY s.date DESC
         """
+
+        # Get all sale items in one query
+        items_query = """
+            SELECT si.*,
+                p.name as product_name,
+                COALESCE(si.quantity, 0) as quantity,
+                COALESCE(si.price, 0) as price,
+                COALESCE(si.profit, 0) as profit
+            FROM sale_items si
+            LEFT JOIN products p ON si.product_id = p.id
+            ORDER BY si.sale_id, si.id
+        """
+
         try:
-            rows = DatabaseManager.fetch_all(query)
-            logger.info(f"Fetched {len(rows)} rows from database")
-        except Exception as e:
-            logger.error(f"Error fetching rows: {str(e)}")
-            raise
+            # Fetch all data
+            sales_rows = DatabaseManager.fetch_all(sales_query)
+            items_rows = DatabaseManager.fetch_all(items_query)
 
-        sales = []
-        for row in rows:
-            try:
-                logger.debug(f"Processing row: {row}")
-                sale = Sale.from_db_row(row)
-                logger.debug(f"Created Sale object: {sale}")
-                sale.items = SaleService.get_sale_items(sale.id)
-                logger.debug(
-                    f"Fetched items for sale {sale.id}: {len(sale.items)} items")
+            # Group items by sale_id
+            items_by_sale = {}
+            for item_row in items_rows:
+                sale_id = item_row['sale_id']
+                if sale_id not in items_by_sale:
+                    items_by_sale[sale_id] = []
+                items_by_sale[sale_id].append(SaleItem.from_db_row(item_row))
+
+            # Build sales with items
+            sales = []
+            for sale_row in sales_rows:
+                sale = Sale.from_db_row(sale_row)
+                sale.items = items_by_sale.get(sale.id, [])
                 sales.append(sale)
-            except Exception as e:
-                logger.error(
-                    f"Error processing sale {row.get('id', 'Unknown')}: {str(e)}")
-                logger.error(f"Problematic row data: {row}")
 
-        logger.info(f"All sales retrieved: {len(sales)}")
-        return sales
+            logger.info(f"Retrieved {len(sales)} sales with items")
+            return sales
+
+        except Exception as e:
+            logger.error(f"Error fetching sales: {str(e)}")
+            raise DatabaseException(f"Failed to fetch sales: {str(e)}")
 
     @staticmethod
     @db_operation(show_dialog=True)

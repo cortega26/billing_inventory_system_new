@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import pytest
 import sys
 from pathlib import Path
@@ -23,4 +22,4 @@ def main():
     sys.exit(exit_code)
 
 if __name__ == '__main__':
-    main() 
+    main()

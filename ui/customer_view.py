@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, 
-    QTableWidget, QTableWidgetItem, QMessageBox, QDialog, QDialogButtonBox, 
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
+    QTableWidget, QTableWidgetItem, QMessageBox, QDialog, QDialogButtonBox,
     QFormLayout, QHeaderView, QMenu, QApplication
 )
 from PySide6.QtCore import Qt, Signal, QTimer
@@ -15,6 +15,7 @@ from utils.decorators import ui_operation, handle_exceptions
 from utils.exceptions import ValidationException, DatabaseException, UIException
 from utils.validation.validators import validate_string
 from utils.system.logger import logger
+
 
 class EditCustomerDialog(QDialog):
     def __init__(self, customer: Optional[Customer], parent=None):
@@ -37,7 +38,8 @@ class EditCustomerDialog(QDialog):
         self.identifier_3or4_input = QLineEdit(
             self.customer.identifier_3or4 or "" if self.customer else ""
         )
-        self.identifier_3or4_input.setPlaceholderText("Enter 3 or 4-digit identifier (optional)")
+        self.identifier_3or4_input.setPlaceholderText(
+            "Enter 3 or 4-digit identifier (optional)")
         layout.addRow("3 or 4-digit Identifier:", self.identifier_3or4_input)
 
         # Name field
@@ -48,7 +50,8 @@ class EditCustomerDialog(QDialog):
         layout.addRow("Name:", self.name_input)
 
         # Add help text for name requirements
-        name_help = QLabel("Name can contain letters, accented characters, and spaces (max 50 chars)")
+        name_help = QLabel(
+            "Name can contain letters, accented characters, and spaces (max 50 chars)")
         name_help.setStyleSheet("color: gray; font-size: 10px;")
         layout.addRow("", name_help)
 
@@ -74,15 +77,42 @@ class EditCustomerDialog(QDialog):
         except ValidationException as e:
             raise ValidationException(str(e))
 
+
 class CustomerView(QWidget):
     customer_updated = Signal()
 
     def __init__(self):
         super().__init__()
         self.customer_service = CustomerService()
+        self._connections = []
         self.setup_ui()
         # Connect signals
         event_system.customer_added.connect(self.load_customers)
+        self.connect_signals()
+
+    def connect_signals(self):
+        """Connect signals and track them for cleanup."""
+        self._connections.append(
+            (event_system.customer_added, self.load_customers)
+        )
+        self._connections.append(
+            (event_system.customer_updated, self.load_customers)
+        )
+        self._connections.append(
+            (event_system.customer_deleted, self.load_customers)
+        )
+
+        for signal, slot in self._connections:
+            signal.connect(slot)
+
+    def disconnect_signals(self):
+        """Safely disconnect all signals."""
+        for signal, slot in self._connections:
+            try:
+                signal.disconnect(slot)
+            except:
+                pass
+        self._connections.clear()
 
     def cleanup(self):
         """Cleanup method to properly disconnect signals."""
@@ -92,9 +122,13 @@ class CustomerView(QWidget):
             pass  # Ignore disconnection errors during cleanup
 
     def closeEvent(self, event):
-        """Handle widget close event."""
-        self.cleanup()
+        """Clean up on close."""
+        self.disconnect_signals()
         super().closeEvent(event)
+
+    def __del__(self):
+        """Destructor cleanup."""
+        self.disconnect_signals()
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
@@ -125,12 +159,15 @@ class CustomerView(QWidget):
         self.customer_table.setSelectionBehavior(
             QTableWidget.SelectionBehavior.SelectRows
         )
-        self.customer_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.customer_table.setEditTriggers(
+            QTableWidget.EditTrigger.NoEditTriggers)
         self.customer_table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.Stretch
         )
-        self.customer_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.customer_table.customContextMenuRequested.connect(self.show_context_menu)
+        self.customer_table.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customer_table.customContextMenuRequested.connect(
+            self.show_context_menu)
         layout.addWidget(self.customer_table)
 
         # Add customer button
@@ -174,7 +211,8 @@ class CustomerView(QWidget):
             # Force a fresh read from DB
             self.customer_service.clear_cache()
             customers = self.customer_service.get_all_customers()
-            logger.debug(f"(load_customers) Fetched {len(customers)} customers from DB")
+            logger.debug(
+                f"(load_customers) Fetched {len(customers)} customers from DB")
 
             # Now populate the table
             self.populate_customer_table(customers)
@@ -185,7 +223,6 @@ class CustomerView(QWidget):
 
         finally:
             QApplication.restoreOverrideCursor()
-
 
         """
         try:
@@ -218,7 +255,6 @@ class CustomerView(QWidget):
             QApplication.restoreOverrideCursor()
         """
 
-
     @ui_operation(show_dialog=True)
     @handle_exceptions(UIException, show_dialog=True)
     def populate_customer_table(self, customers: List[Customer]) -> None:
@@ -227,7 +263,8 @@ class CustomerView(QWidget):
         ensuring stable row→customer_id mapping and preserving any pre-existing sort.
         """
         try:
-            logger.debug(f"(populate_customer_table) Starting with {len(customers)} raw customers")
+            logger.debug(
+                f"(populate_customer_table) Starting with {len(customers)} raw customers")
 
             # 1) Capture the current sorting state (column + order) if any
             prev_col = self.customer_table.horizontalHeader().sortIndicatorSection()
@@ -244,9 +281,11 @@ class CustomerView(QWidget):
                     unique_customers.append(cust)
                     displayed_ids.add(cust.id)
                 else:
-                    logger.warning(f"Skipping duplicate customer ID: {cust.id}")
+                    logger.warning(
+                        f"Skipping duplicate customer ID: {cust.id}")
 
-            logger.debug(f"(populate_customer_table) Unique customers count: {len(unique_customers)}")
+            logger.debug(
+                f"(populate_customer_table) Unique customers count: {len(unique_customers)}")
 
             # 4) Clear old rows, set to new count
             self.customer_table.setRowCount(0)
@@ -255,29 +294,36 @@ class CustomerView(QWidget):
             # 5) Fill each row
             for row, cust in enumerate(unique_customers):
                 try:
-                    total_purchases, total_amount = self.customer_service.get_customer_stats(cust.id)
+                    total_purchases, total_amount = self.customer_service.get_customer_stats(
+                        cust.id)
 
                     # Column 0: Customer ID
-                    self.customer_table.setItem(row, 0, NumericTableWidgetItem(cust.id))
+                    self.customer_table.setItem(
+                        row, 0, NumericTableWidgetItem(cust.id))
 
                     # Column 1: 9-digit Identifier
-                    self.customer_table.setItem(row, 1, QTableWidgetItem(cust.identifier_9))
+                    self.customer_table.setItem(
+                        row, 1, QTableWidgetItem(cust.identifier_9))
 
                     # Column 2: 3 or 4-digit Identifier
-                    identifier_item = DepartmentIdentifierTableWidgetItem(cust.identifier_3or4 or "N/A")
+                    identifier_item = DepartmentIdentifierTableWidgetItem(
+                        cust.identifier_3or4 or "N/A")
                     self.customer_table.setItem(row, 2, identifier_item)
 
                     # Column 3: Name
                     name_item = QTableWidgetItem(cust.name or "")
-                    name_item.setToolTip(cust.name if cust.name else "No name provided")
+                    name_item.setToolTip(
+                        cust.name if cust.name else "No name provided")
                     self.customer_table.setItem(row, 3, name_item)
 
                     # Column 4: Total Purchases
-                    self.customer_table.setItem(row, 4, NumericTableWidgetItem(total_purchases))
+                    self.customer_table.setItem(
+                        row, 4, NumericTableWidgetItem(total_purchases))
 
                     # Column 5: Total Amount
                     self.customer_table.setItem(
-                        row, 5, PriceTableWidgetItem(total_amount, format_price)
+                        row, 5, PriceTableWidgetItem(
+                            total_amount, format_price)
                     )
 
                     # Column 6: Actions (Edit / Delete)
@@ -287,18 +333,21 @@ class CustomerView(QWidget):
 
                     edit_button = QPushButton("Edit")
                     edit_button.setFixedWidth(50)
-                    edit_button.clicked.connect(lambda _, cid=cust.id: self.edit_customer_by_id(cid))
+                    edit_button.clicked.connect(
+                        lambda _, cid=cust.id: self.edit_customer_by_id(cid))
 
                     delete_button = QPushButton("Delete")
                     delete_button.setFixedWidth(50)
-                    delete_button.clicked.connect(lambda _, cid=cust.id: self.delete_customer_by_id(cid))
+                    delete_button.clicked.connect(
+                        lambda _, cid=cust.id: self.delete_customer_by_id(cid))
 
                     actions_layout.addWidget(edit_button)
                     actions_layout.addWidget(delete_button)
                     self.customer_table.setCellWidget(row, 6, actions_widget)
 
                 except Exception as row_error:
-                    logger.error(f"Error filling row {row} for customer {cust.id}: {row_error}")
+                    logger.error(
+                        f"Error filling row {row} for customer {cust.id}: {row_error}")
                     continue
 
             # 6) Resize columns for a neat look
@@ -311,7 +360,8 @@ class CustomerView(QWidget):
             #    had it sorted by column #2 descending, it stays that way.
             self.customer_table.sortItems(prev_col, prev_order)
 
-            logger.debug(f"(populate_customer_table) Finished with {len(unique_customers)} rows")
+            logger.debug(
+                f"(populate_customer_table) Finished with {len(unique_customers)} rows")
 
         except Exception as e:
             logger.error(f"Error populating customer table: {str(e)}")
@@ -325,11 +375,13 @@ class CustomerView(QWidget):
         This approach always re-fetches from DB, ensuring correct data
         even if the table was sorted or partially re-drawn.
         """
-        logger.debug(f"[edit_customer_by_id] Editing customer with ID={customer_id}")
+        logger.debug(
+            f"[edit_customer_by_id] Editing customer with ID={customer_id}")
         try:
             customer = self.customer_service.get_customer(customer_id)
             if not customer:
-                show_error_message("Error", f"No customer found with ID={customer_id}")
+                show_error_message(
+                    "Error", f"No customer found with ID={customer_id}")
                 return
 
             dialog = EditCustomerDialog(customer, self)
@@ -337,7 +389,8 @@ class CustomerView(QWidget):
                 # Get the new values
                 new_identifier_9 = dialog.identifier_9_input.text().strip()
                 new_identifier_3or4 = dialog.identifier_3or4_input.text().strip() or None
-                new_name = dialog.name_input.text().strip() or None  # Changed to handle empty string case
+                # Changed to handle empty string case
+                new_name = dialog.name_input.text().strip() or None
 
                 # Validate the name before updating
                 if new_name:
@@ -354,14 +407,15 @@ class CustomerView(QWidget):
                     name=new_name,
                     identifier_3or4=new_identifier_3or4
                 )
-                
+
                 self.load_customers()
                 show_info_message("Success", "Customer updated successfully.")
                 event_system.customer_updated.emit(customer.id)
                 self.customer_updated.emit()
                 logger.info(f"Customer updated successfully: ID {customer.id}")
         except Exception as e:
-            logger.error(f"[edit_customer_by_id] Error updating customer ID={customer_id}: {str(e)}")
+            logger.error(
+                f"[edit_customer_by_id] Error updating customer ID={customer_id}: {str(e)}")
             raise
 
     @ui_operation(show_dialog=True)
@@ -370,11 +424,13 @@ class CustomerView(QWidget):
         """
         Delete a customer identified by customer_id.
         """
-        logger.debug(f"[delete_customer_by_id] Deleting customer with ID={customer_id}")
+        logger.debug(
+            f"[delete_customer_by_id] Deleting customer with ID={customer_id}")
         try:
             customer = self.customer_service.get_customer(customer_id)
             if not customer:
-                raise ValidationException(f"Customer with ID {customer_id} not found.")
+                raise ValidationException(
+                    f"Customer with ID {customer_id} not found.")
 
             display_name = customer.get_display_name()
             reply = QMessageBox.question(
@@ -392,9 +448,9 @@ class CustomerView(QWidget):
                 self.customer_updated.emit()
                 logger.info(f"Customer deleted successfully: ID {customer_id}")
         except Exception as e:
-            logger.error(f"[delete_customer_by_id] Error deleting customer ID={customer_id}: {str(e)}")
+            logger.error(
+                f"[delete_customer_by_id] Error deleting customer ID={customer_id}: {str(e)}")
             raise
-
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
@@ -409,10 +465,12 @@ class CustomerView(QWidget):
                 )
                 if customer_id is not None:
                     self.load_customers()
-                    show_info_message("Success", "Customer added successfully.")
+                    show_info_message(
+                        "Success", "Customer added successfully.")
                     event_system.customer_added.emit(customer_id)
                     self.customer_updated.emit()
-                    logger.info(f"Customer added successfully: ID {customer_id}")
+                    logger.info(
+                        f"Customer added successfully: ID {customer_id}")
                 else:
                     raise DatabaseException("Failed to add customer.")
             except Exception as e:
@@ -430,7 +488,8 @@ class CustomerView(QWidget):
             raise ValidationException("No customer selected for editing.")
 
         # *** new log statement ***
-        logger.debug(f"[edit_customer] Starting edit for Customer ID={customer.id}, current name='{customer.name}'")
+        logger.debug(
+            f"[edit_customer] Starting edit for Customer ID={customer.id}, current name='{customer.name}'")
 
         dialog = EditCustomerDialog(customer, self)
         if dialog.exec():
@@ -440,7 +499,8 @@ class CustomerView(QWidget):
                 if not new_name:
                     new_name = customer.name
                     # *** new log statement ***
-                    logger.debug(f"[edit_customer] User left name blank; reusing old name='{new_name}'")
+                    logger.debug(
+                        f"[edit_customer] User left name blank; reusing old name='{new_name}'")
 
                 self.customer_service.update_customer(
                     customer.id,
@@ -450,7 +510,8 @@ class CustomerView(QWidget):
                 )
 
                 # *** new log statement ***
-                logger.debug(f"[edit_customer] Done updating DB for ID={customer.id}, calling load_customers() next")
+                logger.debug(
+                    f"[edit_customer] Done updating DB for ID={customer.id}, calling load_customers() next")
 
                 self.load_customers()
 
@@ -460,9 +521,9 @@ class CustomerView(QWidget):
                 logger.info(f"Customer updated successfully: ID {customer.id}")
 
             except Exception as e:
-                logger.error(f"[edit_customer] Error updating customer ID={customer.id}: {str(e)}")
+                logger.error(
+                    f"[edit_customer] Error updating customer ID={customer.id}: {str(e)}")
                 raise
-
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)

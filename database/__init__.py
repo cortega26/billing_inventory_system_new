@@ -1,5 +1,6 @@
 from utils.exceptions import DatabaseException
 from database.database_manager import DatabaseManager
+from database.migrations import run_migrations
 
 __all__ = ['init_db', 'DatabaseManager']
 
@@ -74,6 +75,9 @@ def init_db(db_path: str = "billing_inventory.db"):
             cursor.executescript(drop_query)
             cursor.executescript(create_query)
             cursor.executescript(restore_query)
+
+        # Run migrations for indexes and optimizations
+        run_migrations()
 
     except Exception as e:
         raise DatabaseException(f"Failed to initialize database: {str(e)}")

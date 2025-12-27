@@ -8,6 +8,7 @@ from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import DatabaseException, NotFoundException, ValidationException
 from utils.system.event_system import event_system
 from utils.system.logger import logger
+from models.enums import MAX_PURCHASE_ITEMS, QUANTITY_PRECISION, TimeInterval, MAX_PRICE_CLP
 from utils.validation.validators import (
     validate_date,
     validate_integer,
@@ -158,8 +159,8 @@ class PurchaseService:
     def _validate_purchase_items(items: List[Dict[str, Any]]) -> None:
         if not items:
             raise ValidationException("Purchase must have at least one item")
-        if len(items) > 1000:  # Prevent DOS attacks
-            raise ValidationException("Too many items in single purchase")
+        if len(items) > MAX_PURCHASE_ITEMS:  # Prevent DOS attacks
+            raise ValidationException(f"Too many items in single purchase (max {MAX_PURCHASE_ITEMS})")
 
         for item in items:
             try:
@@ -171,9 +172,12 @@ class PurchaseService:
                 quantity = float(item.get("quantity", 0))
                 if quantity <= 0 or quantity > 9999999.999:
                     raise ValidationException(f"Invalid quantity: {quantity}")
+                
+                if round(quantity, QUANTITY_PRECISION) != quantity:
+                    raise ValidationException(f"Quantity cannot have more than {QUANTITY_PRECISION} decimal places")
 
                 cost_price = int(item.get("cost_price", 0))
-                if cost_price < 0 or cost_price > 1000000:
+                if cost_price < 0 or cost_price > MAX_PRICE_CLP:
                     raise ValidationException(f"Invalid cost price: {cost_price}")
 
             except (ValueError, TypeError) as e:
@@ -194,8 +198,8 @@ class PurchaseService:
                 INSERT INTO purchase_items (purchase_id, product_id, quantity, price)
                 VALUES (?, ?, ?, ?)
             """
-            # Store quantity with 3 decimal places precision
-            quantity_str = str(round(float(item["quantity"]), 3))
+            # Store quantity with precision
+            quantity_str = str(round(float(item["quantity"]), QUANTITY_PRECISION))
             DatabaseManager.execute_query(
                 query,
                 (purchase_id, item["product_id"], quantity_str, item["cost_price"]),
@@ -209,13 +213,13 @@ class PurchaseService:
     @staticmethod
     def _update_inventory(items: List[Dict[str, Any]]) -> None:
         for item in items:
-            quantity = round(float(item["quantity"]), 3)
+            quantity = round(float(item["quantity"]), QUANTITY_PRECISION)
             InventoryService.update_quantity(item["product_id"], quantity)
 
     @staticmethod
     def _revert_inventory(items: List[PurchaseItem]) -> None:
         for item in items:
-            quantity = -round(float(item.quantity), 3)
+            quantity = -round(float(item.quantity), QUANTITY_PRECISION)
             InventoryService.update_quantity(item.product_id, quantity)
 
     @staticmethod
@@ -278,12 +282,17 @@ class PurchaseService:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         interval = validate_string(interval, max_length=10)
-        if interval not in ["day", "week", "month"]:
+        valid_intervals = [i.value for i in TimeInterval]
+        if interval not in valid_intervals:
             raise ValidationException(
-                "Invalid interval. Must be 'day', 'week', or 'month'"
+                f"Invalid interval. Must be one of {valid_intervals}"
             )
 
-        date_format = {"day": "%Y-%m-%d", "week": "%Y-%W", "month": "%Y-%m"}
+        date_format = {
+            TimeInterval.DAY.value: "%Y-%m-%d",
+            TimeInterval.WEEK.value: "%Y-%W",
+            TimeInterval.MONTH.value: "%Y-%m"
+        }
 
         query = f"""
             SELECT 

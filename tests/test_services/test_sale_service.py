@@ -31,12 +31,23 @@ def inventory_service(db_manager):
     return InventoryService()
 
 
+from services.category_service import CategoryService
+
 @pytest.fixture
-def sample_product(product_service):
+def category_service(db_manager):
+    return CategoryService()
+
+@pytest.fixture
+def sample_category(category_service):
+    cat_id = category_service.create_category("Test Category")
+    return category_service.get_category(cat_id)
+
+@pytest.fixture
+def sample_product(product_service, sample_category):
     product_data = {
         "name": "Test Product",
         "description": "Test Description",
-        "category_id": 1,
+        "category_id": sample_category.id,
         "cost_price": 1000,
         "sell_price": 1500,
         "barcode": "12345678",

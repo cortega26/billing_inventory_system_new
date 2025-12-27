@@ -12,7 +12,11 @@ from utils.exceptions import (
 )
 from utils.system.event_system import event_system
 from utils.system.logger import logger
-from utils.validation.validators import validate_integer, validate_string
+from utils.validation.validators import (
+    validate_integer,
+    validate_string,
+    validate_money,
+)
 
 
 class ProductService:
@@ -57,26 +61,23 @@ class ProductService:
                 )
 
                 # Emit events with a small delay to ensure database operations complete
-                # Emit events with a small delay to ensure database operations complete
                 try:
                     import sys
 
                     if "pytest" in sys.modules:
-                        raise ImportError("Skipping QTimer in tests")
-                    from PySide6.QtCore import QTimer
+                        # raise ImportError("Skipping QTimer in tests")
+                        pass
+                    else:
+                        from PySide6.QtCore import QTimer
 
-                    QTimer.singleShot(
-                        50, lambda: event_system.product_added.emit(product_id)
-                    )
-                    QTimer.singleShot(
-                        100, lambda: event_system.inventory_changed.emit(product_id)
-                    )
+                        QTimer.singleShot(
+                            50, lambda: event_system.product_added.emit(product_id)
+                        )
+                        QTimer.singleShot(
+                            100, lambda: event_system.inventory_changed.emit(product_id)
+                        )
                 except ImportError:
                     logger.warning("PySide6 not found, skipping event emission delays")
-                    # If UI not present, maybe just emit directly?
-                    # But event_system relies on QObject?
-                    # transform event_system to not rely on QObject?
-                    # For now just skip or catch.
                     pass
 
                 return product_id
@@ -405,12 +406,12 @@ class ProductService:
         if "cost_price" in data:
             cost_price = data.get("cost_price")
             if cost_price is not None:
-                validated["cost_price"] = validate_integer(cost_price, min_value=0)
+                validated["cost_price"] = validate_money(cost_price, "Cost Price")
 
         if "sell_price" in data:
             sell_price = data.get("sell_price")
             if sell_price is not None:
-                validated["sell_price"] = validate_integer(sell_price, min_value=0)
+                validated["sell_price"] = validate_money(sell_price, "Sell Price")
 
         if "barcode" in data:
             barcode = data.get("barcode")

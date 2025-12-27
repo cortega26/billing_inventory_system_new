@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, Optional
 
+from models.enums import MAX_PRICE_CLP
 from utils.exceptions import ValidationException
 
 
@@ -35,11 +36,11 @@ class Product:
         if self.sell_price < 0:
             raise ValidationException("Sell price cannot be negative")
 
-        if self.cost_price > 1000000:
-            raise ValidationException("Cost price exceeds maximum (1.000.000 CLP)")
+        if self.cost_price > MAX_PRICE_CLP:
+            raise ValidationException(f"Cost price exceeds maximum ({MAX_PRICE_CLP:,.0f} CLP)")
 
-        if self.sell_price > 1000000:
-            raise ValidationException("Sell price exceeds maximum (1.000.000 CLP)")
+        if self.sell_price > MAX_PRICE_CLP:
+            raise ValidationException(f"Sell price exceeds maximum ({MAX_PRICE_CLP:,.0f} CLP)")
 
         if self.barcode:
             self.validate_barcode(self.barcode)

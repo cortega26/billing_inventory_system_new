@@ -11,6 +11,7 @@ from models.sale import Sale, SaleItem
 from services.customer_service import CustomerService
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
+from models.enums import QUANTITY_PRECISION, MAX_SALE_ITEMS, EDIT_WINDOW_HOURS
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import DatabaseException, NotFoundException, ValidationException
 from utils.system.event_system import event_system
@@ -273,9 +274,10 @@ class SaleService:
             raise ValidationException(f"Sale with ID {sale_id} not found.")
 
         sale_datetime = datetime.fromisoformat(sale.date.isoformat())
-        if datetime.now() - sale_datetime > timedelta(hours=1240):
+
+        if datetime.now() - sale_datetime > timedelta(hours=EDIT_WINDOW_HOURS):
             raise ValidationException(
-                "Sales can only be edited within 1240 hours of creation."
+                f"Sales can only be edited within {EDIT_WINDOW_HOURS} hours of creation."
             )
 
         old_items = self.get_sale_items(sale_id)
@@ -514,13 +516,15 @@ class SaleService:
     def _validate_sale_items(self, items: List[Dict[str, Any]]) -> None:
         if not items:
             raise ValidationException("Sale must have at least one item")
+        if len(items) > MAX_SALE_ITEMS:
+            raise ValidationException(f"Too many items in single sale (max {MAX_SALE_ITEMS})")
         for item in items:
             try:
-                # Validate quantity as float with 3 decimal places
+                # Validate quantity as float with precision
                 quantity = validate_float(float(item["quantity"]), min_value=0.001)
-                if round(quantity, 3) != quantity:
+                if round(quantity, QUANTITY_PRECISION) != quantity:
                     raise ValidationException(
-                        "Quantity cannot have more than 3 decimal places"
+                        f"Quantity cannot have more than {QUANTITY_PRECISION} decimal places"
                     )
 
                 # Validate price as integer
@@ -536,8 +540,8 @@ class SaleService:
     def _insert_sale_items(sale_id: int, items: List[Dict[str, Any]]) -> None:
         for item in items:
             # Convert float quantity to string for storage
-            # Ensure 3 decimal places
-            quantity_str = str(round(float(item["quantity"]), 3))
+            # Ensure precision decimal places
+            quantity_str = str(round(float(item["quantity"]), QUANTITY_PRECISION))
             query = """
                 INSERT INTO sale_items (sale_id, product_id, quantity, price, profit)
                 VALUES (?, ?, ?, ?, ?)

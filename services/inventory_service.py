@@ -2,6 +2,7 @@ from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 from database.database_manager import DatabaseManager
+from models.enums import InventoryAction, QUANTITY_PRECISION
 from models.inventory import Inventory
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import (
@@ -34,8 +35,8 @@ class InventoryService:
         inventory = InventoryService.get_inventory(product_id)
 
         if inventory:
-            # Round to 3 decimal places for precision
-            new_quantity = round(inventory.quantity + quantity_change, 3)
+            # Round to precision
+            new_quantity = round(inventory.quantity + quantity_change, QUANTITY_PRECISION)
             if new_quantity < 0:
                 logger.warning(
                     f"Attempted negative inventory for product {product_id}. Current: {inventory.quantity}, Change: {quantity_change}, New: {new_quantity}",
@@ -44,18 +45,17 @@ class InventoryService:
                     f"Inventory cannot be negative. Product: {product_id}, Current: {inventory.quantity}, Change: {quantity_change}, New: {new_quantity}"
                 )
             InventoryService._modify_inventory(
-                product_id, new_quantity, action="update"
+                product_id, new_quantity, action=InventoryAction.UPDATE
             )
         else:
             if quantity_change < 0:
                 raise ValidationException(
                     f"Cannot decrease quantity for non-existent inventory item. Product ID: {product_id}"
                 )
-            # When creating a new inventory record the resulting quantity equals
-            # the provided change.
-            new_quantity = round(quantity_change, 3)
+            # When creating a new inventory record:
+            new_quantity = round(quantity_change, QUANTITY_PRECISION)
             InventoryService._modify_inventory(
-                product_id, new_quantity, action="create"
+                product_id, new_quantity, action=InventoryAction.CREATE
             )
 
         InventoryService.clear_cache()
@@ -68,19 +68,19 @@ class InventoryService:
     @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def _modify_inventory(product_id: int, new_quantity: float, action: str) -> None:
+    def _modify_inventory(product_id: int, new_quantity: float, action: InventoryAction) -> None:
         """Internal method to modify inventory based on action."""
         product_id = validate_integer(product_id, min_value=1)
         new_quantity = validate_float_non_negative(new_quantity)
 
-        if action == "update":
+        if action == InventoryAction.UPDATE:
             query = "UPDATE inventory SET quantity = ? WHERE product_id = ?"
             DatabaseManager.execute_query(query, (new_quantity, product_id))
             logger.debug(
                 "Inventory quantity updated",
                 extra={"product_id": product_id, "new_quantity": new_quantity},
             )
-        elif action == "create":
+        elif action == InventoryAction.CREATE:
             query = "INSERT INTO inventory (product_id, quantity) VALUES (?, ?)"
             DatabaseManager.execute_query(query, (product_id, new_quantity))
             logger.debug(
@@ -152,9 +152,9 @@ class InventoryService:
         """Set the quantity of a product in inventory to a specific value."""
         product_id = validate_integer(product_id, min_value=1)
         new_quantity = validate_float_non_negative(new_quantity)
-        new_quantity = round(new_quantity, 3)
+        new_quantity = round(new_quantity, QUANTITY_PRECISION)
 
-        InventoryService._modify_inventory(product_id, new_quantity, action="update")
+        InventoryService._modify_inventory(product_id, new_quantity, action=InventoryAction.UPDATE)
 
         event_system.inventory_updated.emit()
         InventoryService.clear_cache()
@@ -210,8 +210,8 @@ class InventoryService:
         )  # Can be negative for adjustments
         reason = validate_string(reason, max_length=255)
 
-        # Round to 3 decimal places
-        quantity_change = round(quantity_change, 3)
+        # Round to precision
+        quantity_change = round(quantity_change, QUANTITY_PRECISION)
 
         InventoryService.update_quantity(product_id, quantity_change)
 

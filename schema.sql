@@ -12,18 +12,18 @@ CREATE TABLE IF NOT EXISTS products (
     name TEXT NOT NULL,
     description TEXT,
     category_id INTEGER,
-    cost_price INTEGER,
-    sell_price INTEGER,
+    cost_price INTEGER NOT NULL DEFAULT 0 CHECK (cost_price >= 0),
+    sell_price INTEGER NOT NULL DEFAULT 0 CHECK (sell_price >= 0),
     barcode TEXT UNIQUE,
-    FOREIGN KEY (category_id) REFERENCES categories(id)
+    FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
 );
 
 -- Inventory table
 CREATE TABLE IF NOT EXISTS inventory (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     product_id INTEGER NOT NULL UNIQUE,
-    quantity DECIMAL(10,3) NOT NULL DEFAULT 0.000,
-    FOREIGN KEY (product_id) REFERENCES products(id)
+    quantity DECIMAL(10,3) NOT NULL DEFAULT 0.000 CHECK (quantity >= 0),
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
 );
 
 -- Customers table
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS customer_identifiers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     customer_id INTEGER NOT NULL,
     identifier_3or4 TEXT NOT NULL,
-    FOREIGN KEY (customer_id) REFERENCES customers(id)
+    FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
 );
 
 -- Sales table
@@ -46,10 +46,10 @@ CREATE TABLE IF NOT EXISTS sales (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     customer_id INTEGER,
     date TEXT NOT NULL,
-    total_amount INTEGER NOT NULL,
-    total_profit INTEGER NOT NULL,
+    total_amount INTEGER NOT NULL DEFAULT 0,
+    total_profit INTEGER NOT NULL DEFAULT 0,
     receipt_id TEXT,
-    FOREIGN KEY (customer_id) REFERENCES customers(id)
+    FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
 );
 
 -- Sale items table
@@ -60,8 +60,8 @@ CREATE TABLE IF NOT EXISTS sale_items (
     quantity DECIMAL(10,3) NOT NULL,
     price INTEGER NOT NULL,
     profit INTEGER NOT NULL,
-    FOREIGN KEY (sale_id) REFERENCES sales(id),
-    FOREIGN KEY (product_id) REFERENCES products(id)
+    FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
 );
 
 -- Purchases table
@@ -79,8 +79,8 @@ CREATE TABLE IF NOT EXISTS purchase_items (
     product_id INTEGER NOT NULL,
     quantity DECIMAL(10,3) NOT NULL,
     price INTEGER NOT NULL,
-    FOREIGN KEY (purchase_id) REFERENCES purchases(id),
-    FOREIGN KEY (product_id) REFERENCES products(id)
+    FOREIGN KEY (purchase_id) REFERENCES purchases(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
 );
 
 -- Inventory adjustments table

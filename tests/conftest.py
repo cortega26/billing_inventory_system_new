@@ -23,9 +23,11 @@ def db_manager():
     """Provide REAL in-memory database manager for all tests."""
     # Initialize in-memory database
     DatabaseManager.initialize(":memory:")
+    DatabaseManager.execute_query("PRAGMA foreign_keys = ON")
 
     # Ensure schema is loaded
-    schema_path = "schema.sql"
+    project_root = Path(__file__).parent.parent
+    schema_path = project_root / "schema.sql"
     if os.path.exists(schema_path):
         with open(schema_path, "r") as f:
             schema_sql = f.read()

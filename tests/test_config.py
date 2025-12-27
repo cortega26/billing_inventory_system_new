@@ -16,10 +16,10 @@ EXTENDED_TIMEOUT = 15
 MOCK_RESPONSES = {
     "products": [
         {"id": 1, "name": "Test Product 1", "price": 100},
-        {"id": 2, "name": "Test Product 2", "price": 200}
+        {"id": 2, "name": "Test Product 2", "price": 200},
     ],
     "customers": [
         {"id": 1, "name": "Test Customer 1"},
-        {"id": 2, "name": "Test Customer 2"}
-    ]
+        {"id": 2, "name": "Test Customer 2"},
+    ],
 }

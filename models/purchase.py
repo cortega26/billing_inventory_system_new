@@ -1,9 +1,11 @@
 from dataclasses import dataclass, field
-from typing import List, Dict, Any
 from datetime import datetime
+from typing import Any, Dict, List
+
 from utils.exceptions import ValidationException
 from utils.system.logger import logger
 from utils.validation.validators import validate_money, validate_money_multiplication
+
 
 @dataclass
 class PurchaseItem:
@@ -11,7 +13,7 @@ class PurchaseItem:
     purchase_id: int
     product_id: int
     quantity: float  # Allows up to 3 decimal places
-    price: int      # Chilean Pesos - always integer
+    price: int  # Chilean Pesos - always integer
 
     def __post_init__(self):
         self.validate_quantity(self.quantity)
@@ -34,9 +36,9 @@ class PurchaseItem:
         """
         if quantity <= 0:
             raise ValidationException("Quantity must be positive")
-        
+
         # Check decimal places (convert to string to check actual decimal places)
-        decimal_str = str(quantity).split('.')
+        decimal_str = str(quantity).split(".")
         if len(decimal_str) > 1 and len(decimal_str[1]) > 3:
             raise ValidationException("Quantity cannot have more than 3 decimal places")
 
@@ -64,6 +66,7 @@ class PurchaseItem:
             "total_price": self.total_price(),
         }
 
+
 @dataclass
 class Purchase:
     id: int
@@ -82,8 +85,8 @@ class Purchase:
         return cls(
             id=row["id"],
             supplier=row["supplier"],
-            #date=datetime.fromisoformat(row["date"]),
-            date=datetime.strptime(row["date"], '%Y-%m-%d'),
+            # date=datetime.fromisoformat(row["date"]),
+            date=datetime.strptime(row["date"], "%Y-%m-%d"),
         )
 
     @staticmethod
@@ -120,7 +123,9 @@ class Purchase:
             self.items.remove(item)
             self._total_amount -= item.total_price()
         else:
-            raise ValidationException(f"Item with id {item_id} not found in the purchase")
+            raise ValidationException(
+                f"Item with id {item_id} not found in the purchase"
+            )
 
     def recalculate_total(self) -> None:
         """Recalculate total amount ensuring proper CLP handling."""

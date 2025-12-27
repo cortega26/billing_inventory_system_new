@@ -1,24 +1,35 @@
-from PySide6.QtWidgets import (
-    QMainWindow, QTabWidget, QVBoxLayout, QWidget, QMessageBox, QStatusBar, QMenuBar, QMenu
-)
-from PySide6.QtCore import Qt, QSettings, QSize, QPoint
+from typing import Dict, Protocol, Type, cast
+
+from PySide6.QtCore import QPoint, QSettings, QSize
 from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtWidgets import (
+    QMainWindow,
+    QMenu,
+    QMenuBar,
+    QMessageBox,
+    QStatusBar,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
+
+from config import APP_NAME, APP_VERSION, COMPANY_NAME
+from ui.analytics_view import AnalyticsView
 from ui.customer_view import CustomerView
 from ui.dashboard_view import DashboardView
-from ui.product_view import ProductView
-from ui.sale_view import SaleView
-from ui.purchase_view import PurchaseView
 from ui.inventory_view import InventoryView
-from ui.analytics_view import AnalyticsView
-from typing import Protocol, Dict, Type, cast
-from utils.system.logger import logger
-from config import config, APP_NAME, APP_VERSION, COMPANY_NAME
-from utils.system.event_system import event_system
-from utils.decorators import ui_operation, handle_exceptions
+from ui.product_view import ProductView
+from ui.purchase_view import PurchaseView
+from ui.sale_view import SaleView
+from utils.decorators import handle_exceptions, ui_operation
 from utils.exceptions import UIException
+from utils.system.event_system import event_system
+from utils.system.logger import logger
+
 
 class RefreshableWidget(Protocol):
     def refresh(self) -> None: ...
+
 
 class MainWindow(QMainWindow):
     def __init__(self):

@@ -1,9 +1,10 @@
 import sqlite3
-from typing import Tuple, List, Dict, Any
+from typing import Any, Dict, List, Tuple
+
 from database import DatabaseManager
+from utils.decorators import db_operation
 from utils.exceptions import DatabaseException
 from utils.system.logger import logger
-from utils.decorators import db_operation
 
 
 class DataValidationService:
@@ -81,17 +82,16 @@ class DataValidationService:
                     sale_ids = []
                     for sale in invalid_sales:
                         try:
-                            sale_id = int(sale.get('id', 0))
+                            sale_id = int(sale.get("id", 0))
                             if 0 < sale_id <= 2147483647:
                                 sale_ids.append(sale_id)
                         except (ValueError, TypeError):
-                            logger.error(
-                                f"Invalid sale ID skipped: {sale.get('id')}")
+                            logger.error(f"Invalid sale ID skipped: {sale.get('id')}")
                             continue
 
                     if sale_ids:
                         # Use parameterized query with validated IDs
-                        placeholders = ','.join(['?' for _ in sale_ids])
+                        placeholders = ",".join(["?" for _ in sale_ids])
                         delete_items_query = f"""
                             DELETE FROM sale_items 
                             WHERE sale_id IN ({placeholders})
@@ -99,8 +99,8 @@ class DataValidationService:
                         cursor = conn.execute(delete_items_query, sale_ids)
 
                 if orphaned_items:
-                    item_ids = [item['id'] for item in orphaned_items]
-                    placeholders = ','.join('?' * len(item_ids))
+                    item_ids = [item["id"] for item in orphaned_items]
+                    placeholders = ",".join("?" * len(item_ids))
 
                     logger.info(f"Deleting orphaned items: {item_ids}")
                     delete_orphaned_query = f"""
@@ -134,30 +134,32 @@ class DataValidationService:
 
             if invalid_sales or orphaned_items:
                 logger.warning(
-                    f"Found {len(invalid_sales)} invalid sales and {len(orphaned_items)} orphaned items")
+                    f"Found {len(invalid_sales)} invalid sales and {len(orphaned_items)} orphaned items"
+                )
                 try:
                     logger.info("Attempting to fix invalid data...")
                     DataValidationService.fix_invalid_sales()
 
                     # Verify the fix
-                    remaining_invalid, remaining_orphaned = DataValidationService.diagnose_sales_data()
+                    remaining_invalid, remaining_orphaned = (
+                        DataValidationService.diagnose_sales_data()
+                    )
                     if remaining_invalid or remaining_orphaned:
                         logger.error("Failed to fix all invalid data!")
                         logger.error(
-                            f"Remaining invalid sales: {len(remaining_invalid)}")
+                            f"Remaining invalid sales: {len(remaining_invalid)}"
+                        )
                         logger.error(
-                            f"Remaining orphaned items: {len(remaining_orphaned)}")
+                            f"Remaining orphaned items: {len(remaining_orphaned)}"
+                        )
                     else:
                         logger.info("Successfully fixed all invalid data")
 
                 except Exception as fix_error:
-                    logger.error(
-                        f"Error while fixing invalid data: {str(fix_error)}")
+                    logger.error(f"Error while fixing invalid data: {str(fix_error)}")
                     # Log the specific items that failed to be fixed
-                    logger.error(
-                        f"Failed to fix invalid sales: {invalid_sales}")
-                    logger.error(
-                        f"Failed to fix orphaned items: {orphaned_items}")
+                    logger.error(f"Failed to fix invalid sales: {invalid_sales}")
+                    logger.error(f"Failed to fix orphaned items: {orphaned_items}")
             else:
                 logger.info("All sales data is valid")
 
@@ -169,5 +171,4 @@ class DataValidationService:
         except Exception as e:
             logger.error(f"Error during data validation: {e}")
             # Log full details of the error for debugging
-            logger.error(
-                f"Full validation error details: {str(e)}")
+            logger.error(f"Full validation error details: {str(e)}")

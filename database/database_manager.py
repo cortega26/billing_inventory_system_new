@@ -1,7 +1,11 @@
+"""Database manager implementation."""
+
 import sqlite3
 from contextlib import contextmanager
+from typing import Any, Dict, List, Tuple, Union
+
 from utils.exceptions import DatabaseException
-from typing import Union, Dict, Any, List, Tuple
+
 
 class DatabaseManager:
     _connection = None
@@ -9,7 +13,24 @@ class DatabaseManager:
     @classmethod
     def initialize(cls, db_path: str = "billing_inventory.db"):
         """Initialize database connection"""
-        cls._connection = sqlite3.connect(db_path)
+        # Register adapters if needed (e.g., for Decimal)
+        import sqlite3
+        from decimal import Decimal
+
+        def adapt_decimal(d):
+            return str(d)
+
+        def convert_decimal(s):
+            return Decimal(s.decode("utf-8"))
+
+        sqlite3.register_adapter(Decimal, adapt_decimal)
+        sqlite3.register_converter("DECIMAL", convert_decimal)
+
+        cls._connection = sqlite3.connect(
+            db_path,
+            check_same_thread=False,
+            detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES,
+        )
         cls._connection.row_factory = sqlite3.Row
 
     @classmethod
@@ -37,28 +58,45 @@ class DatabaseManager:
 
     @classmethod
     def fetch_one(cls, query: str, params: Union[tuple, Dict[str, Any]] = ()):
-        cursor = cls._get_cursor()
-        cursor.execute(query, params)
-        row = cursor.fetchone()
-        return dict(row) if row else None
+        try:
+            cursor = cls._get_cursor()
+            cursor.execute(query, params)
+            row = cursor.fetchone()
+            return dict(row) if row else None
+        except Exception as e:
+            if isinstance(e, DatabaseException):
+                raise
+            raise DatabaseException(f"Query failed: {str(e)}")
 
     @classmethod
     def fetch_all(cls, query: str, params: Union[tuple, Dict[str, Any]] = ()):
-        cursor = cls._get_cursor()
-        cursor.execute(query, params)
-        return [dict(row) for row in cursor.fetchall()]
+        try:
+            cursor = cls._get_cursor()
+            cursor.execute(query, params)
+            return [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            if isinstance(e, DatabaseException):
+                raise
+            raise DatabaseException(f"Query failed: {str(e)}")
 
     @classmethod
-    def execute_query(cls, query: str, params: Union[tuple, Dict[str, Any]] = ()) -> sqlite3.Cursor:
+    def execute_query(
+        cls, query: str, params: Union[tuple, Dict[str, Any]] = ()
+    ) -> sqlite3.Cursor:
         """Execute a query and return the cursor."""
         if cls._connection is None:
             cls.initialize()
         if cls._connection is None:
             raise DatabaseException("No active database connection")
-        cursor = cls._get_cursor()
-        cursor.execute(query, params)
-        cls._connection.commit()
-        return cursor 
+        try:
+            cursor = cls._get_cursor()
+            cursor.execute(query, params)
+            cls._connection.commit()
+            return cursor
+        except Exception as e:
+            if isinstance(e, DatabaseException):
+                raise
+            raise DatabaseException(f"Query execution failed: {str(e)}")
 
     @classmethod
     def begin_transaction(cls):
@@ -77,7 +115,7 @@ class DatabaseManager:
         """Rollback the current transaction."""
         if cls._connection is None:
             raise DatabaseException("No active database connection")
-        cls._connection.rollback() 
+        cls._connection.rollback()
 
     @classmethod
     @contextmanager
@@ -94,7 +132,17 @@ class DatabaseManager:
 
     @classmethod
     def executemany(cls, query: str, params: List[Tuple]) -> sqlite3.Cursor:
-        """Execute a query with multiple parameter sets."""
-        cursor = cls._get_cursor()
-        cursor.executemany(query, params)
-        return cursor
+        """Execute a query with multiple parameter sets and commit."""
+        if cls._connection is None:
+            cls.initialize()
+        if cls._connection is None:
+            raise DatabaseException("No active database connection")
+        try:
+            cursor = cls._get_cursor()
+            cursor.executemany(query, params)
+            cls._connection.commit()
+            return cursor
+        except Exception as e:
+            if isinstance(e, DatabaseException):
+                raise
+            raise DatabaseException(f"Batch execution failed: {str(e)}")

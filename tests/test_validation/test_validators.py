@@ -1,22 +1,24 @@
+from datetime import date
+
 import pytest
+
+from utils.exceptions import ValidationException
 from utils.validation.validators import (
-    validate_string,
-    validate_integer,
+    validate_3or4digit_identifier,
+    validate_9digit_identifier,
+    validate_and_sanitize,
+    validate_date,
+    validate_dict,
     validate_float,
     validate_float_non_negative,
+    validate_integer,
+    validate_list,
     validate_money,
     validate_money_multiplication,
-    validate_date,
-    validate_9digit_identifier,
-    validate_3or4digit_identifier,
-    validate_and_sanitize,
-    validate_list,
-    validate_dict,
-    validate_with_pattern
+    validate_string,
+    validate_with_pattern,
 )
-from utils.exceptions import ValidationException
-from datetime import datetime, date
-from decimal import Decimal
+
 
 class TestValidators:
     def test_string_validation(self):
@@ -25,10 +27,10 @@ class TestValidators:
         assert validate_string("test") == "test"
         assert validate_string("test", min_length=1) == "test"
         assert validate_string("test", max_length=10) == "test"
-        
+
         # Remove pattern tests since we now use validate_with_pattern separately
         with pytest.raises(ValidationException):
-            validate_string("")  # Empty string
+            validate_string("", min_length=1)  # Empty string
         with pytest.raises(ValidationException):
             validate_string("a", min_length=2)  # Too short
         with pytest.raises(ValidationException):
@@ -47,6 +49,10 @@ class TestValidators:
             validate_integer("not_a_number")
         with pytest.raises(ValidationException):
             validate_integer(-1, min_value=0)
+        with pytest.raises(ValidationException):
+            validate_integer(101, max_value=100)
+        with pytest.raises(ValidationException):
+            validate_integer(3.14)  # Float not allowed
         with pytest.raises(ValidationException):
             validate_integer(101, max_value=100)
         with pytest.raises(ValidationException):
@@ -105,7 +111,7 @@ class TestValidators:
     def test_date_validation(self):
         """Test date validation."""
         today = date.today()
-        
+
         # Valid cases
         assert validate_date(today.isoformat()) == today.isoformat()
         assert validate_date(str(today)) == str(today)
@@ -138,31 +144,30 @@ class TestValidators:
 
     def test_validate_and_sanitize(self):
         """Test combined validation and sanitization."""
+
         def sample_validator(value):
             return len(value) >= 3
-        
+
         def sample_sanitizer(value):
             return value.strip().lower()
 
         # Valid cases
-        assert validate_and_sanitize(
-            "  Test  ",
-            [sample_validator],
-            sample_sanitizer,
-            "Invalid value"
-        ) == "test"
+        assert (
+            validate_and_sanitize(
+                "  Test  ", [sample_validator], sample_sanitizer, "Invalid value"
+            )
+            == "test"
+        )
 
         # Invalid cases
         with pytest.raises(ValidationException):
             validate_and_sanitize(
-                "ab",
-                [sample_validator],
-                sample_sanitizer,
-                "Invalid value"
+                "ab", [sample_validator], sample_sanitizer, "Invalid value"
             )
 
     def test_list_validation(self):
         """Test list validation."""
+
         def item_validator(item):
             if not isinstance(item, int):
                 raise ValidationException("Must be integer")
@@ -183,6 +188,7 @@ class TestValidators:
 
     def test_dict_validation(self):
         """Test dictionary validation."""
+
         def key_validator(k):
             if not isinstance(k, str):
                 raise ValidationException("Key must be string")
@@ -206,6 +212,6 @@ class TestValidators:
     def test_pattern_validation(self):
         """Test pattern validation."""
         # Add new test for validate_with_pattern
-        assert validate_with_pattern("test", r'^[a-z]+$') == "test"
+        assert validate_with_pattern("test", r"^[a-z]+$") == "test"
         with pytest.raises(ValidationException):
-            validate_with_pattern("test123", r'^[a-z]+$')
+            validate_with_pattern("test123", r"^[a-z]+$")

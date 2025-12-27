@@ -1,4 +1,5 @@
 # El Rincón de Ébano - Inventory and Billing System
+![CI](https://github.com/cortega26/billing_inventory_system_new/actions/workflows/ci.yml/badge.svg)
 
 An inventory and billing management system designed specifically for Chilean minimarket operations.
 
@@ -30,9 +31,37 @@ See `requirements.txt` for Python package dependencies.
 
 ## Setup
 
-1. Install required packages: `pip install -r requirements.txt`
-2. Initialize the database: System will auto-initialize on first run
-3. Configure backup location in app_config.json
+1. **Install Dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. **Configuration**:
+   - The system uses `app_config.json` for application settings.
+   - Database is auto-initialized on first run at `billing_inventory.db`.
+
+3. **Run the Application**:
+   ```bash
+   python main.py
+   ```
+
+## Development
+
+1. **Install Development Dependencies**:
+   ```bash
+   pip install -r requirements-dev.txt
+   ```
+
+2. **Run Tests**:
+   ```bash
+   pytest
+   ```
+
+3. **Linting & Formatting**:
+   ```bash
+   ruff check .
+   black --check .
+   ```
 
 ## License
 

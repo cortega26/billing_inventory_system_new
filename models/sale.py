@@ -1,9 +1,11 @@
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 from utils.exceptions import ValidationException
 from utils.system.logger import logger
 from utils.validation.validators import validate_money, validate_money_multiplication
+
 
 @dataclass
 class SaleItem:
@@ -12,7 +14,7 @@ class SaleItem:
     product_id: int
     quantity: float  # Allow up to 3 decimals for weight-based products
     unit_price: int  # Chilean Pesos - always integer
-    profit: int      # Chilean Pesos - always integer
+    profit: int  # Chilean Pesos - always integer
     product_name: Optional[str] = None
 
     def __post_init__(self):
@@ -30,7 +32,7 @@ class SaleItem:
                 quantity=float(row["quantity"]),
                 unit_price=int(row["price"]),
                 profit=int(row["profit"]),
-                product_name=row.get("product_name")
+                product_name=row.get("product_name"),
             )
         except (ValueError, TypeError) as e:
             logger.error(f"Error creating SaleItem from row: {row}")
@@ -44,13 +46,13 @@ class SaleItem:
             # Convert to float if not already
             if not isinstance(quantity, (int, float)):
                 quantity = float(str(quantity))
-            
+
             if quantity <= 0:
                 raise ValidationException("Quantity must be positive")
-            
+
             # Round to 3 decimal places for weight-based products
             return round(quantity, 3)
-            
+
         except (ValueError, TypeError):
             raise ValidationException("Invalid quantity format")
 
@@ -70,7 +72,9 @@ class SaleItem:
 
     def total_price(self) -> int:
         """Calculate total price ensuring proper CLP rounding."""
-        return validate_money_multiplication(self.unit_price, self.quantity, "Total price")
+        return validate_money_multiplication(
+            self.unit_price, self.quantity, "Total price"
+        )
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -84,13 +88,14 @@ class SaleItem:
             "profit": self.profit,
         }
 
+
 @dataclass
 class Sale:
     id: int
     customer_id: int
     date: datetime
-    total_amount: int     # Chilean Pesos - always integer
-    total_profit: int     # Chilean Pesos - always integer
+    total_amount: int  # Chilean Pesos - always integer
+    total_profit: int  # Chilean Pesos - always integer
     receipt_id: Optional[str] = None
     items: List[SaleItem] = field(default_factory=list)
 
@@ -106,11 +111,11 @@ class Sale:
             return cls(
                 id=int(row["id"]),
                 customer_id=int(row["customer_id"]),
-                #date=datetime.fromisoformat(row["date"]),
+                # date=datetime.fromisoformat(row["date"]),
                 date=datetime.strptime(row["date"], "%Y-%m-%d"),
                 total_amount=int(row["total_amount"]),
                 total_profit=int(row["total_profit"]),
-                receipt_id=row.get("receipt_id")
+                receipt_id=row.get("receipt_id"),
             )
         except (ValueError, TypeError) as e:
             logger.error(f"Error creating Sale from row: {row}")
@@ -152,7 +157,7 @@ class Sale:
         self.total_amount = sum(item.total_price() for item in self.items)
         # Validate final total
         self.total_amount = validate_money(self.total_amount, "Total amount")
-        
+
         # Calculate and validate total profit
         self.total_profit = sum(item.profit for item in self.items)
         self.total_profit = validate_money(self.total_profit, "Total profit")

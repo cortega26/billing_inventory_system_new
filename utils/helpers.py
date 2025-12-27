@@ -1,11 +1,14 @@
-from PySide6.QtWidgets import QTableWidget, QHeaderView, QMessageBox, QWidget
-from typing import List, Any, Optional, Union, Callable, TypeVar
-from decimal import Decimal
 import datetime
+from decimal import Decimal
+from typing import Any, Callable, List, Optional, TypeVar, Union
+
+from PySide6.QtWidgets import QHeaderView, QMessageBox, QTableWidget, QWidget
+
 from utils.exceptions import ValidationException
 from utils.system.logger import logger
 
 T = TypeVar("T")
+
 
 def create_table(headers: List[str]) -> QTableWidget:
     """
@@ -21,7 +24,9 @@ def create_table(headers: List[str]) -> QTableWidget:
         table = QTableWidget()
         table.setColumnCount(len(headers))
         table.setHorizontalHeaderLabels(headers)
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Interactive
+        )
         table.horizontalHeader().setStretchLastSection(True)
         table.setSortingEnabled(True)
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -31,6 +36,7 @@ def create_table(headers: List[str]) -> QTableWidget:
     except Exception as e:
         logger.error(f"Error creating table: {str(e)}")
         raise
+
 
 def show_message(
     title: str, message: str, icon: QMessageBox.Icon = QMessageBox.Icon.Information
@@ -54,6 +60,7 @@ def show_message(
         logger.error(f"Error showing message: {str(e)}")
         raise
 
+
 def show_error_message(title: str, message: str) -> None:
     """
     Display an error message box with the specified title and message.
@@ -65,6 +72,7 @@ def show_error_message(title: str, message: str) -> None:
     show_message(title, message, QMessageBox.Icon.Critical)
     logger.error(f"Error message shown: {title} - {message}")
 
+
 def show_info_message(title: str, message: str) -> None:
     """
     Display an information message box with the specified title and message.
@@ -75,6 +83,7 @@ def show_info_message(title: str, message: str) -> None:
     """
     show_message(title, message, QMessageBox.Icon.Information)
     logger.info(f"Info message shown: {title} - {message}")
+
 
 def validate_integer_input(
     value: str,
@@ -107,6 +116,7 @@ def validate_integer_input(
     except ValueError:
         raise ValidationException(f"{field_name} must be a valid integer.")
 
+
 def safe_convert(value: Any, target_type: Callable[[Any], T], default: T) -> T:
     """
     Safely convert a value to a target type, returning a default value if conversion fails.
@@ -122,8 +132,11 @@ def safe_convert(value: Any, target_type: Callable[[Any], T], default: T) -> T:
     try:
         return target_type(value)
     except (ValueError, TypeError):
-        logger.warning(f"Conversion failed for value: {value}. Using default: {default}")
+        logger.warning(
+            f"Conversion failed for value: {value}. Using default: {default}"
+        )
         return default
+
 
 def format_date(date: datetime.date, format_str: str = "%Y-%m-%d") -> str:
     """
@@ -137,6 +150,7 @@ def format_date(date: datetime.date, format_str: str = "%Y-%m-%d") -> str:
         str: The formatted date string.
     """
     return date.strftime(format_str)
+
 
 def truncate_string(text: str, max_length: int, ellipsis: str = "...") -> str:
     """
@@ -154,6 +168,7 @@ def truncate_string(text: str, max_length: int, ellipsis: str = "...") -> str:
         return text
     return text[: max_length - len(ellipsis)] + ellipsis
 
+
 def format_price(amount: Union[int, float, Decimal]) -> str:
     """
     Format a price with dot as thousand separator and no decimals.
@@ -165,6 +180,7 @@ def format_price(amount: Union[int, float, Decimal]) -> str:
         str: The formatted price string.
     """
     return f"{int(amount):,}".replace(",", ".")
+
 
 def confirm_action(parent: Optional[QWidget], title: str, message: str) -> bool:
     """
@@ -190,7 +206,9 @@ def confirm_action(parent: Optional[QWidget], title: str, message: str) -> bool:
         result = msg_box.exec()
 
         confirmed = result == QMessageBox.StandardButton.Yes
-        logger.debug(f"Action confirmation: {title} - {'Confirmed' if confirmed else 'Cancelled'}")
+        logger.debug(
+            f"Action confirmation: {title} - {'Confirmed' if confirmed else 'Cancelled'}"
+        )
         return confirmed
     except Exception as e:
         logger.error(f"Error in confirm_action: {str(e)}")

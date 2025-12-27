@@ -1,12 +1,14 @@
 import pytest
-from models.product import Product
+
 from models.category import Category
+from models.product import Product
 from utils.exceptions import ValidationException
-from decimal import Decimal
+
 
 @pytest.fixture
 def sample_category():
     return Category(id=1, name="Test Category")
+
 
 @pytest.fixture
 def sample_product(sample_category):
@@ -17,8 +19,9 @@ def sample_product(sample_category):
         category_id=sample_category.id,
         cost_price=1000.0,
         sell_price=1500.0,
-        barcode="12345678"
+        barcode="12345678",
     )
+
 
 class TestProduct:
     def test_product_creation(self, sample_product):
@@ -36,7 +39,7 @@ class TestProduct:
                 category_id=1,
                 cost_price=-1000.0,
                 sell_price=1500.0,
-                barcode="12345678"
+                barcode="12345678",
             )
 
     def test_profit_margin_calculation(self, sample_product):
@@ -58,16 +61,24 @@ class TestProduct:
         """Test barcode validation."""
         # Valid barcode (8 digits)
         product = Product(
+            id=1,
             name="Test Product",
             category_id=1,
-            barcode="12345678"
+            barcode="12345678",
+            cost_price=100,
+            sell_price=200,
+            description="Test",
         )
         product.validate()
 
         # Invalid barcode (wrong length)
         with pytest.raises(ValidationException):
             Product(
+                id=1,
                 name="Test Product",
                 category_id=1,
-                barcode="1234567"  # 7 digits - too short
-            ).validate() 
+                barcode="1234567",  # 7 digits - too short
+                cost_price=100,
+                sell_price=200,
+                description="Test",
+            ).validate()

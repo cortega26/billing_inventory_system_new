@@ -1,19 +1,26 @@
-from typing import List, Dict, Any, Optional
+import time
+from datetime import datetime, timedelta
+from functools import lru_cache
+from typing import Any, Dict, List, Optional
+
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+
 from database.database_manager import DatabaseManager
 from models.sale import Sale, SaleItem
-from services.inventory_service import InventoryService
 from services.customer_service import CustomerService
+from services.inventory_service import InventoryService
 from services.product_service import ProductService
-from utils.validation.validators import validate_integer, validate_string, validate_date, validate_float
 from utils.decorators import db_operation, handle_exceptions
-from utils.exceptions import ValidationException, DatabaseException, NotFoundException
-from utils.system.logger import logger
+from utils.exceptions import DatabaseException, NotFoundException, ValidationException
 from utils.system.event_system import event_system
-from functools import lru_cache
-from datetime import datetime, timedelta
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-import time
+from utils.system.logger import logger
+from utils.validation.validators import (
+    validate_date,
+    validate_float,
+    validate_integer,
+    validate_string,
+)
 
 
 class SaleService:
@@ -24,7 +31,9 @@ class SaleService:
 
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
-    def create_sale(self, customer_id: int, date: str, items: List[Dict[str, Any]]) -> int:
+    def create_sale(
+        self, customer_id: int, date: str, items: List[Dict[str, Any]]
+    ) -> int:
         """
         1) Insert a new 'sales' row with zero placeholders for total_amount / total_profit.
         2) Insert sale_items for this sale.
@@ -41,11 +50,11 @@ class SaleService:
                 VALUES (?, ?, 0, 0)
             """
             cursor = DatabaseManager.execute_query(
-                insert_query, (customer_id, sale_date_str))
+                insert_query, (customer_id, sale_date_str)
+            )
             sale_id = cursor.lastrowid
             if sale_id is None:
-                raise DatabaseException(
-                    "Failed to get new sale ID after insert.")
+                raise DatabaseException("Failed to get new sale ID after insert.")
 
             # 2) Insert all sale items referencing this sale_id
             items_query = """
@@ -57,13 +66,15 @@ class SaleService:
             for item in items:
                 # item might look like:
                 # { "product_id": 123, "quantity": 2.0, "sell_price": 1000, "profit": 300 }
-                batch_params.append((
-                    sale_id,
-                    int(item["product_id"]),
-                    float(item["quantity"]),
-                    int(item["sell_price"]),
-                    int(item["profit"])
-                ))
+                batch_params.append(
+                    (
+                        sale_id,
+                        int(item["product_id"]),
+                        float(item["quantity"]),
+                        int(item["sell_price"]),
+                        int(item["profit"]),
+                    )
+                )
             DatabaseManager.executemany(items_query, batch_params)
 
             # 3) Compute final totals + receipt ID
@@ -89,8 +100,7 @@ class SaleService:
                 WHERE id = ?
             """
             DatabaseManager.execute_query(
-                update_query,
-                (total_amount, total_profit, receipt_id, sale_id)
+                update_query, (total_amount, total_profit, receipt_id, sale_id)
             )
 
             # 5) Emit the event => the UI's Sales Tab is presumably listening for this
@@ -104,8 +114,9 @@ class SaleService:
             return sale_id
 
         except Exception as e:
-            logger.error(f"Error in create_sale: {str(e)}", extra={
-                         "exc_info": True})
+            if isinstance(e, (ValidationException, NotFoundException)):
+                raise e
+            logger.error(f"Error in create_sale: {str(e)}", extra={"exc_info": True})
             raise DatabaseException(f"Failed to create sale: {str(e)}")
 
     @db_operation(show_dialog=True)
@@ -127,6 +138,24 @@ class SaleService:
         else:
             logger.warning("Sale not found", extra={"sale_id": sale_id})
             raise NotFoundException(f"Sale with ID {sale_id} not found")
+
+    @db_operation(show_dialog=True)
+    @handle_exceptions(DatabaseException, show_dialog=True)
+    def get_customer_sales(self, customer_id: int) -> List[Sale]:
+        """Get all sales for a specific customer."""
+        customer_id = validate_integer(customer_id, min_value=1)
+        query = "SELECT * FROM sales WHERE customer_id = ?"
+        rows = DatabaseManager.fetch_all(query, (customer_id,))
+        sales = []
+        for row in rows:
+            sale = Sale.from_db_row(row)
+            sale.items = self.get_sale_items(sale.id)
+            sales.append(sale)
+        logger.info(
+            "Customer sales retrieved",
+            extra={"customer_id": customer_id, "count": len(sales)},
+        )
+        return sales
 
     @staticmethod
     @lru_cache(maxsize=1)
@@ -164,7 +193,7 @@ class SaleService:
             # Group items by sale_id
             items_by_sale = {}
             for item_row in items_rows:
-                sale_id = item_row['sale_id']
+                sale_id = item_row["sale_id"]
                 if sale_id not in items_by_sale:
                     items_by_sale[sale_id] = []
                 items_by_sale[sale_id].append(SaleItem.from_db_row(item_row))
@@ -203,8 +232,7 @@ class SaleService:
                 item = SaleItem.from_db_row(row)
                 items.append(item)
             except Exception as e:
-                logger.error(
-                    f"Error processing sale item for sale {sale_id}: {str(e)}")
+                logger.error(f"Error processing sale item for sale {sale_id}: {str(e)}")
                 logger.error(f"Problematic row data: {row}")
         return items
 
@@ -218,20 +246,23 @@ class SaleService:
 
         try:
             DatabaseManager.execute_query(
-                "DELETE FROM sale_items WHERE sale_id = ?", (sale_id,))
-            DatabaseManager.execute_query(
-                "DELETE FROM sales WHERE id = ?", (sale_id,))
+                "DELETE FROM sale_items WHERE sale_id = ?", (sale_id,)
+            )
+            DatabaseManager.execute_query("DELETE FROM sales WHERE id = ?", (sale_id,))
             logger.info("Sale deleted", extra={"sale_id": sale_id})
             event_system.sale_deleted.emit(sale_id)
             self.clear_cache()
         except Exception as e:
-            logger.error("Failed to delete sale", extra={
-                         "error": str(e), "sale_id": sale_id})
+            logger.error(
+                "Failed to delete sale", extra={"error": str(e), "sale_id": sale_id}
+            )
             raise DatabaseException(f"Failed to delete sale: {str(e)}")
 
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
-    def update_sale(self, sale_id: int, customer_id: int, date: str, items: List[Dict[str, Any]]) -> None:
+    def update_sale(
+        self, sale_id: int, customer_id: int, date: str, items: List[Dict[str, Any]]
+    ) -> None:
         sale_id = validate_integer(sale_id, min_value=1)
         customer_id = validate_integer(customer_id, min_value=1)
         date = validate_date(date)
@@ -244,7 +275,8 @@ class SaleService:
         sale_datetime = datetime.fromisoformat(sale.date.isoformat())
         if datetime.now() - sale_datetime > timedelta(hours=1240):
             raise ValidationException(
-                "Sales can only be edited within 1240 hours of creation.")
+                "Sales can only be edited within 1240 hours of creation."
+            )
 
         old_items = self.get_sale_items(sale_id)
 
@@ -257,25 +289,28 @@ class SaleService:
             product = self.product_service.get_product(item["product_id"])
             if product is None:
                 raise ValidationException(
-                    f"Product with ID {item['product_id']} not found")
+                    f"Product with ID {item['product_id']} not found"
+                )
             if product.cost_price is None or product.sell_price is None:
                 raise ValidationException(
-                    f"Cost/Sell price not set for product '{product.name}'")
+                    f"Cost/Sell price not set for product '{product.name}'"
+                )
 
             item_total = round(item["quantity"] * item["sell_price"])
-            item_profit = round(item["quantity"] *
-                                (item["sell_price"] - product.cost_price))
+            item_profit = round(
+                item["quantity"] * (item["sell_price"] - product.cost_price)
+            )
 
             total_amount += item_total
             total_profit += item_profit
 
-        self._update_sale(sale_id, customer_id, date,
-                          total_amount, total_profit)
+        self._update_sale(sale_id, customer_id, date, total_amount, total_profit)
         self._update_sale_items(sale_id, items)
         self._update_inventory(items)
 
-        logger.info("Sale updated", extra={
-                    "sale_id": sale_id, "customer_id": customer_id})
+        logger.info(
+            "Sale updated", extra={"sale_id": sale_id, "customer_id": customer_id}
+        )
         event_system.sale_updated.emit(sale_id)
         # self.clear_cache()
 
@@ -292,8 +327,14 @@ class SaleService:
         """
         result = DatabaseManager.fetch_one(query, (start_date, end_date))
         total_sales = int(result["total"] if result else 0)
-        logger.info("Total sales retrieved", extra={
-                    "start_date": start_date, "end_date": end_date, "total_sales": total_sales})
+        logger.info(
+            "Total sales retrieved",
+            extra={
+                "start_date": start_date,
+                "end_date": end_date,
+                "total_sales": total_sales,
+            },
+        )
         return total_sales
 
     @staticmethod
@@ -309,8 +350,14 @@ class SaleService:
         """
         result = DatabaseManager.fetch_one(query, (start_date, end_date))
         total_profits = int(result["total"] if result else 0)
-        logger.info("Total profits retrieved", extra={
-                    "start_date": start_date, "end_date": end_date, "total_profits": total_profits})
+        logger.info(
+            "Total profits retrieved",
+            extra={
+                "start_date": start_date,
+                "end_date": end_date,
+                "total_profits": total_profits,
+            },
+        )
         return total_profits
 
     @staticmethod
@@ -321,40 +368,50 @@ class SaleService:
 
         for attempt in range(max_retries):
             try:
-                with DatabaseManager.transaction():
-                    # Use SELECT ... FOR UPDATE equivalent in SQLite (EXCLUSIVE transaction)
-                    DatabaseManager.execute_query("BEGIN EXCLUSIVE")
+                # Use manual transaction control to support retry/rollback
+                # Access cursor directly to avoid auto-commit from execute_query
+                cursor = DatabaseManager._get_cursor()
+                cursor.execute("BEGIN EXCLUSIVE")
 
-                    query = """
-                        SELECT MAX(CAST(SUBSTR(receipt_id, 7) AS INTEGER)) as last_number
-                        FROM sales
-                        WHERE receipt_id LIKE ? || '%'
-                    """
-                    result = DatabaseManager.fetch_one(query, (date_part,))
+                query = """
+                    SELECT MAX(CAST(SUBSTR(receipt_id, 7) AS INTEGER)) as last_number
+                    FROM sales
+                    WHERE receipt_id LIKE ? || '%'
+                """
+                cursor.execute(query, (date_part,))
+                result = cursor.fetchone()
 
-                    last_number = int(
-                        result['last_number']) if result and result['last_number'] else 0
-                    new_number = last_number + 1
-                    receipt_id = f"{date_part}{new_number:03d}"
+                last_number = (
+                    int(result["last_number"])
+                    if result and result["last_number"]
+                    else 0
+                )
+                new_number = last_number + 1
+                receipt_id = f"{date_part}{new_number:03d}"
 
-                    # Verify uniqueness
-                    check_query = "SELECT COUNT(*) as count FROM sales WHERE receipt_id = ?"
-                    check_result = DatabaseManager.fetch_one(
-                        check_query, (receipt_id,))
+                # Verify uniqueness
+                check_query = "SELECT COUNT(*) as count FROM sales WHERE receipt_id = ?"
+                cursor.execute(check_query, (receipt_id,))
+                check_result = cursor.fetchone()
 
-                    if check_result is not None and check_result.get('count', 0) > 0:
-                        # Collision detected, retry
-                        DatabaseManager.execute_query("ROLLBACK")
-                        continue
+                if check_result is not None and check_result["count"] > 0:
+                    # Collision detected, retry
+                    DatabaseManager._connection.rollback()
+                    continue
 
-                    DatabaseManager.execute_query("COMMIT")
-                    return receipt_id
+                DatabaseManager._connection.commit()
+                return receipt_id
 
-            except Exception as e:
-                DatabaseManager.execute_query("ROLLBACK")
+            except Exception:
+                # If transaction fails, rollback
+                try:
+                    DatabaseManager._connection.rollback()
+                except Exception:
+                    pass
                 if attempt == max_retries - 1:
                     # Use UUID as fallback
                     import uuid
+
                     return f"ERR{uuid.uuid4().hex[:9].upper()}"
                 time.sleep(0.1 * (attempt + 1))  # Exponential backoff
 
@@ -375,8 +432,9 @@ class SaleService:
         else:
             receipt_id = sale.receipt_id
 
-        logger.info("Receipt generated", extra={
-                    "sale_id": sale_id, "receipt_id": receipt_id})
+        logger.info(
+            "Receipt generated", extra={"sale_id": sale_id, "receipt_id": receipt_id}
+        )
         return receipt_id
 
     @db_operation(show_dialog=True)
@@ -385,6 +443,11 @@ class SaleService:
         receipt_id = validate_string(receipt_id, max_length=20)
         query = "UPDATE sales SET receipt_id = ? WHERE id = ?"
         DatabaseManager.execute_query(query, (receipt_id, sale_id))
+
+    @db_operation(show_dialog=True)
+    def update_sale_receipt(self, sale_id: int, receipt_id: str) -> None:
+        """Public method to update sale receipt ID."""
+        self._update_sale_receipt_id(sale_id, receipt_id)
 
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def save_receipt_as_pdf(self, sale_id: int, filepath: str) -> None:
@@ -404,8 +467,7 @@ class SaleService:
         c.drawString(50, height - 50, f"Receipt #{sale.receipt_id}")
 
         c.setFont("Helvetica", 12)
-        c.drawString(50, height - 80,
-                     f"Date: {sale.date.strftime('%Y-%m-%d')}")
+        c.drawString(50, height - 80, f"Date: {sale.date.strftime('%Y-%m-%d')}")
         c.drawString(50, height - 100, f"Customer ID: {sale.customer_id}")
 
         # Draw items
@@ -417,30 +479,32 @@ class SaleService:
 
         y -= 20
         for item in items:
-            c.drawString(
-                50, y, item.product_name or f"Product ID: {item.product_id}")
+            c.drawString(50, y, item.product_name or f"Product ID: {item.product_id}")
             c.drawString(250, y, str(item.quantity))
-            c.drawString(350, y, f"${item.unit_price:,}".replace(',', '.'))
-            c.drawString(450, y, f"${item.total_price():,}".replace(',', '.'))
+            c.drawString(350, y, f"${item.unit_price:,}".replace(",", "."))
+            c.drawString(450, y, f"${item.total_price():,}".replace(",", "."))
             y -= 20
 
         c.drawString(350, y - 20, "Total:")
-        c.drawString(450, y - 20, f"${sale.total_amount:,}".replace(',', '.'))
+        c.drawString(450, y - 20, f"${sale.total_amount:,}".replace(",", "."))
 
         c.drawString(350, y - 40, "Profit:")
-        c.drawString(450, y - 40, f"${sale.total_profit:,}".replace(',', '.'))
+        c.drawString(450, y - 40, f"${sale.total_profit:,}".replace(",", "."))
 
         c.save()
-        logger.info("Receipt saved as PDF", extra={
-                    "sale_id": sale_id, "filepath": filepath})
+        logger.info(
+            "Receipt saved as PDF", extra={"sale_id": sale_id, "filepath": filepath}
+        )
 
     @handle_exceptions(DatabaseException, show_dialog=True)
     def send_receipt_via_whatsapp(self, sale_id: int, phone_number: str) -> None:
         sale_id = validate_integer(sale_id, min_value=1)
         phone_number = validate_string(phone_number, max_length=20)
         # This is a placeholder. You'll need to implement the actual WhatsApp API integration.
-        logger.info("Sending receipt via WhatsApp", extra={
-                    "sale_id": sale_id, "phone_number": phone_number})
+        logger.info(
+            "Sending receipt via WhatsApp",
+            extra={"sale_id": sale_id, "phone_number": phone_number},
+        )
 
     def clear_cache(self):
         """Clear the sale cache."""
@@ -453,17 +517,16 @@ class SaleService:
         for item in items:
             try:
                 # Validate quantity as float with 3 decimal places
-                quantity = validate_float(
-                    float(item["quantity"]), min_value=0.001)
+                quantity = validate_float(float(item["quantity"]), min_value=0.001)
                 if round(quantity, 3) != quantity:
                     raise ValidationException(
-                        "Quantity cannot have more than 3 decimal places")
+                        "Quantity cannot have more than 3 decimal places"
+                    )
 
                 # Validate price as integer
                 sell_price = validate_integer(item["sell_price"], min_value=1)
                 if not isinstance(sell_price, int):
-                    raise ValidationException(
-                        "Item sell price must be an integer")
+                    raise ValidationException("Item sell price must be an integer")
 
             except (ValueError, TypeError):
                 raise ValidationException("Invalid quantity or price format")
@@ -481,18 +544,23 @@ class SaleService:
             """
             DatabaseManager.execute_query(
                 query,
-                (sale_id, item["product_id"], quantity_str,
-                 item["sell_price"], item["profit"])
+                (
+                    sale_id,
+                    item["product_id"],
+                    quantity_str,
+                    item["sell_price"],
+                    item["profit"],
+                ),
             )
 
     def _update_inventory(self, items: List[Dict[str, Any]]) -> None:
         for item in items:
             # Ensure float for quantity
             quantity_change = -abs(float(item["quantity"]))
-            self.inventory_service.update_quantity(
-                item["product_id"], quantity_change)
+            self.inventory_service.update_quantity(item["product_id"], quantity_change)
             logger.debug(
-                f"Updating inventory for product {item['product_id']}, change: {quantity_change}")
+                f"Updating inventory for product {item['product_id']}, change: {quantity_change}"
+            )
 
     @staticmethod
     def _revert_inventory(items: List[SaleItem]) -> None:
@@ -501,16 +569,20 @@ class SaleService:
 
     @staticmethod
     @db_operation(show_dialog=True)
-    def _update_sale(sale_id: int, customer_id: int, date: str, total_amount: int, total_profit: int) -> None:
+    def _update_sale(
+        sale_id: int, customer_id: int, date: str, total_amount: int, total_profit: int
+    ) -> None:
         query = "UPDATE sales SET customer_id = ?, date = ?, total_amount = ?, total_profit = ? WHERE id = ?"
         DatabaseManager.execute_query(
-            query, (customer_id, date, total_amount, total_profit, sale_id))
+            query, (customer_id, date, total_amount, total_profit, sale_id)
+        )
 
     @staticmethod
     @db_operation(show_dialog=True)
     def _update_sale_items(sale_id: int, items: List[Dict[str, Any]]) -> None:
         DatabaseManager.execute_query(
-            "DELETE FROM sale_items WHERE sale_id = ?", (sale_id,))
+            "DELETE FROM sale_items WHERE sale_id = ?", (sale_id,)
+        )
         SaleService._insert_sale_items(sale_id, items)
 
     @staticmethod
@@ -531,10 +603,16 @@ class SaleService:
             ORDER BY total_quantity DESC
             LIMIT ?
         """
-        result = DatabaseManager.fetch_all(
-            query, (start_date, end_date, limit))
-        logger.info("Top selling products retrieved", extra={
-                    "start_date": start_date, "end_date": end_date, "limit": limit, "count": len(result)})
+        result = DatabaseManager.fetch_all(query, (start_date, end_date, limit))
+        logger.info(
+            "Top selling products retrieved",
+            extra={
+                "start_date": start_date,
+                "end_date": end_date,
+                "limit": limit,
+                "count": len(result),
+            },
+        )
         return result
 
     @staticmethod
@@ -549,8 +627,10 @@ class SaleService:
         """
         result = DatabaseManager.fetch_one(query, (customer_id,))
         total_sales = int(result["total"] if result else 0)
-        logger.info("Total sales by customer retrieved", extra={
-                    "customer_id": customer_id, "total_sales": total_sales})
+        logger.info(
+            "Total sales by customer retrieved",
+            extra={"customer_id": customer_id, "total_sales": total_sales},
+        )
         return total_sales
 
     @db_operation(show_dialog=True)
@@ -567,8 +647,10 @@ class SaleService:
         sales = [Sale.from_db_row(row) for row in rows]
         for sale in sales:
             sale.items = self.get_sale_items(sale.id)
-        logger.info("Sales by date range retrieved", extra={
-                    "start_date": start_date, "end_date": end_date, "count": len(sales)})
+        logger.info(
+            "Sales by date range retrieved",
+            extra={"start_date": start_date, "end_date": end_date, "count": len(sales)},
+        )
         return sales
 
     @db_operation(show_dialog=True)
@@ -590,22 +672,27 @@ class SaleService:
             "total_sales": 0,
             "total_revenue": 0,
             "average_sale_amount": 0,
-            "total_profit": 0
+            "total_profit": 0,
         }
         if result:
-            report.update({
-                "total_sales": result.get("total_sales", 0),
-                "total_revenue": int(result.get("total_revenue", 0)),
-                "average_sale_amount": int(result.get("average_sale_amount", 0)),
-                "total_profit": int(result.get("total_profit", 0))
-            })
-        logger.info("Daily sales report generated", extra={
-                    "date": date, "report": report})
+            report.update(
+                {
+                    "total_sales": result.get("total_sales", 0),
+                    "total_revenue": int(result.get("total_revenue", 0)),
+                    "average_sale_amount": int(result.get("average_sale_amount", 0)),
+                    "total_profit": int(result.get("total_profit", 0)),
+                }
+            )
+        logger.info(
+            "Daily sales report generated", extra={"date": date, "report": report}
+        )
         return report
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_sales_by_product(self, product_id: int, start_date: str, end_date: str) -> List[Dict[str, Any]]:
+    def get_sales_by_product(
+        self, product_id: int, start_date: str, end_date: str
+    ) -> List[Dict[str, Any]]:
         product_id = validate_integer(product_id, min_value=1)
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
@@ -616,17 +703,32 @@ class SaleService:
             WHERE si.product_id = ? AND s.date BETWEEN ? AND ?
             ORDER BY s.date
         """
-        rows = DatabaseManager.fetch_all(
-            query, (product_id, start_date, end_date))
-        sales = [{"date": row["date"], "quantity": row["quantity"],
-                  "price": row["price"], "profit": row["profit"]} for row in rows]
-        logger.info("Sales by product retrieved", extra={
-                    "product_id": product_id, "start_date": start_date, "end_date": end_date, "count": len(sales)})
+        rows = DatabaseManager.fetch_all(query, (product_id, start_date, end_date))
+        sales = [
+            {
+                "date": row["date"],
+                "quantity": row["quantity"],
+                "price": row["price"],
+                "profit": row["profit"],
+            }
+            for row in rows
+        ]
+        logger.info(
+            "Sales by product retrieved",
+            extra={
+                "product_id": product_id,
+                "start_date": start_date,
+                "end_date": end_date,
+                "count": len(sales),
+            },
+        )
         return sales
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_sales_distribution_by_category(self, start_date: str, end_date: str) -> List[Dict[str, Any]]:
+    def get_sales_distribution_by_category(
+        self, start_date: str, end_date: str
+    ) -> List[Dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         query = """
@@ -644,14 +746,23 @@ class SaleService:
             ORDER BY total_revenue DESC
         """
         rows = DatabaseManager.fetch_all(query, (start_date, end_date))
-        distribution = [{
-            "category_name": row["category_name"] or "Uncategorized",
-            "sale_count": row["sale_count"],
-            "total_revenue": int(row["total_revenue"]),
-            "total_profit": int(row["total_profit"])
-        } for row in rows]
-        logger.info("Sales distribution by category retrieved", extra={
-                    "start_date": start_date, "end_date": end_date, "count": len(distribution)})
+        distribution = [
+            {
+                "category_name": row["category_name"] or "Uncategorized",
+                "sale_count": row["sale_count"],
+                "total_revenue": int(row["total_revenue"]),
+                "total_profit": int(row["total_profit"]),
+            }
+            for row in rows
+        ]
+        logger.info(
+            "Sales distribution by category retrieved",
+            extra={
+                "start_date": start_date,
+                "end_date": end_date,
+                "count": len(distribution),
+            },
+        )
         return distribution
 
     @lru_cache(maxsize=100)
@@ -661,8 +772,30 @@ class SaleService:
 
     def calculate_total_amount(self, items: List[Dict[str, Any]]) -> int:
         """Calculate total amount for a sale."""
-        return sum(int(item['quantity'] * item['sell_price']) for item in items)
+        return sum(int(item["quantity"] * item["sell_price"]) for item in items)
 
     def calculate_total_profit(self, items: List[Dict[str, Any]]) -> int:
         """Calculate total profit for a sale."""
-        return sum(int(item['profit']) for item in items)
+        return sum(int(item["profit"]) for item in items)
+
+    def get_sale_statistics(self, start_date: str, end_date: str) -> Dict[str, Any]:
+        """Get aggregated sale statistics for a date range."""
+        start_date = validate_date(start_date)
+        end_date = validate_date(end_date)
+        query = """
+            SELECT 
+                COUNT(*) as total_sales,
+                SUM(total_amount) as total_amount,
+                SUM(total_profit) as total_profit
+            FROM sales 
+            WHERE date BETWEEN ? AND ?
+        """
+        result = DatabaseManager.fetch_one(query, (start_date, end_date))
+
+        if result:
+            return {
+                "total_sales": result["total_sales"] or 0,
+                "total_amount": result["total_amount"] or 0,
+                "total_profit": result["total_profit"] or 0,
+            }
+        return {"total_sales": 0, "total_amount": 0, "total_profit": 0}

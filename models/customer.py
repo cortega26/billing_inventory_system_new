@@ -1,7 +1,9 @@
-from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any
-from utils.exceptions import ValidationException
 import re
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
+
+from utils.exceptions import ValidationException
+
 
 @dataclass
 class Customer:
@@ -20,7 +22,7 @@ class Customer:
             self.validate_identifier_3or4(self.identifier_3or4)
         if self.name is not None:
             self.validate_name(self.name)
-        
+
         # Initialize identifiers list
         self._identifiers = [self.identifier_9]
         if self.identifier_3or4:
@@ -55,7 +57,11 @@ class Customer:
         Raises:
             ValidationException: If identifier is invalid.
         """
-        if not isinstance(identifier, str) or len(identifier) != 9 or not identifier.isdigit():
+        if (
+            not isinstance(identifier, str)
+            or len(identifier) != 9
+            or not identifier.isdigit()
+        ):
             raise ValidationException("identifier_9 must be a string of 9 digits")
 
     @staticmethod
@@ -70,8 +76,14 @@ class Customer:
             ValidationException: If identifier is invalid.
         """
         if identifier is not None:
-            if not isinstance(identifier, str) or len(identifier) not in (3, 4) or not identifier.isdigit():
-                raise ValidationException("identifier_3or4 must be a string of 3 or 4 digits")
+            if (
+                not isinstance(identifier, str)
+                or len(identifier) not in (3, 4)
+                or not identifier.isdigit()
+            ):
+                raise ValidationException(
+                    "identifier_3or4 must be a string of 3 or 4 digits"
+                )
 
     @staticmethod
     def validate_name(name: str) -> None:
@@ -94,8 +106,10 @@ class Customer:
             raise ValidationException("Name cannot exceed 50 characters")
 
         # Validate that name contains only letters, spaces, and Spanish characters
-        if not re.match(r'^[A-Za-zÁÉÍÓÚÑáéíóúñ ]+$', name):
-            raise ValidationException("Name can only contain letters, accented characters, and spaces")
+        if not re.match(r"^[A-Za-zÁÉÍÓÚÑáéíóúñ ]+$", name):
+            raise ValidationException(
+                "Name can only contain letters, accented characters, and spaces"
+            )
 
     def update_identifier_9(self, new_identifier_9: str) -> None:
         """
@@ -169,9 +183,9 @@ class Customer:
         if not isinstance(other, Customer):
             return NotImplemented
         return (
-            self.id == other.id and 
-            self._identifiers == other._identifiers and 
-            self.name == other.name
+            self.id == other.id
+            and self._identifiers == other._identifiers
+            and self.name == other.name
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -185,5 +199,5 @@ class Customer:
             "id": self.id,
             "identifier_9": self.identifier_9,
             "identifier_3or4": self.identifier_3or4,
-            "name": self.name
+            "name": self.name,
         }

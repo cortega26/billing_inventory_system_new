@@ -1,12 +1,24 @@
-from typing import List, Dict, Any, Optional
+from functools import lru_cache
+from typing import Any, Dict, List, Optional
+
 from database.database_manager import DatabaseManager
 from models.inventory import Inventory
-from utils.system.event_system import event_system
 from utils.decorators import db_operation, handle_exceptions
-from utils.exceptions import ValidationException, NotFoundException, DatabaseException, UIException
-from utils.validation.validators import validate_integer, validate_string, validate_float_non_negative, validate_float
+from utils.exceptions import (
+    DatabaseException,
+    NotFoundException,
+    UIException,
+    ValidationException,
+)
+from utils.system.event_system import event_system
 from utils.system.logger import logger
-from functools import lru_cache
+from utils.validation.validators import (
+    validate_float,
+    validate_float_non_negative,
+    validate_integer,
+    validate_string,
+)
+
 
 class InventoryService:
     @staticmethod
@@ -15,7 +27,9 @@ class InventoryService:
     def update_quantity(product_id: int, quantity_change: float) -> None:
         """Update the quantity of a product in inventory."""
         product_id = validate_integer(product_id, min_value=1)
-        quantity_change = validate_float(quantity_change)  # Allow negative values for sales
+        quantity_change = validate_float(
+            quantity_change
+        )  # Allow negative values for sales
 
         inventory = InventoryService.get_inventory(product_id)
 
@@ -24,9 +38,11 @@ class InventoryService:
             new_quantity = round(inventory.quantity + quantity_change, 3)
             if new_quantity < 0:
                 logger.warning(
-                    "Attempted negative inventory for product %s", product_id
+                    f"Attempted negative inventory for product {product_id}. Current: {inventory.quantity}, Change: {quantity_change}, New: {new_quantity}",
                 )
-                raise ValidationException("Inventory cannot be negative")
+                raise ValidationException(
+                    f"Inventory cannot be negative. Product: {product_id}, Current: {inventory.quantity}, Change: {quantity_change}, New: {new_quantity}"
+                )
             InventoryService._modify_inventory(
                 product_id, new_quantity, action="update"
             )
@@ -44,10 +60,10 @@ class InventoryService:
 
         InventoryService.clear_cache()
         event_system.inventory_changed.emit(product_id)
-        logger.info(f"Inventory updated for product {product_id}", extra={
-            "quantity_change": quantity_change,
-            "new_quantity": new_quantity
-        })
+        logger.info(
+            f"Inventory updated for product {product_id}",
+            extra={"quantity_change": quantity_change, "new_quantity": new_quantity},
+        )
 
     @staticmethod
     @db_operation(show_dialog=True)
@@ -60,17 +76,17 @@ class InventoryService:
         if action == "update":
             query = "UPDATE inventory SET quantity = ? WHERE product_id = ?"
             DatabaseManager.execute_query(query, (new_quantity, product_id))
-            logger.debug("Inventory quantity updated", extra={
-                "product_id": product_id,
-                "new_quantity": new_quantity
-            })
+            logger.debug(
+                "Inventory quantity updated",
+                extra={"product_id": product_id, "new_quantity": new_quantity},
+            )
         elif action == "create":
             query = "INSERT INTO inventory (product_id, quantity) VALUES (?, ?)"
             DatabaseManager.execute_query(query, (product_id, new_quantity))
-            logger.debug("New inventory item created", extra={
-                "product_id": product_id,
-                "initial_quantity": new_quantity
-            })
+            logger.debug(
+                "New inventory item created",
+                extra={"product_id": product_id, "initial_quantity": new_quantity},
+            )
         else:
             logger.error(f"Unknown action: {action}")
             raise ValueError(f"Unknown action: {action}")
@@ -107,24 +123,24 @@ class InventoryService:
             LEFT JOIN categories c ON p.category_id = c.id
             ORDER BY p.name
         """
-        
+
         try:
             rows = DatabaseManager.fetch_all(query)
             inventory_items = []
-            
+
             for row in rows:
                 item = {
-                    'product_id': row['product_id'],
-                    'product_name': row['product_name'],
-                    'category_id': row['category_id'],  # Added category_id
-                    'category_name': row['category_name'],
-                    'quantity': float(row['quantity']),
-                    'barcode': row['barcode'] or 'No barcode'
+                    "product_id": row["product_id"],
+                    "product_name": row["product_name"],
+                    "category_id": row["category_id"],  # Added category_id
+                    "category_name": row["category_name"],
+                    "quantity": float(row["quantity"]),
+                    "barcode": row["barcode"] or "No barcode",
                 }
                 inventory_items.append(item)
-                
+
             return inventory_items
-            
+
         except Exception as e:
             logger.error(f"Error fetching inventory: {str(e)}")
             raise DatabaseException(f"Failed to fetch inventory: {str(e)}")
@@ -142,10 +158,10 @@ class InventoryService:
 
         event_system.inventory_updated.emit()
         InventoryService.clear_cache()
-        logger.info("Inventory quantity set", extra={
-            "product_id": product_id,
-            "new_quantity": new_quantity
-        })
+        logger.info(
+            "Inventory quantity set",
+            extra={"product_id": product_id, "new_quantity": new_quantity},
+        )
 
     @staticmethod
     @db_operation(show_dialog=True)
@@ -169,8 +185,18 @@ class InventoryService:
         """
         result = DatabaseManager.fetch_one(query)
         # Round to nearest integer since we're dealing with Chilean Pesos
-        total_value = int(round(float(result["total_value"] if result and result["total_value"] is not None else 0)))
-        logger.info("Total inventory value calculated", extra={"total_value": total_value})
+        total_value = int(
+            round(
+                float(
+                    result["total_value"]
+                    if result and result["total_value"] is not None
+                    else 0
+                )
+            )
+        )
+        logger.info(
+            "Total inventory value calculated", extra={"total_value": total_value}
+        )
         return total_value
 
     @staticmethod
@@ -179,25 +205,30 @@ class InventoryService:
     def adjust_inventory(product_id: int, quantity_change: float, reason: str) -> None:
         """Adjust the quantity of a product in inventory by a specific amount."""
         product_id = validate_integer(product_id, min_value=1)
-        quantity_change = validate_float(quantity_change)  # Can be negative for adjustments
+        quantity_change = validate_float(
+            quantity_change
+        )  # Can be negative for adjustments
         reason = validate_string(reason, max_length=255)
 
         # Round to 3 decimal places
         quantity_change = round(quantity_change, 3)
 
         InventoryService.update_quantity(product_id, quantity_change)
-        
+
         query = """
             INSERT INTO inventory_adjustments (product_id, quantity_change, reason, date) 
             VALUES (?, ?, ?, CURRENT_TIMESTAMP)
         """
         DatabaseManager.execute_query(query, (product_id, str(quantity_change), reason))
         InventoryService.clear_cache()
-        logger.info("Inventory adjusted", extra={
-            "product_id": product_id,
-            "quantity_change": quantity_change,
-            "reason": reason
-        })
+        logger.info(
+            "Inventory adjusted",
+            extra={
+                "product_id": product_id,
+                "quantity_change": quantity_change,
+                "reason": reason,
+            },
+        )
 
     @staticmethod
     def clear_cache() -> None:
@@ -234,12 +265,15 @@ class InventoryService:
         """
         params = (product_id, start_date, end_date) * 3
         result = DatabaseManager.fetch_all(query, params)
-        logger.info("Inventory movements retrieved", extra={
-            "product_id": product_id,
-            "start_date": start_date,
-            "end_date": end_date,
-            "count": len(result)
-        })
+        logger.info(
+            "Inventory movements retrieved",
+            extra={
+                "product_id": product_id,
+                "start_date": start_date,
+                "end_date": end_date,
+                "count": len(result),
+            },
+        )
         return result
 
     @staticmethod
@@ -270,13 +304,17 @@ class InventoryService:
             JOIN avg_inventory ai ON sd.product_id = ai.product_id
         """
         result = DatabaseManager.fetch_all(query, (start_date, end_date))
-        turnover_ratios = {row['product_id']: round(float(row['turnover_ratio']), 3) 
-                          for row in result}
-        logger.info("Inventory turnover calculated", extra={
-            "start_date": start_date,
-            "end_date": end_date,
-            "product_count": len(turnover_ratios)
-        })
+        turnover_ratios = {
+            row["product_id"]: round(float(row["turnover_ratio"]), 3) for row in result
+        }
+        logger.info(
+            "Inventory turnover calculated",
+            extra={
+                "start_date": start_date,
+                "end_date": end_date,
+                "product_count": len(turnover_ratios),
+            },
+        )
         return turnover_ratios
 
     @staticmethod
@@ -288,8 +326,5 @@ class InventoryService:
             WHERE i.quantity < 10
         """
         products = DatabaseManager.fetch_all(query)
-        logger.debug("Retrieved low stock products", extra={
-            "count": len(products)
-        })
+        logger.debug("Retrieved low stock products", extra={"count": len(products)})
         return products
-

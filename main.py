@@ -1,10 +1,12 @@
 import sys
+
 from PySide6.QtWidgets import QApplication
-from ui.main_window import MainWindow
+
 from database import init_db
-from utils.system.logger import logger
-from utils.exceptions import DatabaseException, AppException
+from ui.main_window import MainWindow
 from utils.decorators import handle_exceptions
+from utils.exceptions import AppException, DatabaseException
+from utils.system.logger import logger
 
 
 class Application:
@@ -18,19 +20,23 @@ class Application:
             logger.critical(f"Failed to initialize database: {e}")
             raise AppException(f"Failed to initialize database: {e}")
 
-    @staticmethod
-    @handle_exceptions(AppException, show_dialog=True)
-    def run():
-        app = QApplication(sys.argv)
+    # @staticmethod
+    # def run():
+    #     # Logic moved to main block
+    #     pass
+
+
+if __name__ == "__main__":
+    # Create QApplication first to ensure UI elemens (like error dialogs) can be created
+    app = QApplication(sys.argv)
+
+    try:
+        Application.initialize()
+
+        # Run the main window setup and execution
         window = MainWindow()
         window.show()
         logger.info("Application started")
         sys.exit(app.exec())
-
-
-if __name__ == "__main__":
-    try:
-        Application.initialize()
-        Application.run()
     except AppException as e:
         logger.critical(f"An unhandled error occurred: {e}")

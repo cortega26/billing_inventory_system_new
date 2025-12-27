@@ -1,11 +1,13 @@
-from typing import List, Dict, Any, Tuple
-from database.database_manager import DatabaseManager
-from functools import lru_cache
-from utils.decorators import db_operation, handle_exceptions
-from utils.exceptions import ValidationException, DatabaseException
-from utils.validation.validators import validate_integer, validate_date
-from utils.system.logger import logger
 from datetime import datetime, timedelta
+from functools import lru_cache
+from typing import Any, Dict, List, Tuple
+
+from database.database_manager import DatabaseManager
+from utils.decorators import db_operation, handle_exceptions
+from utils.exceptions import DatabaseException, ValidationException
+from utils.system.logger import logger
+from utils.validation.validators import validate_date, validate_integer
+
 
 class AnalyticsService:
     @staticmethod
@@ -34,14 +36,19 @@ class AnalyticsService:
             ORDER BY CAST(strftime('%w', date) AS INTEGER)
         """
         result = DatabaseManager.fetch_all(query, (start_date, end_date))
-        logger.info("Sales by weekday retrieved", extra={"start_date": start_date, "end_date": end_date})
+        logger.info(
+            "Sales by weekday retrieved",
+            extra={"start_date": start_date, "end_date": end_date},
+        )
         return result
 
     @staticmethod
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
-    def get_top_selling_products(start_date: str, end_date: str, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_top_selling_products(
+        start_date: str, end_date: str, limit: int = 10
+    ) -> List[Dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         limit = validate_integer(limit, min_value=1)
@@ -59,11 +66,10 @@ class AnalyticsService:
             LIMIT ?
         """
         result = DatabaseManager.fetch_all(query, (start_date, end_date, limit))
-        logger.info("Top selling products retrieved", extra={
-            "start_date": start_date,
-            "end_date": end_date,
-            "limit": limit
-        })
+        logger.info(
+            "Top selling products retrieved",
+            extra={"start_date": start_date, "end_date": end_date, "limit": limit},
+        )
         return result
 
     ###########################################################################
@@ -91,7 +97,10 @@ class AnalyticsService:
             ORDER BY strftime('%Y-%m-%d', date)
         """
         result = DatabaseManager.fetch_all(query, (start_date, end_date))
-        logger.info("Sales trend retrieved", extra={"start_date": start_date, "end_date": end_date})
+        logger.info(
+            "Sales trend retrieved",
+            extra={"start_date": start_date, "end_date": end_date},
+        )
         return result
 
     @staticmethod
@@ -112,14 +121,19 @@ class AnalyticsService:
             ORDER BY week
         """
         result = DatabaseManager.fetch_all(query, (start_date, end_date))
-        logger.info("Weekly profit trend retrieved", extra={"start_date": start_date, "end_date": end_date})
+        logger.info(
+            "Weekly profit trend retrieved",
+            extra={"start_date": start_date, "end_date": end_date},
+        )
         return result
 
     @staticmethod
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
-    def get_profit_and_volume_by_product(start_date: str, end_date: str, limit: int = 5) -> List[Dict[str, Any]]:
+    def get_profit_and_volume_by_product(
+        start_date: str, end_date: str, limit: int = 5
+    ) -> List[Dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         limit = validate_integer(limit, min_value=1, max_value=100)
@@ -145,7 +159,9 @@ class AnalyticsService:
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
-    def get_category_performance(start_date: str, end_date: str) -> List[Dict[str, Any]]:
+    def get_category_performance(
+        start_date: str, end_date: str
+    ) -> List[Dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         query = """
@@ -163,14 +179,19 @@ class AnalyticsService:
             ORDER BY total_sales DESC
         """
         result = DatabaseManager.fetch_all(query, (start_date, end_date))
-        logger.info("Category performance retrieved", extra={"start_date": start_date, "end_date": end_date})
+        logger.info(
+            "Category performance retrieved",
+            extra={"start_date": start_date, "end_date": end_date},
+        )
         return result
 
     @staticmethod
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
-    def get_profit_by_product(start_date: str, end_date: str, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_profit_by_product(
+        start_date: str, end_date: str, limit: int = 10
+    ) -> List[Dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         limit = validate_integer(limit, min_value=1)
@@ -218,7 +239,9 @@ class AnalyticsService:
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
-    def get_profit_margin_distribution(start_date: str, end_date: str) -> List[Dict[str, Any]]:
+    def get_profit_margin_distribution(
+        start_date: str, end_date: str
+    ) -> List[Dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         query = """
@@ -289,7 +312,7 @@ class AnalyticsService:
                 "total_revenue": 0,
                 "total_profit": 0,
                 "average_sale_value": 0,
-                "unique_customers": 0
+                "unique_customers": 0,
             }
         logger.info(f"Retrieved sales summary from {start_date} to {end_date}")
         return dict(result)
@@ -311,11 +334,11 @@ class AnalyticsService:
     def get_date_range(range_type: str) -> Tuple[str, str]:
         today = datetime.now().date()
         date_ranges = {
-            'today': (today, today),
-            'yesterday': (today - timedelta(days=1), today - timedelta(days=1)),
-            'this_week': (today - timedelta(days=today.weekday()), today),
-            'this_month': (today.replace(day=1), today),
-            'this_year': (today.replace(month=1, day=1), today)
+            "today": (today, today),
+            "yesterday": (today - timedelta(days=1), today - timedelta(days=1)),
+            "this_week": (today - timedelta(days=today.weekday()), today),
+            "this_month": (today.replace(day=1), today),
+            "this_year": (today.replace(month=1, day=1), today),
         }
 
         if range_type in date_ranges:
@@ -332,11 +355,11 @@ class AnalyticsService:
             start = datetime.fromisoformat(start_date)
             end = datetime.fromisoformat(end_date)
             today = datetime.now()
-            
+
             if start > today or end > today:
                 raise ValidationException("Date range cannot be in the future")
             if start > end:
                 raise ValidationException("Start date must be before end date")
-                
+
         except ValueError as e:
             raise ValidationException(f"Invalid date format: {str(e)}")

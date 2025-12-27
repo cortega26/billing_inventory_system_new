@@ -1,34 +1,32 @@
 import pytest
+
 from utils.exceptions import (
     AppException,
-    DatabaseException,
-    ValidationException,
-    ConfigurationException,
     BusinessLogicException,
-    UIException,
+    ConfigurationException,
+    DatabaseException,
     NetworkException,
-    SecurityException
+    SecurityException,
+    UIException,
+    ValidationException,
 )
-from typing import Type
+
 
 class TestExceptions:
     @pytest.fixture
     def sample_error_data(self):
-        return {
-            "code": "ERR001",
-            "details": {"field": "username", "value": "invalid"}
-        }
+        return {"code": "ERR001", "details": {"field": "username", "value": "invalid"}}
 
     def test_base_exception(self):
         """Test the base AppException."""
         message = "Test error message"
         error = AppException(message)
-        
+
         assert str(error) == message
         assert isinstance(error, Exception)
         assert error.message == message
         assert error.error_code is None
-        assert error.details is None
+        assert error.details == {}
 
     def test_exception_with_code(self):
         """Test exception with error code."""
@@ -40,9 +38,9 @@ class TestExceptions:
         error = AppException(
             "Test message",
             error_code=sample_error_data["code"],
-            details=sample_error_data["details"]
+            details=sample_error_data["details"],
         )
-        
+
         assert error.details == sample_error_data["details"]
         assert "field" in error.details
         assert error.details["field"] == "username"
@@ -52,9 +50,9 @@ class TestExceptions:
         error = DatabaseException(
             "Database connection failed",
             error_code="DB001",
-            details={"connection": "localhost:5432"}
+            details={"connection": "localhost:5432"},
         )
-        
+
         assert isinstance(error, AppException)
         assert "connection failed" in str(error)
         assert error.error_code == "DB001"
@@ -64,9 +62,9 @@ class TestExceptions:
         error = ValidationException(
             "Invalid input",
             error_code="VAL001",
-            details={"field": "email", "reason": "invalid format"}
+            details={"field": "email", "reason": "invalid format"},
         )
-        
+
         assert isinstance(error, AppException)
         assert "Invalid input" in str(error)
         assert "email" in error.details["field"]
@@ -76,9 +74,9 @@ class TestExceptions:
         error = ConfigurationException(
             "Missing required config",
             error_code="CFG001",
-            details={"missing_key": "database_url"}
+            details={"missing_key": "database_url"},
         )
-        
+
         assert isinstance(error, AppException)
         assert "Missing required config" in str(error)
         assert "database_url" in error.details["missing_key"]
@@ -88,9 +86,9 @@ class TestExceptions:
         error = BusinessLogicException(
             "Insufficient inventory",
             error_code="BUS001",
-            details={"product_id": 123, "requested": 10, "available": 5}
+            details={"product_id": 123, "requested": 10, "available": 5},
         )
-        
+
         assert isinstance(error, AppException)
         assert "Insufficient inventory" in str(error)
         assert error.details["requested"] > error.details["available"]
@@ -100,9 +98,9 @@ class TestExceptions:
         error = UIException(
             "Widget initialization failed",
             error_code="UI001",
-            details={"widget_type": "TableView", "reason": "invalid data model"}
+            details={"widget_type": "TableView", "reason": "invalid data model"},
         )
-        
+
         assert isinstance(error, AppException)
         assert "Widget initialization failed" in str(error)
         assert "TableView" in error.details["widget_type"]
@@ -112,9 +110,9 @@ class TestExceptions:
         error = NetworkException(
             "API request failed",
             error_code="NET001",
-            details={"url": "https://api.example.com", "status_code": 500}
+            details={"url": "https://api.example.com", "status_code": 500},
         )
-        
+
         assert isinstance(error, AppException)
         assert "API request failed" in str(error)
         assert error.details["status_code"] == 500
@@ -124,9 +122,9 @@ class TestExceptions:
         error = SecurityException(
             "Unauthorized access",
             error_code="SEC001",
-            details={"user_id": "user123", "resource": "admin_panel"}
+            details={"user_id": "user123", "resource": "admin_panel"},
         )
-        
+
         assert isinstance(error, AppException)
         assert "Unauthorized access" in str(error)
         assert "user123" in error.details["user_id"]
@@ -140,9 +138,9 @@ class TestExceptions:
             BusinessLogicException,
             UIException,
             NetworkException,
-            SecurityException
+            SecurityException,
         ]
-        
+
         for exception_class in exceptions:
             assert issubclass(exception_class, AppException)
 
@@ -160,11 +158,9 @@ class TestExceptions:
     def test_exception_formatting(self):
         """Test string formatting of exceptions."""
         error = AppException(
-            "Error occurred",
-            error_code="ERR001",
-            details={"key": "value"}
+            "Error occurred", error_code="ERR001", details={"key": "value"}
         )
-        
+
         error_str = str(error)
         assert "Error occurred" in error_str
         assert "ERR001" in repr(error)
@@ -174,7 +170,7 @@ class TestExceptions:
         error1 = AppException("Error", error_code="ERR001")
         error2 = AppException("Error", error_code="ERR001")
         error3 = AppException("Different", error_code="ERR002")
-        
+
         assert error1.error_code == error2.error_code
         assert error1.error_code != error3.error_code
 
@@ -182,4 +178,4 @@ class TestExceptions:
         """Test exception with empty details."""
         error = AppException("Message", details={})
         assert error.details == {}
-        assert str(error) == "Message" 
+        assert str(error) == "Message"

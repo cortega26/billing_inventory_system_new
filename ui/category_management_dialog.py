@@ -1,15 +1,24 @@
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QListWidget, QPushButton, QMessageBox,
-    QLineEdit, QFormLayout, QDialogButtonBox, QLabel,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
 )
-from PySide6.QtCore import Qt
+
 from services.category_service import CategoryService
-from utils.system.logger import logger
+from utils.decorators import handle_exceptions, ui_operation
+from utils.exceptions import DatabaseException, UIException, ValidationException
 from utils.helpers import show_info_message
-from utils.decorators import ui_operation, handle_exceptions
-from utils.exceptions import ValidationException, DatabaseException, UIException
-from utils.validation.validators import validate_string
 from utils.system.event_system import event_system
+from utils.system.logger import logger
+from utils.validation.validators import validate_string
+
 
 class AddEditCategoryDialog(QDialog):
     def __init__(self, parent=None, category=None):
@@ -33,9 +42,13 @@ class AddEditCategoryDialog(QDialog):
         layout.addRow(self.button_box)
 
     @ui_operation(show_dialog=True)
-    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
+    @handle_exceptions(
+        ValidationException, DatabaseException, UIException, show_dialog=True
+    )
     def accept(self):
-        name = validate_string(self.name_input.text().strip(), min_length=1, max_length=50)
+        name = validate_string(
+            self.name_input.text().strip(), min_length=1, max_length=50
+        )
         if self.category:
             self.category_service.update_category(self.category.id, name)
             logger.info(f"Category updated: ID {self.category.id}, Name: {name}")
@@ -43,6 +56,7 @@ class AddEditCategoryDialog(QDialog):
             category_id = self.category_service.create_category(name)
             logger.info(f"Category created: ID {category_id}, Name: {name}")
         super().accept()
+
 
 class CategoryManagementDialog(QDialog):
     def __init__(self, parent=None):
@@ -104,7 +118,9 @@ class CategoryManagementDialog(QDialog):
             raise DatabaseException(f"Failed to load categories: {str(e)}")
 
     @ui_operation(show_dialog=True)
-    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
+    @handle_exceptions(
+        ValidationException, DatabaseException, UIException, show_dialog=True
+    )
     def add_category(self):
         dialog = AddEditCategoryDialog(self)
         if dialog.exec():
@@ -114,7 +130,9 @@ class CategoryManagementDialog(QDialog):
             logger.info("New category added")
 
     @ui_operation(show_dialog=True)
-    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
+    @handle_exceptions(
+        ValidationException, DatabaseException, UIException, show_dialog=True
+    )
     def edit_category(self):
         current_item = self.category_list.currentItem()
         if current_item:
@@ -132,7 +150,9 @@ class CategoryManagementDialog(QDialog):
             raise ValidationException("Please select a category to edit.")
 
     @ui_operation(show_dialog=True)
-    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
+    @handle_exceptions(
+        ValidationException, DatabaseException, UIException, show_dialog=True
+    )
     def delete_category(self):
         current_item = self.category_list.currentItem()
         if current_item:
@@ -144,7 +164,9 @@ class CategoryManagementDialog(QDialog):
                 QMessageBox.StandardButton.No,
             )
             if reply == QMessageBox.StandardButton.Yes:
-                category = self.category_service.get_category_by_name(current_item.text())
+                category = self.category_service.get_category_by_name(
+                    current_item.text()
+                )
                 if category:
                     self.category_service.delete_category(category.id)
                     self.load_categories()
@@ -152,12 +174,16 @@ class CategoryManagementDialog(QDialog):
                     event_system.category_deleted.emit(category.id)
                     logger.info(f"Category deleted: ID {category.id}")
                 else:
-                    raise ValidationException(f"Category '{current_item.text()}' not found")
+                    raise ValidationException(
+                        f"Category '{current_item.text()}' not found"
+                    )
         else:
             raise ValidationException("Please select a category to delete.")
 
     @ui_operation(show_dialog=True)
-    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
+    @handle_exceptions(
+        ValidationException, DatabaseException, UIException, show_dialog=True
+    )
     def search_categories(self):
         search_term = validate_string(self.search_input.text().strip(), max_length=50)
         if search_term:
@@ -165,7 +191,9 @@ class CategoryManagementDialog(QDialog):
             self.category_list.clear()
             for category in categories:
                 self.category_list.addItem(category.name)
-            self.update_status(f"Found {len(categories)} categories matching '{search_term}'")
+            self.update_status(
+                f"Found {len(categories)} categories matching '{search_term}'"
+            )
             logger.info(f"Searched categories: {len(categories)} results")
         else:
             self.load_categories()

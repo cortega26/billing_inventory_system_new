@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
 from datetime import datetime
+from typing import Any, Dict, Optional
+
 from utils.exceptions import ValidationException
-from utils.system.logger import logger
 
 
 @dataclass
@@ -36,12 +36,10 @@ class Product:
             raise ValidationException("Sell price cannot be negative")
 
         if self.cost_price > 1000000:
-            raise ValidationException(
-                "Cost price exceeds maximum (1.000.000 CLP)")
+            raise ValidationException("Cost price exceeds maximum (1.000.000 CLP)")
 
         if self.sell_price > 1000000:
-            raise ValidationException(
-                "Sell price exceeds maximum (1.000.000 CLP)")
+            raise ValidationException("Sell price exceeds maximum (1.000.000 CLP)")
 
         if self.barcode:
             self.validate_barcode(self.barcode)
@@ -57,8 +55,7 @@ class Product:
 
         valid_lengths = {8, 12, 13, 14}
         if len(barcode) not in valid_lengths:
-            raise ValidationException(
-                f"Barcode must be one of: {valid_lengths} digits")
+            raise ValidationException(f"Barcode must be one of: {valid_lengths} digits")
 
     def calculate_profit(self) -> int:
         """Calculate profit in Chilean Pesos."""
@@ -71,21 +68,27 @@ class Product:
         return round((self.calculate_profit() / self.sell_price) * 100, 2)
 
     @classmethod
-    def from_db_row(cls, row: Dict[str, Any]) -> 'Product':
+    def from_db_row(cls, row: Dict[str, Any]) -> "Product":
         """Create Product from database row."""
         return cls(
-            id=int(row['id']),
-            name=str(row['name']),
-            description=str(row['description'] or ''),
-            category_id=int(row['category_id']),
-            cost_price=int(row['cost_price'] or 0),
-            sell_price=int(row['sell_price'] or 0),
-            barcode=row.get('barcode'),
-            category_name=row.get('category_name', 'Uncategorized'),
-            created_at=datetime.fromisoformat(
-                row['created_at']) if 'created_at' in row else datetime.now(),
-            updated_at=datetime.fromisoformat(
-                row['updated_at']) if 'updated_at' in row else datetime.now()
+            id=int(row["id"]),
+            name=str(row["name"]),
+            description=str(row["description"] or ""),
+            category_id=int(row["category_id"]),
+            cost_price=int(row["cost_price"] or 0),
+            sell_price=int(row["sell_price"] or 0),
+            barcode=row.get("barcode"),
+            category_name=row.get("category_name", "Uncategorized"),
+            created_at=(
+                datetime.fromisoformat(row["created_at"])
+                if "created_at" in row
+                else datetime.now()
+            ),
+            updated_at=(
+                datetime.fromisoformat(row["updated_at"])
+                if "updated_at" in row
+                else datetime.now()
+            ),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -100,5 +103,5 @@ class Product:
             "sell_price": self.sell_price,
             "barcode": self.barcode,
             "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat()
+            "updated_at": self.updated_at.isoformat(),
         }

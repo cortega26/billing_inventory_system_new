@@ -57,3 +57,11 @@ billing_inventory_system_new.txt
 search.py
 
 
+
+# CI/Test Artifacts
+.coverage
+lint_errors.txt
+ruff_output.txt
+failures.txt
+output.txt
+nonexistent.json

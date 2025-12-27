@@ -1,13 +1,15 @@
-from typing import List, Optional, Dict, Any
+from functools import lru_cache
+from typing import Any, Dict, List, Optional
+
 from database.database_manager import DatabaseManager
 from models.category import Category
-from utils.validation.validators import validate_string, validate_integer
-from utils.sanitizers import sanitize_html, sanitize_sql
 from utils.decorators import db_operation, handle_exceptions
-from utils.exceptions import ValidationException, NotFoundException, DatabaseException
-from utils.system.logger import logger
+from utils.exceptions import DatabaseException, NotFoundException, ValidationException
+from utils.sanitizers import sanitize_html, sanitize_sql
 from utils.system.event_system import event_system
-from functools import lru_cache
+from utils.system.logger import logger
+from utils.validation.validators import validate_integer, validate_string
+
 
 class CategoryService:
     @staticmethod
@@ -21,11 +23,15 @@ class CategoryService:
             cursor = DatabaseManager.execute_query(query, (name,))
             category_id = cursor.lastrowid
             CategoryService.clear_cache()
-            logger.info("Category created", extra={"category_id": category_id, "name": name})
+            logger.info(
+                "Category created", extra={"category_id": category_id, "name": name}
+            )
             event_system.category_added.emit(category_id)
             return category_id
         except Exception as e:
-            logger.error("Failed to create category", extra={"error": str(e), "name": name})
+            logger.error(
+                "Failed to create category", extra={"error": str(e), "name": name}
+            )
             raise DatabaseException(f"Failed to create category: {str(e)}")
 
     @staticmethod
@@ -55,7 +61,9 @@ class CategoryService:
 
     @staticmethod
     @db_operation(show_dialog=True)
-    @handle_exceptions(NotFoundException, ValidationException, DatabaseException, show_dialog=True)
+    @handle_exceptions(
+        NotFoundException, ValidationException, DatabaseException, show_dialog=True
+    )
     def update_category(category_id: int, name: str) -> None:
         category_id = validate_integer(category_id, min_value=1)
         name = validate_string(name, min_length=1, max_length=50)
@@ -66,10 +74,15 @@ class CategoryService:
             if cursor.rowcount == 0:
                 raise NotFoundException(f"Category with ID {category_id} not found")
             CategoryService.clear_cache()
-            logger.info("Category updated", extra={"category_id": category_id, "new_name": name})
+            logger.info(
+                "Category updated", extra={"category_id": category_id, "new_name": name}
+            )
             event_system.category_updated.emit(category_id)
         except Exception as e:
-            logger.error("Failed to update category", extra={"error": str(e), "category_id": category_id})
+            logger.error(
+                "Failed to update category",
+                extra={"error": str(e), "category_id": category_id},
+            )
             raise DatabaseException(f"Failed to update category: {str(e)}")
 
     @staticmethod
@@ -86,7 +99,10 @@ class CategoryService:
             logger.info("Category deleted", extra={"category_id": category_id})
             event_system.category_deleted.emit(category_id)
         except Exception as e:
-            logger.error("Failed to delete category", extra={"error": str(e), "category_id": category_id})
+            logger.error(
+                "Failed to delete category",
+                extra={"error": str(e), "category_id": category_id},
+            )
             raise DatabaseException(f"Failed to delete category: {str(e)}")
 
     @staticmethod
@@ -102,7 +118,10 @@ class CategoryService:
         search_pattern = f"%{sanitize_sql(search_term)}%"
         rows = DatabaseManager.fetch_all(query, (search_pattern,))
         categories = [Category.from_db_row(row) for row in rows]
-        logger.info("Categories searched", extra={"search_term": search_term, "count": len(categories)})
+        logger.info(
+            "Categories searched",
+            extra={"search_term": search_term, "count": len(categories)},
+        )
         return categories
 
     @staticmethod
@@ -130,7 +149,10 @@ class CategoryService:
         WHERE p.category_id = ?
         """
         rows = DatabaseManager.fetch_all(query, (category_id,))
-        logger.info("Products retrieved for category", extra={"category_id": category_id, "count": len(rows)})
+        logger.info(
+            "Products retrieved for category",
+            extra={"category_id": category_id, "count": len(rows)},
+        )
         return rows
 
     @staticmethod

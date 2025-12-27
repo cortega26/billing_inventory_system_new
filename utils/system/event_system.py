@@ -1,6 +1,46 @@
-from PySide6.QtCore import QObject, Signal
-from typing import Any, Callable, Optional, List
+import os
+from typing import Any, Callable, List, Optional
+
 from utils.system.logger import logger
+
+try:
+    if os.environ.get("USE_MOCK_EVENT_SYSTEM"):
+        raise ImportError("Forcing MockEventSystem for tests")
+    from PySide6.QtCore import QObject, Signal
+except ImportError:
+    # Fallback for headless environments/tests
+    logger.warning("PySide6 not found or disabled, using MockEventSystem")
+
+    class QObject:
+        pass
+
+    class MockSignal:
+        def __init__(self, *args):
+            self._slots = []
+
+        def emit(self, *args):
+            logger.debug(f"MockSignal emitted: {args}")
+            for slot in self._slots:
+                try:
+                    slot(*args)
+                except Exception as e:
+                    # Signal emission propagates exceptions in direct connection mode
+                    raise e
+
+        def connect(self, slot):
+            logger.debug(f"MockSignal connected: {slot}")
+            self._slots.append(slot)
+
+        def disconnect(self, slot=None):
+            logger.debug(f"MockSignal disconnected: {slot}")
+            if slot:
+                if slot in self._slots:
+                    self._slots.remove(slot)
+            else:
+                self._slots.clear()
+
+    Signal = MockSignal
+
 
 class EventSystem(QObject):
     """
@@ -11,38 +51,44 @@ class EventSystem(QObject):
     """
 
     # Product-related signals
-    product_added = Signal(int)  # Emits the ID of the added product
-    product_updated = Signal(int)  # Emits the ID of the updated product
-    product_deleted = Signal(int)  # Emits the ID of the deleted product
+    product_added = Signal(object)  # Emits the ID of the added product or data dict
+    product_updated = Signal(object)  # Emits the ID of the updated product or data dict
+    product_deleted = Signal(object)  # Emits the ID of the deleted product
 
     # Purchase-related signals
-    purchase_added = Signal(int)  # Emits the ID of the added purchase
-    purchase_updated = Signal(int)  # Emits the ID of the updated purchase
-    purchase_deleted = Signal(int)  # Emits the ID of the deleted purchase
+    purchase_added = Signal(object)  # Emits the ID of the added purchase
+    purchase_updated = Signal(object)  # Emits the ID of the updated purchase
+    purchase_deleted = Signal(object)  # Emits the ID of the deleted purchase
 
     # Sale-related signals
-    sale_added = Signal(int)  # Emits the ID of the added sale
-    sale_updated = Signal(int)  # Emits the ID of the updated sale
-    sale_deleted = Signal(int)  # Emits the ID of the deleted sale
+    sale_added = Signal(object)  # Emits the ID of the added sale
+    sale_updated = Signal(object)  # Emits the ID of the updated sale
+    sale_deleted = Signal(object)  # Emits the ID of the deleted sale
 
     # Inventory-related signals
-    inventory_changed = Signal(int)  # Emits the ID of the product whose inventory changed
-    inventory_updated = Signal()  # Add if missing
+    inventory_changed = Signal(
+        object
+    )  # Emits the ID of the product whose inventory changed
+    inventory_updated = Signal(object)  # Add if missing
 
     # Customer-related signals
-    customer_added = Signal(int)  # Emits the ID of the added customer
-    customer_updated = Signal(int)  # Emits the ID of the updated customer
-    customer_deleted = Signal(int)  # Emits the ID of the deleted customer
+    customer_added = Signal(object)  # Emits the ID of the added customer
+    customer_updated = Signal(object)  # Emits the ID of the updated customer
+    customer_deleted = Signal(object)  # Emits the ID of the deleted customer
 
     # Category-related signals
-    category_added = Signal(int)  # Emits the ID of the added category
-    category_updated = Signal(int)  # Emits the ID of the updated category
-    category_deleted = Signal(int)  # Emits the ID of the deleted category
+    category_added = Signal(object)  # Emits the ID of the added category
+    category_updated = Signal(object)  # Emits the ID of the updated category
+    category_deleted = Signal(object)  # Emits the ID of the deleted category
 
     # General application signals
     app_settings_changed = Signal(dict)  # Emits a dictionary of changed settings
-    data_import_completed = Signal(bool)  # Emits True if import was successful, False otherwise
-    data_export_completed = Signal(bool)  # Emits True if export was successful, False otherwise
+    data_import_completed = Signal(
+        object
+    )  # Emits True if import was successful, False otherwise
+    data_export_completed = Signal(
+        object
+    )  # Emits True if export was successful, False otherwise
 
     def __init__(self):
         super().__init__()
@@ -100,7 +146,9 @@ class EventSystem(QObject):
         """
         if event_name in self._signal_map:
             self._signal_map[event_name].connect(slot)
-            logger.debug(f"Connected to event: {event_name}", extra={"slot_name": slot.__name__})
+            logger.debug(
+                f"Connected to event: {event_name}", extra={"slot_name": slot.__name__}
+            )
         else:
             logger.error(f"Unknown event: {event_name}")
             raise ValueError(f"Unknown event: {event_name}")
@@ -124,7 +172,10 @@ class EventSystem(QObject):
                 logger.debug(f"Disconnected all slots from event: {event_name}")
             else:
                 self._signal_map[event_name].disconnect(slot)
-                logger.debug(f"Disconnected from event: {event_name}", extra={"slot_name": slot.__name__})
+                logger.debug(
+                    f"Disconnected from event: {event_name}",
+                    extra={"slot_name": slot.__name__},
+                )
         else:
             logger.error(f"Unknown event: {event_name}")
             raise ValueError(f"Unknown event: {event_name}")
@@ -145,6 +196,7 @@ class EventSystem(QObject):
         for signal in self._signal_map.values():
             signal.disconnect()
         logger.info("All event connections cleared")
+
 
 # Global instance of the event system
 event_system = EventSystem()

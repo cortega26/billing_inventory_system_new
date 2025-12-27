@@ -3,26 +3,48 @@
 # Purpose: Correctly handle multi-column bar charts (e.g., for "Profit by Product").
 ###############################################################################
 
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QSpinBox, QTableWidgetItem,
-    QDateEdit, QComboBox, QLineEdit, QFormLayout, QProgressBar, QApplication,
-)
-from PySide6.QtCore import Qt, QDate, QTimer
-from PySide6.QtGui import QPainter, QAction, QKeySequence
+from typing import Any, Dict, List, Optional
+
 from PySide6.QtCharts import (
-    QChart, QChartView, QBarSeries, QBarSet, QValueAxis, QBarCategoryAxis,
-    QLineSeries, QDateTimeAxis, QPieSeries,
+    QBarCategoryAxis,
+    QBarSeries,
+    QBarSet,
+    QChart,
+    QChartView,
+    QDateTimeAxis,
+    QLineSeries,
+    QPieSeries,
+    QValueAxis,
 )
+from PySide6.QtCore import QDate, Qt, QTimer
+from PySide6.QtGui import QAction, QKeySequence, QPainter
+from PySide6.QtWidgets import (
+    QApplication,
+    QComboBox,
+    QDateEdit,
+    QFormLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QProgressBar,
+    QPushButton,
+    QSpinBox,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+
 from services.analytics_service import AnalyticsService
+from utils.decorators import handle_exceptions, ui_operation
+from utils.exceptions import DatabaseException, UIException, ValidationException
 from utils.helpers import create_table, format_price
-from utils.ui.table_items import (
-    NumericTableWidgetItem, PriceTableWidgetItem, PercentageTableWidgetItem,
-)
-from typing import List, Dict, Any, Optional
-from utils.decorators import ui_operation, handle_exceptions
-from utils.exceptions import ValidationException, DatabaseException, UIException
-from utils.validation.validators import validate_date, validate_integer
 from utils.system.logger import logger
+from utils.ui.table_items import (
+    NumericTableWidgetItem,
+    PercentageTableWidgetItem,
+    PriceTableWidgetItem,
+)
+from utils.validation.validators import validate_date, validate_integer
 
 
 class AnalyticsView(QWidget):
@@ -52,15 +74,17 @@ class AnalyticsView(QWidget):
 
         # Analytics type selection
         self.analytics_type = QComboBox()
-        self.analytics_type.addItems([
-            "Sales by Weekday",
-            "Top Selling Products",
-            "Sales Trend",
-            "Category Performance",
-            "Profit by Product",
-            "Profit Trend",
-            "Profit Margin Distribution",
-        ])
+        self.analytics_type.addItems(
+            [
+                "Sales by Weekday",
+                "Top Selling Products",
+                "Sales Trend",
+                "Category Performance",
+                "Profit by Product",
+                "Profit Trend",
+                "Profit Margin Distribution",
+            ]
+        )
         layout.addWidget(QLabel("Select Analysis:"))
         layout.addWidget(self.analytics_type)
 
@@ -115,7 +139,9 @@ class AnalyticsView(QWidget):
         logger.info("Update timer setup completed.")
 
     @ui_operation(show_dialog=True)
-    @handle_exceptions(ValidationException, DatabaseException, UIException, show_dialog=True)
+    @handle_exceptions(
+        ValidationException, DatabaseException, UIException, show_dialog=True
+    )
     def generate_analytics(self):
         self.progress_bar.setValue(0)
         analytics_type = self.analytics_type.currentText()
@@ -126,13 +152,23 @@ class AnalyticsView(QWidget):
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
             analytics_functions = {
-                "Sales by Weekday": lambda: self.show_sales_by_weekday(start_date, end_date),
-                "Top Selling Products": lambda: self.show_top_selling_products(start_date, end_date, top_n),
+                "Sales by Weekday": lambda: self.show_sales_by_weekday(
+                    start_date, end_date
+                ),
+                "Top Selling Products": lambda: self.show_top_selling_products(
+                    start_date, end_date, top_n
+                ),
                 "Sales Trend": lambda: self.show_sales_trend(start_date, end_date),
-                "Category Performance": lambda: self.show_category_performance(start_date, end_date),
-                "Profit by Product": lambda: self.show_profit_by_product(start_date, end_date, top_n),
+                "Category Performance": lambda: self.show_category_performance(
+                    start_date, end_date
+                ),
+                "Profit by Product": lambda: self.show_profit_by_product(
+                    start_date, end_date, top_n
+                ),
                 "Profit Trend": lambda: self.show_profit_trend(start_date, end_date),
-                "Profit Margin Distribution": lambda: self.show_profit_margin_distribution(start_date, end_date),
+                "Profit Margin Distribution": lambda: self.show_profit_margin_distribution(
+                    start_date, end_date
+                ),
             }
 
             if analytics_type in analytics_functions:
@@ -165,7 +201,7 @@ class AnalyticsView(QWidget):
                 x_key="weekday",
                 y_key="total_sales",
                 title="Sales by Weekday",
-                chart_type="bar"
+                chart_type="bar",
             )
             total_sales = sum(day["total_sales"] for day in data)
             avg_daily_sales = total_sales / 7 if len(data) == 7 else 0
@@ -181,21 +217,30 @@ class AnalyticsView(QWidget):
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
     def show_top_selling_products(self, start_date: str, end_date: str, top_n: int):
         try:
-            data = self.analytics_service.get_top_selling_products(start_date, end_date, top_n)
+            data = self.analytics_service.get_top_selling_products(
+                start_date, end_date, top_n
+            )
             self._populate_table_and_chart(
                 data=data,
-                headers=["Product ID", "Product Name", "Total Quantity", "Total Revenue"],
+                headers=[
+                    "Product ID",
+                    "Product Name",
+                    "Total Quantity",
+                    "Total Revenue",
+                ],
                 x_key="name",
                 y_key="total_quantity",
                 title="Top Selling Products",
-                chart_type="bar"
+                chart_type="bar",
             )
             total_quantity = sum(p["total_quantity"] for p in data)
             total_revenue = sum(p["total_revenue"] for p in data)
             self.summary_text.setText(
                 f"Total quantity sold: {total_quantity}, Total revenue: ${total_revenue:.0f}"
             )
-            logger.info(f"Displayed top selling products analysis: {len(data)} products")
+            logger.info(
+                f"Displayed top selling products analysis: {len(data)} products"
+            )
         except Exception as e:
             logger.error(f"Error showing top selling products: {str(e)}")
             raise DatabaseException(f"Failed to show top selling products: {str(e)}")
@@ -211,7 +256,7 @@ class AnalyticsView(QWidget):
                 x_key="date",
                 y_key="daily_sales",
                 title="Sales Trend",
-                chart_type="line"
+                chart_type="line",
             )
             total_sales = sum(day["daily_sales"] for day in data)
             avg_daily_sales = total_sales / len(data) if data else 0
@@ -234,14 +279,16 @@ class AnalyticsView(QWidget):
                 x_key="category",
                 y_key="total_sales",  # Single measure for bar chart
                 title="Category Performance",
-                chart_type="bar"
+                chart_type="bar",
             )
             total_sales = sum(c["total_sales"] for c in data)
             total_products_sold = sum(c["number_of_products_sold"] for c in data)
             self.summary_text.setText(
                 f"Total sales: ${total_sales:.0f}, Total products sold: {total_products_sold}"
             )
-            logger.info(f"Displayed category performance analysis: {len(data)} categories")
+            logger.info(
+                f"Displayed category performance analysis: {len(data)} categories"
+            )
         except Exception as e:
             logger.error(f"Error showing category performance: {str(e)}")
             raise DatabaseException(f"Failed to show category performance: {str(e)}")
@@ -250,22 +297,30 @@ class AnalyticsView(QWidget):
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
     def show_profit_by_product(self, start_date: str, end_date: str, top_n: int):
         """
-        Example of a multi-column bar chart: 
+        Example of a multi-column bar chart:
         We'll display total_revenue, total_cost, total_profit side-by-side
-        for each product. 
+        for each product.
         """
         try:
-            data = self.analytics_service.get_profit_by_product(start_date, end_date, top_n)
+            data = self.analytics_service.get_profit_by_product(
+                start_date, end_date, top_n
+            )
             # data typically includes: p["total_revenue"], p["total_cost"], p["total_profit"]
             # We'll pass an additional 'metrics' list so we can do multiple bar sets:
             self._populate_table_and_chart(
                 data=data,
-                headers=["Product ID", "Product Name", "Total Revenue", "Total Cost", "Total Profit"],
+                headers=[
+                    "Product ID",
+                    "Product Name",
+                    "Total Revenue",
+                    "Total Cost",
+                    "Total Profit",
+                ],
                 x_key="name",
                 y_key=None,  # We won't use single y_key
                 title="Profit by Product",
                 chart_type="bar",
-                metrics=["total_revenue", "total_cost", "total_profit"]
+                metrics=["total_revenue", "total_cost", "total_profit"],
             )
             total_revenue = sum(p["total_revenue"] for p in data)
             total_profit = sum(p["total_profit"] for p in data)
@@ -288,7 +343,7 @@ class AnalyticsView(QWidget):
                 x_key="date",
                 y_key="daily_profit",
                 title="Profit Trend",
-                chart_type="line"
+                chart_type="line",
             )
             total_revenue = sum(day["daily_revenue"] for day in data)
             total_profit = sum(day["daily_profit"] for day in data)
@@ -304,25 +359,35 @@ class AnalyticsView(QWidget):
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
     def show_profit_margin_distribution(self, start_date: str, end_date: str):
         try:
-            data = self.analytics_service.get_profit_margin_distribution(start_date, end_date)
+            data = self.analytics_service.get_profit_margin_distribution(
+                start_date, end_date
+            )
             self._populate_table_and_chart(
                 data=data,
                 headers=["Margin Range", "Product Count", "Average Margin"],
                 x_key="margin_range",
                 y_key="product_count",
                 title="Profit Margin Distribution",
-                chart_type="pie"
+                chart_type="pie",
             )
             total_products = sum(d["product_count"] for d in data)
-            weighted_avg_margin = sum(d["product_count"] * d["average_margin"] for d in data) / total_products if total_products > 0 else 0
+            weighted_avg_margin = (
+                sum(d["product_count"] * d["average_margin"] for d in data)
+                / total_products
+                if total_products > 0
+                else 0
+            )
             self.summary_text.setText(
                 f"Total products: {total_products}, Weighted average profit margin: {weighted_avg_margin:.2f}%"
             )
-            logger.info(f"Displayed profit margin distribution analysis: {len(data)} ranges")
+            logger.info(
+                f"Displayed profit margin distribution analysis: {len(data)} ranges"
+            )
         except Exception as e:
             logger.error(f"Error showing profit margin distribution: {str(e)}")
-            raise DatabaseException(f"Failed to show profit margin distribution: {str(e)}")
-
+            raise DatabaseException(
+                f"Failed to show profit margin distribution: {str(e)}"
+            )
 
     ############################################################################
     # The updated _populate_table_and_chart to handle multi-column bars
@@ -335,13 +400,13 @@ class AnalyticsView(QWidget):
         y_key: Optional[str],
         title: str,
         chart_type: str = "bar",
-        metrics: Optional[List[str]] = None
+        metrics: Optional[List[str]] = None,
     ):
         """
         Populates the result_table with 'headers', then displays a chart in chart_view.
         If 'metrics' is specified (only relevant for 'bar' chart), we plot each metric
         as a separate QBarSet => side-by-side bars for each category in data.
-        
+
         If 'metrics' is None, we use 'y_key' as a single measure for the chart.
         """
 
@@ -356,7 +421,10 @@ class AnalyticsView(QWidget):
                 value = item.get(key, "")
                 if isinstance(value, (int, float)):
                     lower_header = header.lower()
-                    if any(lower_header.endswith(s) for s in ["price", "revenue", "sales", "profit"]):
+                    if any(
+                        lower_header.endswith(s)
+                        for s in ["price", "revenue", "sales", "profit"]
+                    ):
                         self.result_table.setItem(
                             row_idx, col_idx, PriceTableWidgetItem(value, format_price)
                         )
@@ -369,7 +437,9 @@ class AnalyticsView(QWidget):
                             row_idx, col_idx, NumericTableWidgetItem(value)
                         )
                 else:
-                    self.result_table.setItem(row_idx, col_idx, QTableWidgetItem(str(value)))
+                    self.result_table.setItem(
+                        row_idx, col_idx, QTableWidgetItem(str(value))
+                    )
 
         # 2) Create the chart
         chart = QChart()
@@ -423,7 +493,9 @@ class AnalyticsView(QWidget):
             for item in data:
                 date_obj = QDate.fromString(item[x_key], "yyyy-MM-dd")
                 if y_key is not None:
-                    series.append(date_obj.startOfDay().toMSecsSinceEpoch(), item[y_key])
+                    series.append(
+                        date_obj.startOfDay().toMSecsSinceEpoch(), item[y_key]
+                    )
             chart.addSeries(series)
 
             axis_x = QDateTimeAxis()

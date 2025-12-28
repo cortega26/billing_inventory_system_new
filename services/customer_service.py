@@ -167,7 +167,7 @@ class CustomerService:
         """
         row = DatabaseManager.fetch_one(query, (customer_id,))
         if not row:
-            logger.warning("Customer not found", extra={"customer_id": customer_id})
+            logger.debug("Customer not found", extra={"customer_id": customer_id})
             return None
         logger.debug("Customer retrieved", extra={"customer_id": customer_id})
         return Customer.from_db_row(row)

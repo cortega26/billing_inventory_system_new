@@ -25,14 +25,14 @@ class AddEditCategoryDialog(QDialog):
         super().__init__(parent)
         self.category = category
         self.category_service = CategoryService()
-        self.setWindowTitle("Add Category" if category is None else "Edit Category")
+        self.setWindowTitle("Agregar Categoría" if category is None else "Editar Categoría")
         self.setup_ui()
 
     def setup_ui(self):
         layout = QFormLayout(self)
 
         self.name_input = QLineEdit(self.category.name if self.category else "")
-        layout.addRow("Category Name:", self.name_input)
+        layout.addRow("Nombre de Categoría:", self.name_input)
 
         self.button_box = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -63,7 +63,7 @@ class CategoryManagementDialog(QDialog):
         super().__init__(parent)
         self.category_service = CategoryService()
         self.setup_ui()
-        self.setWindowTitle("Category Management")
+        self.setWindowTitle("Gestión de Categorías")
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
@@ -71,8 +71,8 @@ class CategoryManagementDialog(QDialog):
         # Search bar
         search_layout = QHBoxLayout()
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Search categories...")
-        search_button = QPushButton("Search")
+        self.search_input.setPlaceholderText("Buscar categorías...")
+        search_button = QPushButton("Buscar")
         search_button.clicked.connect(self.search_categories)
         search_layout.addWidget(self.search_input)
         search_layout.addWidget(search_button)
@@ -84,11 +84,11 @@ class CategoryManagementDialog(QDialog):
 
         # Buttons
         button_layout = QHBoxLayout()
-        add_button = QPushButton("Add Category")
+        add_button = QPushButton("Agregar Categoría")
         add_button.clicked.connect(self.add_category)
-        edit_button = QPushButton("Edit Category")
+        edit_button = QPushButton("Editar Categoría")
         edit_button.clicked.connect(self.edit_category)
-        delete_button = QPushButton("Delete Category")
+        delete_button = QPushButton("Eliminar Categoría")
         delete_button.clicked.connect(self.delete_category)
 
         button_layout.addWidget(add_button)
@@ -111,7 +111,7 @@ class CategoryManagementDialog(QDialog):
             categories = self.category_service.get_all_categories()
             for category in categories:
                 self.category_list.addItem(category.name)
-            self.update_status(f"Loaded {len(categories)} categories")
+            self.update_status(f"Cargadas {len(categories)} categorías")
             logger.info(f"Loaded {len(categories)} categories")
         except Exception as e:
             logger.error(f"Error loading categories: {str(e)}")
@@ -125,7 +125,7 @@ class CategoryManagementDialog(QDialog):
         dialog = AddEditCategoryDialog(self)
         if dialog.exec():
             self.load_categories()
-            show_info_message("Success", "Category added successfully.")
+            show_info_message("Éxito", "Categoría agregada exitosamente.")
             event_system.category_added.emit()
             logger.info("New category added")
 
@@ -141,13 +141,13 @@ class CategoryManagementDialog(QDialog):
                 dialog = AddEditCategoryDialog(self, category)
                 if dialog.exec():
                     self.load_categories()
-                    show_info_message("Success", "Category updated successfully.")
+                    show_info_message("Éxito", "Categoría actualizada exitosamente.")
                     event_system.category_updated.emit(category.id)
                     logger.info(f"Category updated: ID {category.id}")
             else:
-                raise ValidationException(f"Category '{current_item.text()}' not found")
+                raise ValidationException(f"Categoría '{current_item.text()}' no encontrada")
         else:
-            raise ValidationException("Please select a category to edit.")
+            raise ValidationException("Por favor seleccione una categoría para editar.")
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(
@@ -158,8 +158,8 @@ class CategoryManagementDialog(QDialog):
         if current_item:
             reply = QMessageBox.question(
                 self,
-                "Delete Category",
-                f"Are you sure you want to delete the category '{current_item.text()}'?",
+                "Eliminar Categoría",
+                f"¿Está seguro que desea eliminar la categoría '{current_item.text()}'?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
             )
@@ -170,15 +170,15 @@ class CategoryManagementDialog(QDialog):
                 if category:
                     self.category_service.delete_category(category.id)
                     self.load_categories()
-                    show_info_message("Success", "Category deleted successfully.")
+                    show_info_message("Éxito", "Categoría eliminada exitosamente.")
                     event_system.category_deleted.emit(category.id)
                     logger.info(f"Category deleted: ID {category.id}")
                 else:
                     raise ValidationException(
-                        f"Category '{current_item.text()}' not found"
+                        f"Categoría '{current_item.text()}' no encontrada"
                     )
         else:
-            raise ValidationException("Please select a category to delete.")
+            raise ValidationException("Por favor seleccione una categoría para eliminar.")
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(
@@ -192,7 +192,7 @@ class CategoryManagementDialog(QDialog):
             for category in categories:
                 self.category_list.addItem(category.name)
             self.update_status(
-                f"Found {len(categories)} categories matching '{search_term}'"
+                f"Encontradas {len(categories)} categorías coincidiendo con '{search_term}'"
             )
             logger.info(f"Searched categories: {len(categories)} results")
         else:

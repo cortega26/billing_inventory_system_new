@@ -95,4 +95,10 @@ CREATE TABLE IF NOT EXISTS inventory_adjustments (
 
 -- Add composite indexes for frequently joined queries
 CREATE INDEX IF NOT EXISTS idx_sale_items_composite ON sale_items(sale_id, product_id);
-CREATE INDEX IF NOT EXISTS idx_sales_date_customer ON sales(date, customer_id); 
+CREATE INDEX IF NOT EXISTS idx_sales_date_customer ON sales(date, customer_id);
+
+-- Performance Indexes
+CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode);
+CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
+CREATE INDEX IF NOT EXISTS idx_sale_items_product_id ON sale_items(product_id);
+CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(date); 

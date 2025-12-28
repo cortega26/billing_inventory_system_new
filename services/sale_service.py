@@ -3,14 +3,12 @@ from datetime import datetime, timedelta
 from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-
 from database.database_manager import DatabaseManager
 from models.sale import Sale, SaleItem
 from services.customer_service import CustomerService
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
+from services.receipt_service import ReceiptService
 from models.enums import QUANTITY_PRECISION, MAX_SALE_ITEMS, EDIT_WINDOW_HOURS
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import DatabaseException, NotFoundException, ValidationException
@@ -22,6 +20,7 @@ from utils.validation.validators import (
     validate_integer,
     validate_string,
 )
+from utils.math.financial_calculator import FinancialCalculator
 
 
 class SaleService:
@@ -29,6 +28,7 @@ class SaleService:
         self.inventory_service = InventoryService()
         self.customer_service = CustomerService()
         self.product_service = ProductService()
+        self.receipt_service = ReceiptService()
 
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
@@ -87,7 +87,7 @@ class SaleService:
                 # item["profit"] is already quantity * (unit_price - cost_price)
 
                 # Sum up sale totals
-                total_amount += int(round(qty * unit_price))
+                total_amount += FinancialCalculator.calculate_item_total(qty, unit_price)
                 total_profit += int(item["profit"])
 
             # generate receipt ID from date
@@ -107,7 +107,8 @@ class SaleService:
             # 5) Emit the event => the UI's Sales Tab is presumably listening for this
             event_system.sale_added.emit(sale_id)
 
-            self._update_inventory(items)
+            # 5) Inventory update - consolidated
+            InventoryService.apply_batch_updates(items, multiplier=-1.0)
 
             # 6) Clear the cached get_all_sales
             SaleService.get_all_sales.cache_clear()
@@ -243,7 +244,7 @@ class SaleService:
         sale_id = validate_integer(sale_id, min_value=1)
         items = self.get_sale_items(sale_id)
 
-        self._revert_inventory(items)
+        InventoryService.apply_batch_updates(items, multiplier=1.0)
 
         try:
             DatabaseManager.execute_query(
@@ -283,7 +284,7 @@ class SaleService:
         old_items = self.get_sale_items(sale_id)
 
         # Revert previous inventory changes
-        self._revert_inventory(old_items)
+        InventoryService.apply_batch_updates(old_items, multiplier=1.0)
 
         total_amount = 0
         total_profit = 0
@@ -298,9 +299,9 @@ class SaleService:
                     f"Cost/Sell price not set for product '{product.name}'"
                 )
 
-            item_total = round(item["quantity"] * item["sell_price"])
-            item_profit = round(
-                item["quantity"] * (item["sell_price"] - product.cost_price)
+            item_total = FinancialCalculator.calculate_item_total(item["quantity"], item["sell_price"])
+            item_profit = FinancialCalculator.calculate_item_profit(
+                item["quantity"], item["sell_price"], product.cost_price
             )
 
             total_amount += item_total
@@ -308,7 +309,7 @@ class SaleService:
 
         self._update_sale(sale_id, customer_id, date, total_amount, total_profit)
         self._update_sale_items(sale_id, items)
-        self._update_inventory(items)
+        InventoryService.apply_batch_updates(items, multiplier=-1.0)
 
         logger.info(
             "Sale updated", extra={"sale_id": sale_id, "customer_id": customer_id}
@@ -455,58 +456,19 @@ class SaleService:
     def save_receipt_as_pdf(self, sale_id: int, filepath: str) -> None:
         sale_id = validate_integer(sale_id, min_value=1)
         filepath = validate_string(filepath, max_length=255)
+        
         sale = self.get_sale(sale_id)
         if not sale:
             raise ValidationException(f"Sale with ID {sale_id} not found.")
 
         items = self.get_sale_items(sale_id)
-
-        c = canvas.Canvas(filepath, pagesize=letter)
-        width, height = letter
-
-        # Set up the document
-        c.setFont("Helvetica-Bold", 16)
-        c.drawString(50, height - 50, f"Receipt #{sale.receipt_id}")
-
-        c.setFont("Helvetica", 12)
-        c.drawString(50, height - 80, f"Date: {sale.date.strftime('%Y-%m-%d')}")
-        c.drawString(50, height - 100, f"Customer ID: {sale.customer_id}")
-
-        # Draw items
-        y = height - 150
-        c.drawString(50, y, "Product")
-        c.drawString(250, y, "Quantity")
-        c.drawString(350, y, "Price")
-        c.drawString(450, y, "Total")
-
-        y -= 20
-        for item in items:
-            c.drawString(50, y, item.product_name or f"Product ID: {item.product_id}")
-            c.drawString(250, y, str(item.quantity))
-            c.drawString(350, y, f"${item.unit_price:,}".replace(",", "."))
-            c.drawString(450, y, f"${item.total_price():,}".replace(",", "."))
-            y -= 20
-
-        c.drawString(350, y - 20, "Total:")
-        c.drawString(450, y - 20, f"${sale.total_amount:,}".replace(",", "."))
-
-        c.drawString(350, y - 40, "Profit:")
-        c.drawString(450, y - 40, f"${sale.total_profit:,}".replace(",", "."))
-
-        c.save()
-        logger.info(
-            "Receipt saved as PDF", extra={"sale_id": sale_id, "filepath": filepath}
-        )
+        
+        # Delegate to ReceiptService
+        self.receipt_service.generate_pdf(sale, items, filepath)
 
     @handle_exceptions(DatabaseException, show_dialog=True)
     def send_receipt_via_whatsapp(self, sale_id: int, phone_number: str) -> None:
-        sale_id = validate_integer(sale_id, min_value=1)
-        phone_number = validate_string(phone_number, max_length=20)
-        # This is a placeholder. You'll need to implement the actual WhatsApp API integration.
-        logger.info(
-            "Sending receipt via WhatsApp",
-            extra={"sale_id": sale_id, "phone_number": phone_number},
-        )
+        self.receipt_service.send_via_whatsapp(sale_id, phone_number)
 
     def clear_cache(self):
         """Clear the sale cache."""
@@ -557,19 +519,7 @@ class SaleService:
                 ),
             )
 
-    def _update_inventory(self, items: List[Dict[str, Any]]) -> None:
-        for item in items:
-            # Ensure float for quantity
-            quantity_change = -abs(float(item["quantity"]))
-            self.inventory_service.update_quantity(item["product_id"], quantity_change)
-            logger.debug(
-                f"Updating inventory for product {item['product_id']}, change: {quantity_change}"
-            )
-
-    @staticmethod
-    def _revert_inventory(items: List[SaleItem]) -> None:
-        for item in items:
-            InventoryService.update_quantity(item.product_id, item.quantity)
+    # _update_inventory and _revert_inventory removed in favor of InventoryService.apply_batch_updates
 
     @staticmethod
     @db_operation(show_dialog=True)
@@ -776,7 +726,7 @@ class SaleService:
 
     def calculate_total_amount(self, items: List[Dict[str, Any]]) -> int:
         """Calculate total amount for a sale."""
-        return sum(int(item["quantity"] * item["sell_price"]) for item in items)
+        return sum(FinancialCalculator.calculate_item_total(item["quantity"], item["sell_price"]) for item in items)
 
     def calculate_total_profit(self, items: List[Dict[str, Any]]) -> int:
         """Calculate total profit for a sale."""

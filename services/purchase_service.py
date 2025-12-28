@@ -14,6 +14,7 @@ from utils.validation.validators import (
     validate_integer,
     validate_string,
 )
+from utils.math.financial_calculator import FinancialCalculator
 
 
 class PurchaseService:
@@ -29,7 +30,7 @@ class PurchaseService:
 
         # Calculate total amount with proper integer handling for money
         total_amount = sum(
-            int(round(item["quantity"] * item["cost_price"])) for item in items
+            FinancialCalculator.calculate_item_total(item["quantity"], item["cost_price"]) for item in items
         )
 
         purchase_id = PurchaseService._insert_purchase(supplier, date, total_amount)
@@ -38,7 +39,7 @@ class PurchaseService:
             raise ValidationException("Failed to create purchase record")
 
         PurchaseService._insert_purchase_items(purchase_id, items)
-        PurchaseService._update_inventory(items)
+        InventoryService.apply_batch_updates(items, multiplier=1.0)
 
         logger.info(
             "Purchase created",
@@ -97,8 +98,7 @@ class PurchaseService:
         purchase_id = validate_integer(purchase_id, min_value=1)
         items = PurchaseService.get_purchase_items(purchase_id)
 
-        for item in items:
-            InventoryService.update_quantity(item.product_id, -item.quantity)
+        InventoryService.apply_batch_updates(items, multiplier=-1.0)
 
         DatabaseManager.execute_query(
             "DELETE FROM purchase_items WHERE purchase_id = ?", (purchase_id,)
@@ -133,16 +133,16 @@ class PurchaseService:
         PurchaseService._validate_purchase_items(items)
 
         old_items = PurchaseService.get_purchase_items(purchase_id)
-        PurchaseService._revert_inventory(old_items)
+        InventoryService.apply_batch_updates(old_items, multiplier=-1.0)
 
         # Calculate total with proper rounding for money values
         total_amount = sum(
-            int(round(item["quantity"] * item["cost_price"])) for item in items
+            FinancialCalculator.calculate_item_total(item["quantity"], item["cost_price"]) for item in items
         )
 
         PurchaseService._update_purchase(purchase_id, supplier, date, total_amount)
         PurchaseService._update_purchase_items(purchase_id, items)
-        PurchaseService._update_inventory(items)
+        InventoryService.apply_batch_updates(items, multiplier=1.0)
 
         logger.info(
             "Purchase updated",
@@ -210,17 +210,7 @@ class PurchaseService:
                 update_query, (item["cost_price"], item["product_id"])
             )
 
-    @staticmethod
-    def _update_inventory(items: List[Dict[str, Any]]) -> None:
-        for item in items:
-            quantity = round(float(item["quantity"]), QUANTITY_PRECISION)
-            InventoryService.update_quantity(item["product_id"], quantity)
-
-    @staticmethod
-    def _revert_inventory(items: List[PurchaseItem]) -> None:
-        for item in items:
-            quantity = -round(float(item.quantity), QUANTITY_PRECISION)
-            InventoryService.update_quantity(item.product_id, quantity)
+    # _update_inventory and _revert_inventory removed in favor of InventoryService.apply_batch_updates
 
     @staticmethod
     @db_operation(show_dialog=True)
@@ -363,10 +353,7 @@ class PurchaseService:
         )
         return top_suppliers
 
-    @staticmethod
-    def void_purchase(purchase_id: int) -> None:
-        """Alias for delete_purchase for backward compatibility."""
-        PurchaseService.delete_purchase(purchase_id)
+    # void_purchase removed (alias for delete_purchase)
 
     @staticmethod
     @db_operation(show_dialog=True)
@@ -379,19 +366,7 @@ class PurchaseService:
             purchase.items = PurchaseService.get_purchase_items(purchase.id)
         return purchases
 
-    @staticmethod
-    @db_operation(show_dialog=True)
-    def update_purchase_reference(purchase_id: int, reference: str) -> None:
-        """Update the reference ID of a purchase."""
-        # Note: references table call or column might be missing?
-        # Assuming purchases table has reference_id column?
-        # If not, this will crash. Test likely requires schema change or mocked expectation.
-        # But schema.sql usually defines "reference_no" or similar.
-        # Let's assume schema has it or we add it.
-        # If schema doesn't have it, we can't implement it easily without migration.
-        # For now, let's try to update 'reference_id' if test expects it.
-        # But if standard Purchase model doesn't have it...
-        pass
+    # update_purchase_reference removed (unimplemented)
 
     @staticmethod
     @db_operation(show_dialog=True)

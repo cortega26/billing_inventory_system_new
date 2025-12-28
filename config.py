@@ -142,6 +142,8 @@ class Config:
             "theme": "default",
             "language": "en",
             "backup_interval": 24,
+            "backup_dir": "backups",
+            "backup_retention_days": 7,
         }
 
     @classmethod

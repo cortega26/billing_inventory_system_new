@@ -23,6 +23,37 @@ from utils.validation.validators import (
 
 class InventoryService:
     @staticmethod
+    def apply_batch_updates(items: List[Any], multiplier: float = 1.0) -> None:
+        """
+        Apply inventory updates for a batch of items.
+        
+        Args:
+            items: List of dicts (with 'product_id', 'quantity') or objects (with attributes).
+            multiplier: 1.0 for adding to inventory (Purchase), -1.0 for removing (Sale).
+        """
+        for item in items:
+            # Handle dict or object
+            if isinstance(item, dict):
+                p_id = item.get("product_id")
+                qty = item.get("quantity")
+            else:
+                p_id = getattr(item, "product_id", None)
+                qty = getattr(item, "quantity", None)
+            
+            if p_id is None or qty is None:
+                logger.warning(f"Skipping invalid item in batch update: {item}")
+                continue
+
+            try:
+                change = abs(float(qty)) * multiplier
+                InventoryService.update_quantity(p_id, change)
+            except ValidationException:
+                raise
+            except Exception as e:
+                logger.error(f"Failed to update inventory for product {p_id}: {str(e)}")
+                raise ValidationException(f"Inventory update failed for product {p_id}: {str(e)}")
+
+    @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def update_quantity(product_id: int, quantity_change: float) -> None:
@@ -156,7 +187,7 @@ class InventoryService:
 
         InventoryService._modify_inventory(product_id, new_quantity, action=InventoryAction.UPDATE)
 
-        event_system.inventory_updated.emit()
+        event_system.inventory_changed.emit(product_id)
         InventoryService.clear_cache()
         logger.info(
             "Inventory quantity set",
@@ -318,13 +349,16 @@ class InventoryService:
         return turnover_ratios
 
     @staticmethod
-    def get_low_stock_products() -> List[Dict[str, Any]]:
+    def get_low_stock_products(threshold: int = 10) -> List[Dict[str, Any]]:
         query = """
             SELECT p.id, p.name, i.quantity
             FROM products p
             JOIN inventory i ON p.id = i.product_id
-            WHERE i.quantity < 10
+            WHERE i.quantity < ?
         """
-        products = DatabaseManager.fetch_all(query)
-        logger.debug("Retrieved low stock products", extra={"count": len(products)})
+        products = DatabaseManager.fetch_all(query, (threshold,))
+        logger.debug(
+            "Retrieved low stock products",
+            extra={"count": len(products), "threshold": threshold},
+        )
         return products

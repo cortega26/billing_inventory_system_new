@@ -47,7 +47,7 @@ class PurchaseItemDialog(QDialog):
     def __init__(self, product, parent=None):
         super().__init__(parent)
         self.product = product
-        self.setWindowTitle(f"Add {product.name}")
+        self.setWindowTitle(f"Agregar {product.name}")
         self.setup_ui()
 
         # Focus quantity input by default
@@ -60,8 +60,8 @@ class PurchaseItemDialog(QDialog):
         # Product info
         product_info = QLabel(f"{self.product.name}")
         if self.product.barcode:
-            product_info.setToolTip(f"Barcode: {self.product.barcode}")
-        layout.addRow("Product:", product_info)
+            product_info.setToolTip(f"Código de Barras: {self.product.barcode}")
+        layout.addRow("Producto:", product_info)
 
         # Quantity input
         self.quantity_input = QDoubleSpinBox()
@@ -70,7 +70,7 @@ class PurchaseItemDialog(QDialog):
         self.quantity_input.setDecimals(3)
         self.quantity_input.setValue(1.00)
         self.quantity_input.valueChanged.connect(self.update_total)
-        layout.addRow("Quantity:", self.quantity_input)
+        layout.addRow("Cantidad:", self.quantity_input)
 
         # Cost price input
         self.cost_price_input = QDoubleSpinBox()
@@ -80,7 +80,7 @@ class PurchaseItemDialog(QDialog):
         if self.product.cost_price:
             self.cost_price_input.setValue(self.product.cost_price)
         self.cost_price_input.valueChanged.connect(self.update_total)
-        layout.addRow("Cost Price:", self.cost_price_input)
+        layout.addRow("Precio Costo:", self.cost_price_input)
 
         # Total preview
         self.total_label = QLabel("0")
@@ -148,7 +148,7 @@ class PurchaseView(QWidget):
         # Input fields
         input_layout = QHBoxLayout()
         self.supplier_input = QLineEdit()
-        self.supplier_input.setPlaceholderText("Enter supplier name")
+        self.supplier_input.setPlaceholderText("Ingrese nombre del proveedor")
 
         self.date_input = QDateEdit()
         self.date_input.setDate(QDate.currentDate())
@@ -159,25 +159,25 @@ class PurchaseView(QWidget):
 
         # Barcode input
         self.barcode_input = QLineEdit()
-        self.barcode_input.setPlaceholderText("Scan barcode...")
+        self.barcode_input.setPlaceholderText("Escanear código...")
         self.barcode_input.returnPressed.connect(self.handle_barcode_scan)
         self.barcode_input.textChanged.connect(self.handle_barcode_input)
 
         # Manual search
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Search products...")
-        search_button = QPushButton("Search")
+        self.search_input.setPlaceholderText("Buscar productos...")
+        search_button = QPushButton("Buscar")
         search_button.clicked.connect(self.search_products)
 
-        barcode_layout.addWidget(QLabel("Barcode:"))
+        barcode_layout.addWidget(QLabel("Código de Barras:"))
         barcode_layout.addWidget(self.barcode_input)
-        barcode_layout.addWidget(QLabel("Manual Search:"))
+        barcode_layout.addWidget(QLabel("Búsqueda Manual:"))
         barcode_layout.addWidget(self.search_input)
         barcode_layout.addWidget(search_button)
 
-        input_layout.addWidget(QLabel("Supplier:"))
+        input_layout.addWidget(QLabel("Proveedor:"))
         input_layout.addWidget(self.supplier_input)
-        input_layout.addWidget(QLabel("Date:"))
+        input_layout.addWidget(QLabel("Fecha:"))
         input_layout.addWidget(self.date_input)
 
         layout.addLayout(input_layout)
@@ -185,7 +185,7 @@ class PurchaseView(QWidget):
 
         # Purchase items table
         self.purchase_items_table = create_table(
-            ["Product ID", "Product Name", "Quantity", "Cost Price", "Total", "Actions"]
+            ["ID Producto", "Producto", "Cantidad", "Precio Costo", "Total", "Acciones"]
         )
         self.purchase_items_table.setSelectionBehavior(
             QAbstractItemView.SelectionBehavior.SelectRows
@@ -205,10 +205,10 @@ class PurchaseView(QWidget):
 
         # Action buttons
         button_layout = QHBoxLayout()
-        complete_button = QPushButton("Complete Purchase")
+        complete_button = QPushButton("Completar Compra")
         complete_button.clicked.connect(self.complete_purchase)
         complete_button.setStyleSheet("background-color: #4CAF50; color: white;")
-        cancel_button = QPushButton("Cancel")
+        cancel_button = QPushButton("Cancelar")
         cancel_button.clicked.connect(self.clear_purchase)
         cancel_button.setStyleSheet("background-color: #f44336; color: white;")
         button_layout.addWidget(complete_button)
@@ -217,7 +217,7 @@ class PurchaseView(QWidget):
 
         # Purchase history table
         self.purchase_table = create_table(
-            ["ID", "Supplier", "Date", "Total Amount", "Actions"]
+            ["ID", "Proveedor", "Fecha", "Monto Total", "Acciones"]
         )
         self.purchase_table.setSelectionBehavior(
             QAbstractItemView.SelectionBehavior.SelectRows
@@ -261,7 +261,7 @@ class PurchaseView(QWidget):
         complete_shortcut.activated.connect(self.complete_purchase)
 
         # Refresh (F5)
-        refresh_shortcut = QAction("Refresh", self)
+        refresh_shortcut = QAction("Actualizar", self)
         refresh_shortcut.setShortcut(QKeySequence("F5"))
         refresh_shortcut.triggered.connect(self.load_purchases)
         self.addAction(refresh_shortcut)
@@ -297,10 +297,10 @@ class PurchaseView(QWidget):
                 # Visual feedback for error
                 self.barcode_input.setStyleSheet("background-color: #ffebee;")
                 QTimer.singleShot(1000, lambda: self.barcode_input.setStyleSheet(""))
-                show_error_message("Error", f"No product found with barcode: {barcode}")
+                show_error_message("Error", f"No se encontró producto con código: {barcode}")
         except Exception as e:
             logger.error(f"Error processing barcode: {str(e)}")
-            show_error_message("Error", f"Failed to process barcode: {str(e)}")
+            show_error_message("Error", f"Error procesando código de barras: {str(e)}")
         finally:
             self.barcode_input.clear()
 
@@ -339,7 +339,7 @@ class PurchaseView(QWidget):
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(0, 0, 0, 0)
 
-            remove_button = QPushButton("Remove")
+            remove_button = QPushButton("Eliminar")
             remove_button.clicked.connect(lambda _, i=row: self.remove_purchase_item(i))
             remove_button.setMaximumWidth(60)
             actions_layout.addWidget(remove_button)
@@ -369,10 +369,10 @@ class PurchaseView(QWidget):
             self.supplier_input.text().strip(), min_length=1, max_length=100
         )
         if not supplier:
-            raise ValidationException("Please enter a supplier name")
+            raise ValidationException("Por favor ingrese nombre del proveedor")
 
         if not self.purchase_items:
-            raise ValidationException("Please add at least one item to the purchase")
+            raise ValidationException("Por favor agregue al menos un item a la compra")
 
         try:
             date_str = self.date_input.date().toString("yyyy-MM-dd")
@@ -383,11 +383,11 @@ class PurchaseView(QWidget):
             if purchase_id:
                 self.load_purchases()
                 self.clear_purchase()
-                show_info_message("Success", "Purchase completed successfully")
+                show_info_message("Éxito", "Compra completada exitosamente")
                 event_system.purchase_added.emit(purchase_id)
                 self.purchase_updated.emit()
             else:
-                raise DatabaseException("Failed to create purchase")
+                raise DatabaseException("Falló al crear compra")
 
         except Exception as e:
             logger.error(f"Error completing purchase: {str(e)}")
@@ -411,13 +411,13 @@ class PurchaseView(QWidget):
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(0, 0, 0, 0)
 
-            view_button = QPushButton("View")
+            view_button = QPushButton("Ver")
             view_button.clicked.connect(lambda _, p=purchase: self.view_purchase(p))
-            view_button.setToolTip("View purchase details")
+            view_button.setToolTip("Ver detalles de compra")
 
-            delete_button = QPushButton("Delete")
+            delete_button = QPushButton("Eliminar")
             delete_button.clicked.connect(lambda _, p=purchase: self.delete_purchase(p))
-            delete_button.setToolTip("Delete this purchase")
+            delete_button.setToolTip("Eliminar esta compra")
 
             for btn in [view_button, delete_button]:
                 btn.setMaximumWidth(60)
@@ -454,7 +454,7 @@ class PurchaseView(QWidget):
             products = self.product_service.search_products(search_term)
             if not products:
                 show_error_message(
-                    "Not Found", "No products found matching the search term"
+                    "No Encontrado", "No se encontraron productos coincidentes"
                 )
                 return
 
@@ -479,17 +479,17 @@ class PurchaseView(QWidget):
     def show_product_selection_dialog(self, products: List[Any]) -> Optional[Any]:
         """Show dialog for selecting from multiple matching products."""
         dialog = QDialog(self)
-        dialog.setWindowTitle("Select Product")
+        dialog.setWindowTitle("Seleccionar Producto")
         layout = QVBoxLayout(dialog)
 
         product_list = QComboBox()
         for product in products:
             display_text = f"{product.name}"
             if product.barcode:
-                display_text += f" (Barcode: {product.barcode})"
+                display_text += f" (Código de Barras: {product.barcode})"
             product_list.addItem(display_text, product)
 
-        layout.addWidget(QLabel("Select a product:"))
+        layout.addWidget(QLabel("Seleccione un producto:"))
         layout.addWidget(product_list)
 
         button_box = QDialogButtonBox(
@@ -506,8 +506,8 @@ class PurchaseView(QWidget):
     def show_context_menu(self, position):
         """Show context menu for purchases table."""
         menu = QMenu()
-        view_action = menu.addAction("View")
-        delete_action = menu.addAction("Delete")
+        view_action = menu.addAction("Ver")
+        delete_action = menu.addAction("Eliminar")
 
         action = menu.exec(self.purchase_table.mapToGlobal(position))
         if action:
@@ -521,7 +521,7 @@ class PurchaseView(QWidget):
                 elif action == delete_action:
                     self.delete_purchase(purchase)
             else:
-                show_error_message("Error", f"Purchase with ID {purchase_id} not found")
+                show_error_message("Error", f"Compra con ID {purchase_id} no encontrada")
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(
@@ -533,18 +533,18 @@ class PurchaseView(QWidget):
             items = self.purchase_service.get_purchase_items(purchase.id)
 
             message = "<pre>"
-            message += f"{' Purchase Details ':=^64}\n\n"
-            message += f"Supplier: {purchase.supplier}\n"
-            message += f"Date: {purchase.date.strftime('%d-%m-%Y')}\n"
+            message += f"{' Detalles de Compra ':=^64}\n\n"
+            message += f"Proveedor: {purchase.supplier}\n"
+            message += f"Fecha: {purchase.date.strftime('%d-%m-%Y')}\n"
             message += f"{'':=^64}\n\n"
             message += (
-                f"{'Product':<30}{'Quantity':>10}{'Unit Cost':>12}{'Total':>12}\n"
+                f"{'Producto':<30}{'Cant.':>10}{'Costo Unit.':>12}{'Total':>12}\n"
             )
             message += f"{'':-^64}\n"
 
             for item in items:
                 product = self.product_service.get_product(item.product_id)
-                product_name = product.name if product else "Unknown Product"
+                product_name = product.name if product else "Producto Desconocido"
                 total = item.quantity * item.price
                 message += f"{product_name[:30]:<30}{item.quantity:>10.2f}{format_price(item.price):>12}{format_price(total):>12}\n"
 
@@ -552,7 +552,7 @@ class PurchaseView(QWidget):
             message += f"{'Total:':<45}{format_price(purchase.total_amount):>19}\n"
             message += "</pre>"
 
-            show_info_message("Purchase Details", message)
+            show_info_message("Detalles de Compra", message)
 
         except Exception as e:
             logger.error(f"Error viewing purchase: {str(e)}")
@@ -566,8 +566,8 @@ class PurchaseView(QWidget):
         """Delete a purchase."""
         reply = QMessageBox.question(
             self,
-            "Delete Purchase",
-            "Are you sure you want to delete this purchase? This action cannot be undone.",
+            "Eliminar Compra",
+            "¿Está seguro que desea eliminar esta compra? Esta acción no se puede deshacer.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -576,7 +576,7 @@ class PurchaseView(QWidget):
             try:
                 self.purchase_service.delete_purchase(purchase.id)
                 self.load_purchases()
-                show_info_message("Success", "Purchase deleted successfully")
+                show_info_message("Éxito", "Compra eliminada exitosamente")
                 event_system.purchase_deleted.emit(purchase.id)
                 self.purchase_updated.emit()
             except Exception as e:

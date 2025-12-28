@@ -58,7 +58,7 @@ class EditProductDialog(QDialog):
         super().__init__(parent)
         self.product = product
         self.categories = categories
-        self.setWindowTitle("Edit Product" if product else "Add Product")
+        self.setWindowTitle("Editar Producto" if product else "Agregar Producto")
         self.setup_ui()
 
     def setup_ui(self):
@@ -73,7 +73,7 @@ class EditProductDialog(QDialog):
         )
 
         self.category_combo = QComboBox()
-        self.category_combo.addItem("Uncategorized", None)
+        self.category_combo.addItem("Sin Categoría", None)
         for category in self.categories:
             self.category_combo.addItem(category.name, category.id)
         if self.product and self.product.category_id:
@@ -97,15 +97,15 @@ class EditProductDialog(QDialog):
             else 0
         )
 
-        layout.addRow("Name:", self.name_input)
-        layout.addRow("Description:", self.description_input)
-        layout.addRow("Barcode:", self.barcode_input)
-        layout.addRow("Category:", self.category_combo)
-        layout.addRow("Cost Price:", self.cost_price_input)
-        layout.addRow("Sell Price:", self.sell_price_input)
+        layout.addRow("Nombre:", self.name_input)
+        layout.addRow("Descripción:", self.description_input)
+        layout.addRow("Código de Barras:", self.barcode_input)
+        layout.addRow("Categoría:", self.category_combo)
+        layout.addRow("Precio Costo:", self.cost_price_input)
+        layout.addRow("Precio Venta:", self.sell_price_input)
 
         # Add help text for barcode
-        barcode_help = QLabel("Optional - Must be 8, 12, 13, or 14 digits if provided")
+        barcode_help = QLabel("Opcional - Debe tener 8, 12, 13 o 14 dígitos si se ingresa")
         barcode_help.setStyleSheet("color: gray; font-size: 10px;")
         layout.addRow("", barcode_help)
 
@@ -164,9 +164,9 @@ class ProductView(QWidget):
         # Search bar
         search_layout = QHBoxLayout()
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Search products...")
+        self.search_input.setPlaceholderText("Buscar productos...")
         self.search_input.returnPressed.connect(self.search_products)
-        search_button = QPushButton("Search")
+        search_button = QPushButton("Buscar")
         search_button.clicked.connect(self.search_products)
         search_layout.addWidget(self.search_input)
         search_layout.addWidget(search_button)
@@ -175,10 +175,10 @@ class ProductView(QWidget):
         # Category filter
         filter_layout = QHBoxLayout()
         self.category_filter = QComboBox()
-        self.category_filter.addItem("All Categories", None)
+        self.category_filter.addItem("Todas las Categorías", None)
         self.load_categories()
         self.category_filter.currentIndexChanged.connect(self.on_category_changed)
-        filter_layout.addWidget(QLabel("Filter by Category:"))
+        filter_layout.addWidget(QLabel("Filtrar por Categoría:"))
         filter_layout.addWidget(self.category_filter)
         layout.addLayout(filter_layout)
 
@@ -186,13 +186,13 @@ class ProductView(QWidget):
         self.product_table = create_table(
             [
                 "ID",
-                "Name",
-                "Description",
-                "Category",
-                "Cost Price",
-                "Sell Price",
-                "Profit Margin",
-                "Actions",
+                "Nombre",
+                "Descripción",
+                "Categoría",
+                "Precio Costo",
+                "Precio Venta",
+                "Margen Ganancia",
+                "Acciones",
             ]
         )
         self.product_table.horizontalHeader().setSectionResizeMode(
@@ -209,10 +209,10 @@ class ProductView(QWidget):
 
         # Buttons
         button_layout = QHBoxLayout()
-        add_button = QPushButton("Add Product")
+        add_button = QPushButton("Agregar Producto")
         add_button.clicked.connect(self.add_product)
-        add_button.setToolTip("Add a new product (Ctrl+N)")
-        manage_categories_button = QPushButton("Manage Categories")
+        add_button.setToolTip("Agregar nuevo producto (Ctrl+N)")
+        manage_categories_button = QPushButton("Gestionar Categorías")
         manage_categories_button.clicked.connect(self.manage_categories)
         button_layout.addWidget(add_button)
         button_layout.addWidget(manage_categories_button)
@@ -236,12 +236,12 @@ class ProductView(QWidget):
         event_system.product_deleted.connect(self.load_products)
 
     def setup_shortcuts(self):
-        add_shortcut = QAction("Add Product", self)
+        add_shortcut = QAction("Agregar Producto", self)
         add_shortcut.setShortcut(QKeySequence("Ctrl+N"))
         add_shortcut.triggered.connect(self.add_product)
         self.addAction(add_shortcut)
 
-        refresh_shortcut = QAction("Refresh", self)
+        refresh_shortcut = QAction("Actualizar", self)
         refresh_shortcut.setShortcut(QKeySequence("F5"))
         refresh_shortcut.triggered.connect(self.load_products)
         self.addAction(refresh_shortcut)
@@ -266,7 +266,7 @@ class ProductView(QWidget):
         try:
             categories = self.category_service.get_all_categories()
             self.category_filter.clear()
-            self.category_filter.addItem("All Categories", None)
+            self.category_filter.addItem("Todas las Categorías", None)
             for category in categories:
                 self.category_filter.addItem(category.name, category.id)
             logger.info("Categories loaded successfully")
@@ -318,7 +318,7 @@ class ProductView(QWidget):
                     self.product_table.setItem(
                         row,
                         3,
-                        QTableWidgetItem(product.category_name or "Uncategorized"),
+                        QTableWidgetItem(product.category_name or "Sin Categoría"),
                     )
                     self.product_table.setItem(
                         row,
@@ -349,13 +349,13 @@ class ProductView(QWidget):
                     actions_layout = QHBoxLayout(actions_widget)
                     actions_layout.setContentsMargins(0, 0, 0, 0)
 
-                    edit_button = QPushButton("Edit")
+                    edit_button = QPushButton("Editar")
                     edit_button.setFixedWidth(80)
                     edit_button.clicked.connect(
                         lambda _, p=product: self.edit_product(p)
                     )
 
-                    delete_button = QPushButton("Delete")
+                    delete_button = QPushButton("Eliminar")
                     delete_button.setFixedWidth(80)
                     delete_button.clicked.connect(
                         lambda _, p=product: self.delete_product(p)
@@ -400,7 +400,7 @@ class ProductView(QWidget):
                     fresh_products = self.product_service.get_all_products()
                     self.filter_products(products=fresh_products)
 
-                    show_info_message("Success", "Product added successfully.")
+                    show_info_message("Éxito", "Producto agregado exitosamente.")
                     event_system.product_added.emit(product_id)
                     self.product_updated.emit()
                     logger.info(f"Product added successfully: ID {product_id}")
@@ -435,7 +435,7 @@ class ProductView(QWidget):
                     fresh_products = self.product_service.get_all_products()
                     self.filter_products(products=fresh_products)
 
-                    show_info_message("Success", "Product updated successfully.")
+                    show_info_message("Éxito", "Producto actualizado exitosamente.")
                     event_system.product_updated.emit(product.id)
                     self.product_updated.emit()
                     logger.info(f"Product updated successfully: ID {product.id}")
@@ -453,8 +453,8 @@ class ProductView(QWidget):
         try:
             reply = QMessageBox.question(
                 self,
-                "Delete Product",
-                f"Are you sure you want to delete product {product.name}?",
+                "Eliminar Producto",
+                f"¿Está seguro que desea eliminar el producto {product.name}?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
             )
@@ -468,7 +468,7 @@ class ProductView(QWidget):
                     fresh_products = self.product_service.get_all_products()
                     self.filter_products(products=fresh_products)
 
-                    show_info_message("Success", "Product deleted successfully.")
+                    show_info_message("Éxito", "Producto eliminado exitosamente.")
                     event_system.product_deleted.emit(product.id)
                     self.product_updated.emit()
                     logger.info(f"Product deleted successfully: ID {product.id}")
@@ -542,7 +542,7 @@ class ProductView(QWidget):
             self.filter_products(products=fresh_products)
         except Exception as e:
             logger.error(f"Error in refresh: {str(e)}")
-            show_error_message("Error", "Failed to refresh products")
+            show_error_message("Error", "Falló al actualizar lista de productos")
         finally:
             QApplication.restoreOverrideCursor()
 
@@ -572,9 +572,9 @@ class ProductView(QWidget):
                 return
 
             menu = QMenu()
-            edit_action = menu.addAction("Edit")
-            delete_action = menu.addAction("Delete")
-            refresh_action = menu.addAction("Refresh")
+            edit_action = menu.addAction("Editar")
+            delete_action = menu.addAction("Eliminar")
+            refresh_action = menu.addAction("Actualizar")
 
             action = menu.exec(self.product_table.mapToGlobal(position))
             if action:
@@ -608,7 +608,7 @@ class ProductView(QWidget):
                     self.filter_products()
                 else:
                     show_error_message(
-                        "Error", f"Product with ID {product_id} not found."
+                        "Error", f"No se encontró producto con ID {product_id}"
                     )
 
     @ui_operation(show_dialog=True)

@@ -44,7 +44,7 @@ class EditCustomerDialog(QDialog):
     def __init__(self, customer: Optional[Customer], parent=None):
         super().__init__(parent)
         self.customer = customer
-        self.setWindowTitle("Edit Customer" if customer else "Add Customer")
+        self.setWindowTitle("Editar Cliente" if customer else "Agregar Cliente")
         self.setup_ui()
 
     def setup_ui(self):
@@ -54,26 +54,26 @@ class EditCustomerDialog(QDialog):
         self.identifier_9_input = QLineEdit(
             self.customer.identifier_9 if self.customer else ""
         )
-        self.identifier_9_input.setPlaceholderText("Enter 9-digit identifier")
-        layout.addRow("9-digit Identifier:", self.identifier_9_input)
+        self.identifier_9_input.setPlaceholderText("Ingrese identificador 9 dígitos")
+        layout.addRow("Identificador 9 dígitos:", self.identifier_9_input)
 
         # 3 or 4-digit identifier
         self.identifier_3or4_input = QLineEdit(
             self.customer.identifier_3or4 or "" if self.customer else ""
         )
         self.identifier_3or4_input.setPlaceholderText(
-            "Enter 3 or 4-digit identifier (optional)"
+            "Ingrese identificador 3 o 4 dígitos (opcional)"
         )
-        layout.addRow("3 or 4-digit Identifier:", self.identifier_3or4_input)
+        layout.addRow("Identificador 3 o 4 dígitos:", self.identifier_3or4_input)
 
         # Name field
         self.name_input = QLineEdit(self.customer.name or "" if self.customer else "")
-        self.name_input.setPlaceholderText("Enter customer name (optional)")
-        layout.addRow("Name:", self.name_input)
+        self.name_input.setPlaceholderText("Ingrese nombre (opcional)")
+        layout.addRow("Nombre:", self.name_input)
 
         # Add help text for name requirements
         name_help = QLabel(
-            "Name can contain letters, accented characters, and spaces (max 50 chars)"
+            "El nombre puede contener letras, tildes y espacios (máx 50 carac.)"
         )
         name_help.setStyleSheet("color: gray; font-size: 10px;")
         layout.addRow("", name_help)
@@ -153,9 +153,9 @@ class CustomerView(QWidget):
         # Search field
         search_layout = QHBoxLayout()
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Search by ID or name...")
+        self.search_input.setPlaceholderText("Buscar por ID o nombre...")
         self.search_input.returnPressed.connect(self.search_customers)
-        search_button = QPushButton("Search")
+        search_button = QPushButton("Buscar")
         search_button.clicked.connect(self.search_customers)
         search_layout.addWidget(self.search_input)
         search_layout.addWidget(search_button)
@@ -165,12 +165,12 @@ class CustomerView(QWidget):
         self.customer_table = create_table(
             [
                 "ID",
-                "9-digit Identifier",
-                "3 or 4-digit Identifier",
-                "Name",
-                "Total Purchases",
-                "Total Amount",
-                "Actions",
+                "Identificador 9",
+                "Identificador 3/4",
+                "Nombre",
+                "Compras Totales",
+                "Monto Total",
+                "Acciones",
             ]
         )
         self.customer_table.setSelectionBehavior(
@@ -185,9 +185,9 @@ class CustomerView(QWidget):
         layout.addWidget(self.customer_table)
 
         # Add customer button
-        add_button = QPushButton("Add Customer")
+        add_button = QPushButton("Agregar Cliente")
         add_button.clicked.connect(self.add_customer)
-        add_button.setToolTip("Add a new customer (Ctrl+N)")
+        add_button.setToolTip("Agregar nuevo cliente (Ctrl+N)")
         layout.addWidget(add_button)
 
         self.load_customers()
@@ -201,12 +201,12 @@ class CustomerView(QWidget):
         event_system.customer_deleted.connect(self.load_customers)
 
     def setup_shortcuts(self):
-        add_shortcut = QAction("Add Customer", self)
+        add_shortcut = QAction("Agregar Cliente", self)
         add_shortcut.setShortcut(QKeySequence("Ctrl+N"))
         add_shortcut.triggered.connect(self.add_customer)
         self.addAction(add_shortcut)
 
-        refresh_shortcut = QAction("Refresh", self)
+        refresh_shortcut = QAction("Actualizar", self)
         refresh_shortcut.setShortcut(QKeySequence("F5"))
         refresh_shortcut.triggered.connect(self.load_customers)
         self.addAction(refresh_shortcut)
@@ -236,37 +236,6 @@ class CustomerView(QWidget):
 
         finally:
             QApplication.restoreOverrideCursor()
-
-        """
-        try:
-            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-
-            # [New Log 2] Log that we're about to force cache clear (if you do that)
-            self.customer_service.clear_cache()
-            logger.debug("(load_customers) Cache cleared before fetching all customers")
-
-            # [New Log 3] Log the call to get all customers
-            logger.debug("(load_customers) Calling get_all_customers() now")
-            customers = self.customer_service.get_all_customers()
-
-            # [New Log 4] Log how many customers were fetched
-            logger.debug(f"(load_customers) Received {len(customers)} customers from DB")
-
-            # 1) Clear the table first (in case it was partially populated)
-            self.customer_table.setRowCount(0)
-
-            # 2) Populate
-            logger.debug("(load_customers) About to populate_customer_table(...)")
-            self.populate_customer_table(customers)
-            logger.debug("(load_customers) Finished populate_customer_table(...)")
-
-        except Exception as e:
-            logger.error(f"(load_customers) Error loading customers: {str(e)}", exc_info=True)
-            raise UIException(f"Failed to load customers: {str(e)}")
-
-        finally:
-            QApplication.restoreOverrideCursor()
-        """
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(UIException, show_dialog=True)
@@ -346,13 +315,13 @@ class CustomerView(QWidget):
                     actions_layout = QHBoxLayout(actions_widget)
                     actions_layout.setContentsMargins(0, 0, 0, 0)
 
-                    edit_button = QPushButton("Edit")
+                    edit_button = QPushButton("Editar")
                     edit_button.setFixedWidth(50)
                     edit_button.clicked.connect(
                         lambda _, cid=cust.id: self.edit_customer_by_id(cid)
                     )
 
-                    delete_button = QPushButton("Delete")
+                    delete_button = QPushButton("Eliminar")
                     delete_button.setFixedWidth(50)
                     delete_button.clicked.connect(
                         lambda _, cid=cust.id: self.delete_customer_by_id(cid)
@@ -400,7 +369,7 @@ class CustomerView(QWidget):
         try:
             customer = self.customer_service.get_customer(customer_id)
             if not customer:
-                show_error_message("Error", f"No customer found with ID={customer_id}")
+                show_error_message("Error", f"No se encontró el cliente con ID={customer_id}")
                 return
 
             dialog = EditCustomerDialog(customer, self)
@@ -418,7 +387,7 @@ class CustomerView(QWidget):
                     try:
                         validate_string(new_name, max_length=50)
                     except ValidationException as e:
-                        show_error_message("Validation Error", str(e))
+                        show_error_message("Error de Validación", str(e))
                         return
 
                 # Update the customer
@@ -430,7 +399,7 @@ class CustomerView(QWidget):
                 )
 
                 self.load_customers()
-                show_info_message("Success", "Customer updated successfully.")
+                show_info_message("Éxito", "Cliente actualizado exitosamente.")
                 event_system.customer_updated.emit(customer.id)
                 self.customer_updated.emit()
                 logger.info(f"Customer updated successfully: ID {customer.id}")
@@ -457,15 +426,15 @@ class CustomerView(QWidget):
             display_name = customer.get_display_name()
             reply = QMessageBox.question(
                 self,
-                "Delete Customer",
-                f"Are you sure you want to delete customer {display_name}?",
+                "Eliminar Cliente",
+                f"¿Está seguro que desea eliminar al cliente {display_name}?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
             )
             if reply == QMessageBox.StandardButton.Yes:
                 self.customer_service.delete_customer(customer_id)
                 self.load_customers()
-                show_info_message("Success", "Customer deleted successfully.")
+                show_info_message("Éxito", "Cliente eliminado exitosamente.")
                 event_system.customer_deleted.emit(customer_id)
                 self.customer_updated.emit()
                 logger.info(f"Customer deleted successfully: ID {customer_id}")
@@ -490,7 +459,7 @@ class CustomerView(QWidget):
                 )
                 if customer_id is not None:
                     self.load_customers()
-                    show_info_message("Success", "Customer added successfully.")
+                    show_info_message("Éxito", "Cliente agregado exitosamente.")
                     event_system.customer_added.emit(customer_id)
                     self.customer_updated.emit()
                     logger.info(f"Customer added successfully: ID {customer_id}")
@@ -512,7 +481,6 @@ class CustomerView(QWidget):
         if customer is None:
             raise ValidationException("No customer selected for editing.")
 
-        # *** new log statement ***
         logger.debug(
             f"[edit_customer] Starting edit for Customer ID={customer.id}, current name='{customer.name}'"
         )
@@ -524,7 +492,6 @@ class CustomerView(QWidget):
                 # If user typed nothing, keep old name
                 if not new_name:
                     new_name = customer.name
-                    # *** new log statement ***
                     logger.debug(
                         f"[edit_customer] User left name blank; reusing old name='{new_name}'"
                     )
@@ -536,14 +503,13 @@ class CustomerView(QWidget):
                     identifier_3or4=dialog.identifier_3or4_input.text().strip() or None,
                 )
 
-                # *** new log statement ***
                 logger.debug(
                     f"[edit_customer] Done updating DB for ID={customer.id}, calling load_customers() next"
                 )
 
                 self.load_customers()
 
-                show_info_message("Success", "Customer updated successfully.")
+                show_info_message("Éxito", "Cliente actualizado exitosamente.")
                 event_system.customer_updated.emit(customer.id)
                 self.customer_updated.emit()
                 logger.info(f"Customer updated successfully: ID {customer.id}")
@@ -565,8 +531,8 @@ class CustomerView(QWidget):
         display_name = customer.get_display_name()
         reply = QMessageBox.question(
             self,
-            "Delete Customer",
-            f"Are you sure you want to delete customer {display_name}?",
+            "Eliminar Cliente",
+            f"¿Está seguro que desea eliminar al cliente {display_name}?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -574,7 +540,7 @@ class CustomerView(QWidget):
             try:
                 self.customer_service.delete_customer(customer.id)
                 self.load_customers()
-                show_info_message("Success", "Customer deleted successfully.")
+                show_info_message("Éxito", "Cliente eliminado exitosamente.")
                 event_system.customer_deleted.emit(customer.id)
                 self.customer_updated.emit()
                 logger.info(f"Customer deleted successfully: ID {customer.id}")
@@ -602,8 +568,8 @@ class CustomerView(QWidget):
 
     def show_context_menu(self, position):
         menu = QMenu()
-        edit_action = menu.addAction("Edit")
-        delete_action = menu.addAction("Delete")
+        edit_action = menu.addAction("Editar")
+        delete_action = menu.addAction("Eliminar")
 
         action = menu.exec(self.customer_table.mapToGlobal(position))
         if action:
@@ -618,7 +584,7 @@ class CustomerView(QWidget):
                     self.delete_customer(customer)
             else:
                 show_error_message(
-                    "Error", f"Customer with ID {customer_id} not found."
+                    "Error", f"No se encontró cliente con ID {customer_id}."
                 )
 
     def refresh(self):

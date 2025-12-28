@@ -29,6 +29,10 @@ class ProductService:
 
         if "barcode" not in validated_data:
             validated_data["barcode"] = None
+        if "category_id" not in validated_data:
+            validated_data["category_id"] = None
+        if "description" not in validated_data:
+            validated_data["description"] = None
 
         try:
             DatabaseManager.begin_transaction()
@@ -60,25 +64,12 @@ class ProductService:
                     extra={"product_id": product_id, "name": validated_data["name"]},
                 )
 
-                # Emit events with a small delay to ensure database operations complete
+                # Emit events directly
                 try:
-                    import sys
-
-                    if "pytest" in sys.modules:
-                        # raise ImportError("Skipping QTimer in tests")
-                        pass
-                    else:
-                        from PySide6.QtCore import QTimer
-
-                        QTimer.singleShot(
-                            50, lambda: event_system.product_added.emit(product_id)
-                        )
-                        QTimer.singleShot(
-                            100, lambda: event_system.inventory_changed.emit(product_id)
-                        )
-                except ImportError:
-                    logger.warning("PySide6 not found, skipping event emission delays")
-                    pass
+                    event_system.product_added.emit(product_id)
+                    event_system.inventory_changed.emit(product_id)
+                except Exception as e:
+                    logger.warning(f"Failed to emit events for product creation: {e}")
 
                 return product_id
             else:

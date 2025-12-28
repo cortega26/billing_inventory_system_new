@@ -104,18 +104,7 @@ class TestPurchaseService:
         assert len(history) == 1
         assert history[0].supplier == sample_purchase_data["supplier"]
 
-    def test_void_purchase(
-        self, purchase_service, sample_purchase_data, inventory_service, sample_product
-    ):
-        # Create purchase
-        purchase_id = purchase_service.create_purchase(**sample_purchase_data)
-
-        # Void purchase
-        purchase_service.void_purchase(purchase_id)
-
-        # Verify inventory was updated
-        inventory = inventory_service.get_inventory(sample_product.id)
-        assert inventory.quantity == 0.0
+    # test_void_purchase removed as the method is deprecated/removed
 
     def test_get_supplier_purchases(self, purchase_service, sample_purchase_data):
         # Create purchase

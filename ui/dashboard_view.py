@@ -19,7 +19,13 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QVBoxLayout,
     QWidget,
+    QTableWidget,
+    QTableWidgetItem,
+    QHeaderView,
 )
+
+from utils.helpers import create_table, format_price
+from utils.ui.table_items import NumericTableWidgetItem
 
 from services.analytics_service import AnalyticsService
 from services.customer_service import CustomerService
@@ -37,13 +43,22 @@ class MetricWidget(QFrame):
         super().__init__()
         self.value_func = value_func
         self.setFrameShape(QFrame.Shape.Box)
-        self.setStyleSheet("QFrame { border: 1px solid #cccccc; border-radius: 5px; }")
+        # Global stylesheet handles default QFrame border/radius now if we used QFrame class,
+        # but to ensure it looks like a card we can keep specific style or move to class.
+        # Let's use a class property for cleaner separation
+        self.setProperty("class", "card")
 
         layout = QVBoxLayout(self)
         self.label_widget = QLabel(label)
         self.label_widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.value_widget = QLabel()
         self.value_widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # Increase font size for value
+        font = self.value_widget.font()
+        font.setPointSize(16)
+        font.setBold(True)
+        self.value_widget.setFont(font)
 
         layout.addWidget(self.label_widget)
         layout.addWidget(self.value_widget)
@@ -82,15 +97,16 @@ class DashboardView(QWidget):
 
         # Top row with key metrics
         metrics_layout = QHBoxLayout()
-        metrics_layout.addWidget(MetricWidget("Total Sales", self.get_total_sales))
-        metrics_layout.addWidget(MetricWidget("Total Profits", self.get_total_profits))
+        metrics_layout.addWidget(MetricWidget("Ventas Totales", self.get_total_sales))
+        metrics_layout.addWidget(MetricWidget("Ganancia Total", self.get_total_profits))
         metrics_layout.addWidget(
-            MetricWidget("Inventory Value", self.get_inventory_value)
+            MetricWidget("Valor Inventario", self.get_inventory_value)
         )
-        metrics_layout.addWidget(MetricWidget("Profit Margin", self.get_profit_margin))
+        metrics_layout.addWidget(MetricWidget("Margen Ganancia", self.get_profit_margin))
+        metrics_layout.addWidget(MetricWidget("Ventas de Hoy", self.get_todays_sales))
         layout.addLayout(metrics_layout)
 
-        # Charts row
+        # Middle row: Charts
         self.charts_layout = QHBoxLayout()
         self.profit_trend_chart_view = self.create_profit_trend_chart()
         self.top_products_chart_view = self.create_top_products_chart()
@@ -107,8 +123,27 @@ class DashboardView(QWidget):
         self.charts_layout.addWidget(self.profit_trend_chart_view, 1)
         self.charts_layout.addWidget(self.top_products_chart_view, 1)
 
+
+
         layout.addLayout(self.charts_layout)
+
+        # Bottom row: Low Stock Alerts
+        low_stock_layout = QVBoxLayout()
+        low_stock_label = QLabel("Alerta Stock Bajo (< 10 unidades)")
+        low_stock_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        low_stock_layout.addWidget(low_stock_label)
+
+        self.low_stock_table = create_table(["ID", "Producto", "Cantidad"])
+        self.low_stock_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        self.low_stock_table.setMinimumHeight(150)
+        low_stock_layout.addWidget(self.low_stock_table)
+        
+        layout.addLayout(low_stock_layout)
+
         self.setLayout(layout)
+        
+        # Initial load of low stock
+        self.update_low_stock()
 
     def update_dashboard(self):
         try:
@@ -134,6 +169,11 @@ class DashboardView(QWidget):
 
             self.profit_trend_chart_view = new_profit_trend_chart
             self.top_products_chart_view = new_top_products_chart
+
+
+
+            # Update low stock
+            self.update_low_stock()
 
             logger.info("Dashboard updated successfully")
         except Exception as e:
@@ -177,24 +217,51 @@ class DashboardView(QWidget):
         if total_sales > 0:
             profit_margin = (total_profits / total_sales) * 100
             return f"{profit_margin:.2f}%"
-        return "0.00%"
+    @ui_operation()
+    def get_todays_sales(self) -> str:
+        today = datetime.now().strftime("%Y-%m-%d")
+        todays_sales = self.sale_service.get_total_sales(today, today)
+        return f"${todays_sales:,.0f}".replace(",", ".")
+
+    @ui_operation()
+    def update_low_stock(self):
+        try:
+            low_stock_items = self.inventory_service.get_low_stock_products(threshold=10)
+            self.low_stock_table.setRowCount(0)
+            self.low_stock_table.setRowCount(len(low_stock_items))
+            
+            for row, item in enumerate(low_stock_items):
+                self.low_stock_table.setItem(row, 0, NumericTableWidgetItem(item["id"]))
+                self.low_stock_table.setItem(row, 1, QTableWidgetItem(item["name"]))
+                self.low_stock_table.setItem(row, 2, NumericTableWidgetItem(item["quantity"]))
+                
+                # Highlight critical stock
+                if item["quantity"] <= 3:
+                     from ui.styles import DesignTokens
+                     from PySide6.QtGui import QColor
+                     for col in range(3):
+                        item_widget = self.low_stock_table.item(row, col)
+                        item_widget.setBackground(QColor(DesignTokens.COLOR_ERROR))
+                        item_widget.setForeground(QColor("white"))
+
+        except Exception as e:
+            logger.error(f"Error updating low stock: {e}")
 
     @ui_operation()
     def create_profit_trend_chart(self):
         chart = QChart()
-        chart.setTitle("Weekly Profit Trend (Last 4 Weeks)")
+        chart.setTitle("Tendencia Ganancia Semanal (4 sem)")
         weekly_profit_trend = self.analytics_service.get_weekly_profit_trend(
             self.start_date.strftime("%Y-%m-%d"), self.end_date.strftime("%Y-%m-%d")
         )
 
         # Handle the case of empty data
         if not weekly_profit_trend:
-            chart.setTitle("Weekly Profit Trend (No Data)")
+            chart.setTitle("Tendencia Ganancia Semanal (Sin Datos)")
             return QChartView(chart)
 
         series = QBarSeries()
-        bar_set = QBarSet("Weekly Profit")
-        axis_x = QBarCategoryAxis()
+        bar_set = QBarSet("Ganancia Semanal")
         weeks = []
 
         for data in weekly_profit_trend:
@@ -207,6 +274,7 @@ class DashboardView(QWidget):
         series.append(bar_set)
         chart.addSeries(series)
 
+        axis_x = QBarCategoryAxis()
         axis_x.append(weeks)
         chart.addAxis(axis_x, Qt.AlignmentFlag.AlignBottom)
         series.attachAxis(axis_x)
@@ -239,7 +307,7 @@ class DashboardView(QWidget):
     @ui_operation()
     def create_top_products_chart(self):
         chart = QChart()
-        chart.setTitle("Top 5 Profitable Products")
+        chart.setTitle("Top 5 Productos Rentables")
         top_products = self.analytics_service.get_profit_by_product(
             self.start_date.strftime("%Y-%m-%d"),
             self.end_date.strftime("%Y-%m-%d"),
@@ -248,11 +316,11 @@ class DashboardView(QWidget):
 
         # Handle the case of empty data
         if not top_products:
-            chart.setTitle("Top 5 Profitable Products (No Data)")
+            chart.setTitle("Top 5 Productos Rentables (Sin Datos)")
             return QChartView(chart)
 
         series = QBarSeries()
-        bar_set = QBarSet("Profit")
+        bar_set = QBarSet("Ganancia")
         categories = []
 
         for product in top_products:

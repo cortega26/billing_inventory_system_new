@@ -4,7 +4,12 @@ import sqlite3
 from contextlib import contextmanager
 from typing import Any, Dict, List, Tuple, Union
 
+import time
 from utils.exceptions import DatabaseException
+from utils.system.logger import logger
+
+SLOW_QUERY_THRESHOLD_MS = 50
+
 
 
 class DatabaseManager:
@@ -60,7 +65,12 @@ class DatabaseManager:
     def fetch_one(cls, query: str, params: Union[tuple, Dict[str, Any]] = ()):
         try:
             cursor = cls._get_cursor()
+            start_time = time.perf_counter()
             cursor.execute(query, params)
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            if duration_ms > SLOW_QUERY_THRESHOLD_MS:
+                logger.warning(f"Slow query ({duration_ms:.2f}ms): {query}")
+            
             row = cursor.fetchone()
             return dict(row) if row else None
         except Exception as e:
@@ -72,7 +82,12 @@ class DatabaseManager:
     def fetch_all(cls, query: str, params: Union[tuple, Dict[str, Any]] = ()):
         try:
             cursor = cls._get_cursor()
+            start_time = time.perf_counter()
             cursor.execute(query, params)
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            if duration_ms > SLOW_QUERY_THRESHOLD_MS:
+                logger.warning(f"Slow query ({duration_ms:.2f}ms): {query}")
+            
             return [dict(row) for row in cursor.fetchall()]
         except Exception as e:
             if isinstance(e, DatabaseException):
@@ -90,7 +105,12 @@ class DatabaseManager:
             raise DatabaseException("No active database connection")
         try:
             cursor = cls._get_cursor()
+            start_time = time.perf_counter()
             cursor.execute(query, params)
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            if duration_ms > SLOW_QUERY_THRESHOLD_MS:
+                logger.warning(f"Slow query ({duration_ms:.2f}ms): {query}")
+            
             cls._connection.commit()
             return cursor
         except Exception as e:

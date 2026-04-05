@@ -17,6 +17,7 @@ class Application:
         try:
             init_db()
             from services.backup_service import backup_service
+
             backup_service.start_scheduler()
         except DatabaseException as e:
             logger.critical(f"Failed to initialize database: {e}")
@@ -31,8 +32,9 @@ class Application:
 if __name__ == "__main__":
     # Create QApplication first to ensure UI elemens (like error dialogs) can be created
     app = QApplication(sys.argv)
-    
+
     from ui.styles import apply_theme
+
     apply_theme(app)
 
     try:

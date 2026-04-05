@@ -28,7 +28,7 @@ class InventoryService:
     ) -> None:
         """
         Apply inventory updates for a batch of items.
-        
+
         Args:
             items: List of dicts (with 'product_id', 'quantity') or objects (with attributes).
             multiplier: 1.0 for adding to inventory (Purchase), -1.0 for removing (Sale).
@@ -42,7 +42,7 @@ class InventoryService:
             else:
                 p_id = getattr(item, "product_id", None)
                 qty = getattr(item, "quantity", None)
-            
+
             if p_id is None or qty is None:
                 logger.warning(f"Skipping invalid item in batch update: {item}")
                 continue
@@ -52,14 +52,14 @@ class InventoryService:
                 if emit_events:
                     InventoryService.update_quantity(p_id, change)
                 else:
-                    InventoryService.update_quantity(
-                        p_id, change, emit_events=False
-                    )
+                    InventoryService.update_quantity(p_id, change, emit_events=False)
             except ValidationException:
                 raise
             except Exception as e:
                 logger.error(f"Failed to update inventory for product {p_id}: {str(e)}")
-                raise ValidationException(f"Inventory update failed for product {p_id}: {str(e)}")
+                raise ValidationException(
+                    f"Inventory update failed for product {p_id}: {str(e)}"
+                )
 
     @staticmethod
     @db_operation(show_dialog=True)
@@ -77,7 +77,9 @@ class InventoryService:
 
         if inventory:
             # Round to precision
-            new_quantity = round(inventory.quantity + quantity_change, QUANTITY_PRECISION)
+            new_quantity = round(
+                inventory.quantity + quantity_change, QUANTITY_PRECISION
+            )
             if new_quantity < 0:
                 logger.warning(
                     f"Attempted negative inventory for product {product_id}. Current: {inventory.quantity}, Change: {quantity_change}, New: {new_quantity}",
@@ -110,7 +112,9 @@ class InventoryService:
     @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def _modify_inventory(product_id: int, new_quantity: float, action: InventoryAction) -> None:
+    def _modify_inventory(
+        product_id: int, new_quantity: float, action: InventoryAction
+    ) -> None:
         """Internal method to modify inventory based on action."""
         product_id = validate_integer(product_id, min_value=1)
         new_quantity = validate_float_non_negative(new_quantity)
@@ -196,7 +200,9 @@ class InventoryService:
         new_quantity = validate_float_non_negative(new_quantity)
         new_quantity = round(new_quantity, QUANTITY_PRECISION)
 
-        InventoryService._modify_inventory(product_id, new_quantity, action=InventoryAction.UPDATE)
+        InventoryService._modify_inventory(
+            product_id, new_quantity, action=InventoryAction.UPDATE
+        )
 
         event_system.inventory_changed.emit(product_id)
         InventoryService.clear_cache()

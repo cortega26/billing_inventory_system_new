@@ -33,10 +33,12 @@ from services.category_service import CategoryService
 def category_service(db_manager):
     return CategoryService()
 
+
 @pytest.fixture
 def sample_category(category_service):
     cat_id = category_service.create_category("Test Category")
     return category_service.get_category(cat_id)
+
 
 @pytest.fixture
 def sample_product(product_service, sample_category):

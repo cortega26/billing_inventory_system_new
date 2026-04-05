@@ -371,7 +371,9 @@ class CustomerView(QWidget):
         try:
             customer = self.customer_service.get_customer(customer_id)
             if not customer:
-                show_error_message("Error", f"No se encontró el cliente con ID={customer_id}")
+                show_error_message(
+                    "Error", f"No se encontró el cliente con ID={customer_id}"
+                )
                 return
 
             dialog = EditCustomerDialog(customer, self)

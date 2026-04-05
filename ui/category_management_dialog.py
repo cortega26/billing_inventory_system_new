@@ -25,7 +25,9 @@ class AddEditCategoryDialog(QDialog):
         super().__init__(parent)
         self.category = category
         self.category_service = CategoryService()
-        self.setWindowTitle("Agregar Categoría" if category is None else "Editar Categoría")
+        self.setWindowTitle(
+            "Agregar Categoría" if category is None else "Editar Categoría"
+        )
         self.setup_ui()
 
     def setup_ui(self):
@@ -145,7 +147,9 @@ class CategoryManagementDialog(QDialog):
                     event_system.category_updated.emit(category.id)
                     logger.info(f"Category updated: ID {category.id}")
             else:
-                raise ValidationException(f"Categoría '{current_item.text()}' no encontrada")
+                raise ValidationException(
+                    f"Categoría '{current_item.text()}' no encontrada"
+                )
         else:
             raise ValidationException("Por favor seleccione una categoría para editar.")
 
@@ -178,7 +182,9 @@ class CategoryManagementDialog(QDialog):
                         f"Categoría '{current_item.text()}' no encontrada"
                     )
         else:
-            raise ValidationException("Por favor seleccione una categoría para eliminar.")
+            raise ValidationException(
+                "Por favor seleccione una categoría para eliminar."
+            )
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(

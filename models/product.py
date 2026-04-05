@@ -37,10 +37,14 @@ class Product:
             raise ValidationException("Sell price cannot be negative")
 
         if self.cost_price > MAX_PRICE_CLP:
-            raise ValidationException(f"Cost price exceeds maximum ({MAX_PRICE_CLP:,.0f} CLP)")
+            raise ValidationException(
+                f"Cost price exceeds maximum ({MAX_PRICE_CLP:,.0f} CLP)"
+            )
 
         if self.sell_price > MAX_PRICE_CLP:
-            raise ValidationException(f"Sell price exceeds maximum ({MAX_PRICE_CLP:,.0f} CLP)")
+            raise ValidationException(
+                f"Sell price exceeds maximum ({MAX_PRICE_CLP:,.0f} CLP)"
+            )
 
         if self.barcode:
             self.validate_barcode(self.barcode)

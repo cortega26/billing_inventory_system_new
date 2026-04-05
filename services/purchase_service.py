@@ -35,7 +35,10 @@ class PurchaseService:
 
         # Calculate total amount with proper integer handling for money
         total_amount = sum(
-            FinancialCalculator.calculate_item_total(item["quantity"], item["cost_price"]) for item in items
+            FinancialCalculator.calculate_item_total(
+                item["quantity"], item["cost_price"]
+            )
+            for item in items
         )
 
         with DatabaseManager.transaction():
@@ -149,7 +152,10 @@ class PurchaseService:
 
         # Calculate total with proper rounding for money values
         total_amount = sum(
-            FinancialCalculator.calculate_item_total(item["quantity"], item["cost_price"]) for item in items
+            FinancialCalculator.calculate_item_total(
+                item["quantity"], item["cost_price"]
+            )
+            for item in items
         )
 
         with DatabaseManager.transaction():
@@ -179,7 +185,9 @@ class PurchaseService:
         if not items:
             raise ValidationException("Purchase must have at least one item")
         if len(items) > MAX_PURCHASE_ITEMS:  # Prevent DOS attacks
-            raise ValidationException(f"Too many items in single purchase (max {MAX_PURCHASE_ITEMS})")
+            raise ValidationException(
+                f"Too many items in single purchase (max {MAX_PURCHASE_ITEMS})"
+            )
 
         for item in items:
             try:
@@ -191,9 +199,11 @@ class PurchaseService:
                 quantity = float(item.get("quantity", 0))
                 if quantity <= 0 or quantity > 9999999.999:
                     raise ValidationException(f"Invalid quantity: {quantity}")
-                
+
                 if round(quantity, QUANTITY_PRECISION) != quantity:
-                    raise ValidationException(f"Quantity cannot have more than {QUANTITY_PRECISION} decimal places")
+                    raise ValidationException(
+                        f"Quantity cannot have more than {QUANTITY_PRECISION} decimal places"
+                    )
 
                 cost_price = int(item.get("cost_price", 0))
                 if cost_price < 0 or cost_price > MAX_PRICE_CLP:
@@ -203,7 +213,9 @@ class PurchaseService:
                 raise ValidationException(f"Invalid item data: {str(e)}")
 
     @staticmethod
-    def _finalize_purchase_mutation(purchase_id: int, items: List[Any], signal: Any) -> None:
+    def _finalize_purchase_mutation(
+        purchase_id: int, items: List[Any], signal: Any
+    ) -> None:
         """Refresh caches and emit post-commit events for purchase mutations."""
         InventoryService.clear_cache()
         for product_id in PurchaseService._get_product_ids(items):
@@ -309,7 +321,7 @@ class PurchaseService:
         date_format = {
             TimeInterval.DAY.value: "%Y-%m-%d",
             TimeInterval.WEEK.value: "%Y-%W",
-            TimeInterval.MONTH.value: "%Y-%m"
+            TimeInterval.MONTH.value: "%Y-%m",
         }
 
         query = f"""
@@ -385,7 +397,11 @@ class PurchaseService:
     def _get_product_ids(items: List[Any]) -> List[int]:
         product_ids: List[int] = []
         for item in items:
-            product_id = item["product_id"] if isinstance(item, dict) else getattr(item, "product_id", None)
+            product_id = (
+                item["product_id"]
+                if isinstance(item, dict)
+                else getattr(item, "product_id", None)
+            )
             if product_id is not None and product_id not in product_ids:
                 product_ids.append(int(product_id))
         return product_ids

@@ -99,7 +99,9 @@ class DashboardView(QWidget):
         metrics_layout.addWidget(
             MetricWidget("Valor Inventario", self.get_inventory_value)
         )
-        metrics_layout.addWidget(MetricWidget("Margen Ganancia", self.get_profit_margin))
+        metrics_layout.addWidget(
+            MetricWidget("Margen Ganancia", self.get_profit_margin)
+        )
         metrics_layout.addWidget(MetricWidget("Ventas de Hoy", self.get_todays_sales))
         layout.addLayout(metrics_layout)
 
@@ -120,8 +122,6 @@ class DashboardView(QWidget):
         self.charts_layout.addWidget(self.profit_trend_chart_view, 1)
         self.charts_layout.addWidget(self.top_products_chart_view, 1)
 
-
-
         layout.addLayout(self.charts_layout)
 
         # Bottom row: Low Stock Alerts
@@ -131,14 +131,16 @@ class DashboardView(QWidget):
         low_stock_layout.addWidget(low_stock_label)
 
         self.low_stock_table = create_table(["ID", "Producto", "Cantidad"])
-        self.low_stock_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        self.low_stock_table.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
+        )
         self.low_stock_table.setMinimumHeight(150)
         low_stock_layout.addWidget(self.low_stock_table)
-        
+
         layout.addLayout(low_stock_layout)
 
         self.setLayout(layout)
-        
+
         # Initial load of low stock
         self.update_low_stock()
 
@@ -166,8 +168,6 @@ class DashboardView(QWidget):
 
             self.profit_trend_chart_view = new_profit_trend_chart
             self.top_products_chart_view = new_top_products_chart
-
-
 
             # Update low stock
             self.update_low_stock()
@@ -214,6 +214,7 @@ class DashboardView(QWidget):
         if total_sales > 0:
             profit_margin = (total_profits / total_sales) * 100
             return f"{profit_margin:.2f}%"
+
     @ui_operation()
     def get_todays_sales(self) -> str:
         today = datetime.now().strftime("%Y-%m-%d")
@@ -223,21 +224,26 @@ class DashboardView(QWidget):
     @ui_operation()
     def update_low_stock(self):
         try:
-            low_stock_items = self.inventory_service.get_low_stock_products(threshold=10)
+            low_stock_items = self.inventory_service.get_low_stock_products(
+                threshold=10
+            )
             self.low_stock_table.setRowCount(0)
             self.low_stock_table.setRowCount(len(low_stock_items))
-            
+
             for row, item in enumerate(low_stock_items):
                 self.low_stock_table.setItem(row, 0, NumericTableWidgetItem(item["id"]))
                 self.low_stock_table.setItem(row, 1, QTableWidgetItem(item["name"]))
-                self.low_stock_table.setItem(row, 2, NumericTableWidgetItem(item["quantity"]))
-                
+                self.low_stock_table.setItem(
+                    row, 2, NumericTableWidgetItem(item["quantity"])
+                )
+
                 # Highlight critical stock
                 if item["quantity"] <= 3:
-                     from PySide6.QtGui import QColor
+                    from PySide6.QtGui import QColor
 
-                     from ui.styles import DesignTokens
-                     for col in range(3):
+                    from ui.styles import DesignTokens
+
+                    for col in range(3):
                         item_widget = self.low_stock_table.item(row, col)
                         item_widget.setBackground(QColor(DesignTokens.COLOR_ERROR))
                         item_widget.setForeground(QColor("white"))

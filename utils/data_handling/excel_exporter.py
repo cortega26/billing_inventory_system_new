@@ -76,14 +76,16 @@ class ExcelExporter:
 
         clean_filename = sanitize_filename(os.path.basename(filename))
         directory = os.path.dirname(filename)
-        
+
         # If directory is provided, we should probably check if it allows traversal?
         # But for now, let's just use the sanitized basename to be safe against filename injection.
         # If we really want to prevent traversal, we should restrict the output directory.
         # "Add secure defaults" -> Let's enforce saving to an 'exports' directory if no path is given?
         # Or just rely on sanitize_filename on the file part.
-        
-        final_path = os.path.join(directory, clean_filename) if directory else clean_filename
+
+        final_path = (
+            os.path.join(directory, clean_filename) if directory else clean_filename
+        )
 
         try:
             with xlsxwriter.Workbook(final_path) as workbook:
@@ -112,7 +114,9 @@ class ExcelExporter:
                         max_width = max(len(str(item[header])) for item in data)
                         worksheet.set_column(col, col, max(len(header), max_width) + 2)
 
-            logger.info(f"Excel file created successfully: {os.path.abspath(final_path)}")
+            logger.info(
+                f"Excel file created successfully: {os.path.abspath(final_path)}"
+            )
         except IOError as e:
             raise ExternalServiceException(
                 f"Error writing to file {final_path}: {str(e)}"
@@ -145,11 +149,13 @@ class ExcelExporter:
         Raises:
             ExternalServiceException: If there's an issue writing to the file.
         """
-        
+
         clean_filename = sanitize_filename(os.path.basename(filename))
         directory = os.path.dirname(filename)
-        final_path = os.path.join(directory, clean_filename) if directory else clean_filename
-        
+        final_path = (
+            os.path.join(directory, clean_filename) if directory else clean_filename
+        )
+
         try:
             with xlsxwriter.Workbook(final_path) as workbook:
                 worksheet = workbook.add_worksheet(sheet_name)

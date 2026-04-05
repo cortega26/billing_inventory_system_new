@@ -6,15 +6,18 @@ class StockMovementType(str, Enum):
     PURCHASE = "purchase"
     ADJUSTMENT = "adjustment"
 
+
 class InventoryAction(str, Enum):
     CREATE = "create"
     UPDATE = "update"
     SET = "set"
 
+
 class TimeInterval(str, Enum):
     DAY = "day"
     WEEK = "week"
     MONTH = "month"
+
 
 # Constants
 QUANTITY_PRECISION = 3

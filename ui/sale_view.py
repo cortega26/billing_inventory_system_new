@@ -114,7 +114,14 @@ class EditSaleDialog(QDialog):
 
         # Items table
         self.items_table = create_table(
-            ["ID Producto", "Producto", "Cantidad", "Precio Unitario", "Total", "Acciones"]
+            [
+                "ID Producto",
+                "Producto",
+                "Cantidad",
+                "Precio Unitario",
+                "Total",
+                "Acciones",
+            ]
         )
         layout.addWidget(self.items_table)
 
@@ -194,7 +201,9 @@ class EditSaleDialog(QDialog):
 
             # Calculate and display total for this item
             # Calculate and display total for this item
-            item_total = FinancialCalculator.calculate_item_total(item["quantity"], item["sell_price"])
+            item_total = FinancialCalculator.calculate_item_total(
+                item["quantity"], item["sell_price"]
+            )
             total_amount += item_total
             self.items_table.setItem(
                 row, 4, PriceTableWidgetItem(item_total, format_price)
@@ -229,9 +238,14 @@ class EditSaleDialog(QDialog):
                 self.barcode_input.clear()
             else:
                 from ui.styles import DesignTokens
-                self.barcode_input.setStyleSheet(f"background-color: {DesignTokens.COLOR_ERROR_BG};")
+
+                self.barcode_input.setStyleSheet(
+                    f"background-color: {DesignTokens.COLOR_ERROR_BG};"
+                )
                 QTimer.singleShot(1000, lambda: self.barcode_input.setStyleSheet(""))
-                show_error_message("Error", f"No se encontró producto con código: {barcode}")
+                show_error_message(
+                    "Error", f"No se encontró producto con código: {barcode}"
+                )
         except Exception as e:
             logger.error(f"Error processing barcode: {str(e)}")
             show_error_message("Error", str(e))
@@ -404,7 +418,9 @@ class SaleItemDialog(QDialog):
 
             # Calculate profit
             if self.product.cost_price is not None:
-                profit = FinancialCalculator.calculate_item_profit(quantity, unit_price, self.product.cost_price)
+                profit = FinancialCalculator.calculate_item_profit(
+                    quantity, unit_price, self.product.cost_price
+                )
                 self.profit_label.setText(f"$ {profit:,}".replace(",", "."))
             else:
                 profit = 0
@@ -441,7 +457,9 @@ class SaleItemDialog(QDialog):
 
             # Calculate profit with proper rounding
             if self.product.cost_price is not None:
-                profit = FinancialCalculator.calculate_item_profit(quantity, sell_price, self.product.cost_price)
+                profit = FinancialCalculator.calculate_item_profit(
+                    quantity, sell_price, self.product.cost_price
+                )
             else:
                 profit = 0
 
@@ -499,7 +517,7 @@ class SaleView(QWidget):
         # Note: Styling handled by global stylesheet (QLabel in QFrame context if needed, but default is fine)
         # We can simulate the "box" look by making it a frame or just using QSS on specific object name if highly unique
         # For now, let's keep it simple and clean, potentially adding a generic class if needed.
-        self.customer_info_label.setFrameShape(QLabel.Shape.Box) # Use native frame
+        self.customer_info_label.setFrameShape(QLabel.Shape.Box)  # Use native frame
         self.customer_info_label.setFrameShadow(QLabel.Shadow.Sunken)
         self.customer_info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
@@ -516,7 +534,7 @@ class SaleView(QWidget):
         select_button.setFixedWidth(100)
         # Set class for styling
         select_button.setProperty("class", "success")
-        
+
         customer_layout.addWidget(select_button)
 
         layout.addLayout(customer_layout)
@@ -545,7 +563,9 @@ class SaleView(QWidget):
         # Quick Scan checkbox
         self.quick_scan_checkbox = QCheckBox("Escaneo Rápido (Auto-Agregar 1)")
         # Tip: Add tooltip to explain what it does
-        self.quick_scan_checkbox.setToolTip("Al marcar, los artículos se agregan automáticamente con cantidad 1 sin diálogo de confirmación.")
+        self.quick_scan_checkbox.setToolTip(
+            "Al marcar, los artículos se agregan automáticamente con cantidad 1 sin diálogo de confirmación."
+        )
         barcode_layout.addWidget(self.quick_scan_checkbox)
 
         layout.addLayout(barcode_layout)
@@ -563,7 +583,14 @@ class SaleView(QWidget):
 
         # Sale items table
         self.sale_items_table = create_table(
-            ["ID Producto", "Nombre Producto", "Cantidad", "Precio Unit.", "Total", "Acciones"]
+            [
+                "ID Producto",
+                "Nombre Producto",
+                "Cantidad",
+                "Precio Unit.",
+                "Total",
+                "Acciones",
+            ]
         )
         self.sale_items_table.setSelectionBehavior(
             QTableWidget.SelectionBehavior.SelectRows
@@ -579,7 +606,7 @@ class SaleView(QWidget):
         font.setPointSize(24)
         font.setBold(True)
         self.total_amount_label.setFont(font)
-        
+
         total_layout.addStretch()
         total_layout.addWidget(self.total_amount_label)
         layout.addLayout(total_layout)
@@ -589,7 +616,7 @@ class SaleView(QWidget):
         complete_sale_button = QPushButton("Finalizar Venta")
         complete_sale_button.clicked.connect(self.complete_sale)
         complete_sale_button.setProperty("class", "success")
-        
+
         cancel_button = QPushButton("Cancelar")
         cancel_button.clicked.connect(self.clear_sale)
         cancel_button.setProperty("class", "destructive")
@@ -684,13 +711,15 @@ class SaleView(QWidget):
                 if self.quick_scan_checkbox.isChecked():
                     # Quick Scan: Auto-add 1 unit
                     # Need to construct item_data manually similar to dialog.get_item_data()
-                    
+
                     # Default quantum is 1, default price is product sell_price
                     quantity = 1.0
                     sell_price = int(product.sell_price) if product.sell_price else 0
-                    
+
                     cost_price = int(product.cost_price) if product.cost_price else 0
-                    profit = FinancialCalculator.calculate_item_profit(quantity, sell_price, cost_price)
+                    profit = FinancialCalculator.calculate_item_profit(
+                        quantity, sell_price, cost_price
+                    )
 
                     item_data = {
                         "product_id": product.id,
@@ -712,7 +741,10 @@ class SaleView(QWidget):
             else:
                 # Visual feedback for error
                 from ui.styles import DesignTokens
-                self.barcode_input.setStyleSheet(f"background-color: {DesignTokens.COLOR_ERROR_BG};")
+
+                self.barcode_input.setStyleSheet(
+                    f"background-color: {DesignTokens.COLOR_ERROR_BG};"
+                )
                 QTimer.singleShot(1000, lambda: self.barcode_input.setStyleSheet(""))
                 show_error_message("Error", f"No product found with barcode: {barcode}")
         except Exception as e:
@@ -821,7 +853,9 @@ class SaleView(QWidget):
             display_text = " | ".join(display_parts)
             customer_list.addItem(display_text, customer)
 
-        layout.addWidget(QLabel("Múltiples clientes encontrados. Por favor seleccione uno:"))
+        layout.addWidget(
+            QLabel("Múltiples clientes encontrados. Por favor seleccione uno:")
+        )
         layout.addWidget(customer_list)
 
         button_box = QDialogButtonBox(
@@ -846,7 +880,7 @@ class SaleView(QWidget):
             row = index.row()
             if 0 <= row < len(self.sale_items):
                 del self.sale_items[row]
-        
+
         self.update_items_table()
         self.barcode_input.setFocus()
 
@@ -856,28 +890,30 @@ class SaleView(QWidget):
         if not selected_rows:
             return
 
-        row = selected_rows[0].row() # Handle single selection for now
+        row = selected_rows[0].row()  # Handle single selection for now
         if 0 <= row < len(self.sale_items):
             item = self.sale_items[row]
             current_qty = item["quantity"]
             new_qty = current_qty + delta
-            
+
             if new_qty > 0:
                 item["quantity"] = new_qty
                 # Recalculate profit if needed
                 product = self.product_service.get_product(item["product_id"])
                 if product and product.cost_price is not None:
-                     item["profit"] = int(round(new_qty * (item["sell_price"] - product.cost_price)))
-                
+                    item["profit"] = int(
+                        round(new_qty * (item["sell_price"] - product.cost_price))
+                    )
+
                 self.update_items_table()
-                
+
                 # Reselect the row
                 self.sale_items_table.selectRow(row)
             else:
-                 # Optional: Ask to remove if <= 0?
-                 # For now, just don't go below 1 (or 0.001)
-                 pass
-        
+                # Optional: Ask to remove if <= 0?
+                # For now, just don't go below 1 (or 0.001)
+                pass
+
         self.barcode_input.setFocus()
 
     def add_sale_item(self, item_data: Dict[str, Any]):

@@ -158,14 +158,18 @@ class AnalyticsView(QWidget):
                 "Productos Más Vendidos": lambda: self.show_top_selling_products(
                     start_date, end_date, top_n
                 ),
-                "Tendencia de Ventas": lambda: self.show_sales_trend(start_date, end_date),
+                "Tendencia de Ventas": lambda: self.show_sales_trend(
+                    start_date, end_date
+                ),
                 "Rendimiento por Categoría": lambda: self.show_category_performance(
                     start_date, end_date
                 ),
                 "Ganancia por Producto": lambda: self.show_profit_by_product(
                     start_date, end_date, top_n
                 ),
-                "Tendencia de Ganancias": lambda: self.show_profit_trend(start_date, end_date),
+                "Tendencia de Ganancias": lambda: self.show_profit_trend(
+                    start_date, end_date
+                ),
                 "Distribución Margen Ganancia": lambda: self.show_profit_margin_distribution(
                     start_date, end_date
                 ),
@@ -432,7 +436,7 @@ class AnalyticsView(QWidget):
         for row_idx, item in enumerate(data):
             for col_idx, key in enumerate(keys):
                 value = item.get(key, "")
-                
+
                 # Determine type for formatting based on keys/headers context
                 # To be robust, we look at the key name
                 if isinstance(value, (int, float)):

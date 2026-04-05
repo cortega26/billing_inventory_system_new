@@ -42,7 +42,9 @@ class SaleService:
         """
         try:
             customer_id = validate_integer(customer_id, min_value=1)
-            sale_date_str = validate_date(date) if date else datetime.now().strftime("%Y-%m-%d")
+            sale_date_str = (
+                validate_date(date) if date else datetime.now().strftime("%Y-%m-%d")
+            )
             self._validate_sale_items(items)
 
             total_amount = sum(
@@ -276,7 +278,9 @@ class SaleService:
                     f"Cost/Sell price not set for product '{product.name}'"
                 )
 
-            item_total = FinancialCalculator.calculate_item_total(item["quantity"], item["sell_price"])
+            item_total = FinancialCalculator.calculate_item_total(
+                item["quantity"], item["sell_price"]
+            )
             item_profit = FinancialCalculator.calculate_item_profit(
                 item["quantity"], item["sell_price"], product.cost_price
             )
@@ -297,7 +301,9 @@ class SaleService:
         logger.info(
             "Sale updated", extra={"sale_id": sale_id, "customer_id": customer_id}
         )
-        self._finalize_sale_mutation(sale_id, [*old_items, *items], event_system.sale_updated)
+        self._finalize_sale_mutation(
+            sale_id, [*old_items, *items], event_system.sale_updated
+        )
 
     @staticmethod
     @db_operation(show_dialog=True)
@@ -386,13 +392,13 @@ class SaleService:
     def save_receipt_as_pdf(self, sale_id: int, filepath: str) -> None:
         sale_id = validate_integer(sale_id, min_value=1)
         filepath = validate_string(filepath, max_length=255)
-        
+
         sale = self.get_sale(sale_id)
         if not sale:
             raise ValidationException(f"Sale with ID {sale_id} not found.")
 
         items = self.get_sale_items(sale_id)
-        
+
         # Delegate to ReceiptService
         self.receipt_service.generate_pdf(sale, items, filepath)
 
@@ -405,7 +411,9 @@ class SaleService:
         SaleService.get_all_sales.cache_clear()
         logger.debug("Sale cache cleared")
 
-    def _finalize_sale_mutation(self, sale_id: int, items: List[Any], signal: Any) -> None:
+    def _finalize_sale_mutation(
+        self, sale_id: int, items: List[Any], signal: Any
+    ) -> None:
         """Refresh caches and emit post-commit events for sale mutations."""
         InventoryService.clear_cache()
         for product_id in self._get_product_ids(items):
@@ -423,14 +431,20 @@ class SaleService:
             WHERE receipt_id LIKE ?
         """
         result = DatabaseManager.fetch_one(query, (f"{date_part}%",))
-        last_number = int(result["last_number"]) if result and result["last_number"] else 0
+        last_number = (
+            int(result["last_number"]) if result and result["last_number"] else 0
+        )
         return f"{date_part}{last_number + 1:03d}"
 
     @staticmethod
     def _get_product_ids(items: List[Any]) -> List[int]:
         product_ids: List[int] = []
         for item in items:
-            product_id = item["product_id"] if isinstance(item, dict) else getattr(item, "product_id", None)
+            product_id = (
+                item["product_id"]
+                if isinstance(item, dict)
+                else getattr(item, "product_id", None)
+            )
             if product_id is not None and product_id not in product_ids:
                 product_ids.append(int(product_id))
         return product_ids
@@ -439,7 +453,9 @@ class SaleService:
         if not items:
             raise ValidationException("Sale must have at least one item")
         if len(items) > MAX_SALE_ITEMS:
-            raise ValidationException(f"Too many items in single sale (max {MAX_SALE_ITEMS})")
+            raise ValidationException(
+                f"Too many items in single sale (max {MAX_SALE_ITEMS})"
+            )
         for item in items:
             try:
                 # Validate quantity as float with precision
@@ -686,7 +702,12 @@ class SaleService:
 
     def calculate_total_amount(self, items: List[Dict[str, Any]]) -> int:
         """Calculate total amount for a sale."""
-        return sum(FinancialCalculator.calculate_item_total(item["quantity"], item["sell_price"]) for item in items)
+        return sum(
+            FinancialCalculator.calculate_item_total(
+                item["quantity"], item["sell_price"]
+            )
+            for item in items
+        )
 
     def calculate_total_profit(self, items: List[Dict[str, Any]]) -> int:
         """Calculate total profit for a sale."""

@@ -13,15 +13,15 @@ class DesignTokens:
     COLOR_TEXT_DISABLED = "#707070"
 
     # Primary Action (Brand)
-    COLOR_PRIMARY = "#64B5F6"      # Lighter blue for visibility on dark
+    COLOR_PRIMARY = "#64B5F6"  # Lighter blue for visibility on dark
     COLOR_PRIMARY_DARK = "#42A5F5"
-    COLOR_PRIMARY_LIGHT = "#1565C0" # Darker blue for selection backgrounds
+    COLOR_PRIMARY_LIGHT = "#1565C0"  # Darker blue for selection backgrounds
 
     # Semantics
     COLOR_SUCCESS = "#81C784"
-    COLOR_SUCCESS_BG = "#1B5E20"    # Dark green background
+    COLOR_SUCCESS_BG = "#1B5E20"  # Dark green background
     COLOR_ERROR = "#E57373"
-    COLOR_ERROR_BG = "#3E2723"      # Dark red background
+    COLOR_ERROR_BG = "#3E2723"  # Dark red background
     COLOR_WARNING = "#FFF176"
     COLOR_WARNING_BG = "#F57F17"
 
@@ -30,9 +30,10 @@ class DesignTokens:
     SPACE_SM = "8px"
     SPACE_MD = "16px"
     SPACE_LG = "24px"
-    
+
     # Typography
     FONT_FAMILY = "Segoe UI"  # System default fallback
+
 
 def get_global_stylesheet() -> str:
     """
@@ -158,6 +159,7 @@ def get_global_stylesheet() -> str:
     }}
     """
 
+
 def apply_theme(app: QApplication):
     """
     Applies the Design System theme to the QApplication instance.
@@ -168,17 +170,29 @@ def apply_theme(app: QApplication):
     # 2. Apply QPalette (Optional fallback for things QSS misses, or system integration)
     palette = QPalette()
     palette.setColor(QPalette.ColorRole.Window, QColor(DesignTokens.COLOR_BG_BASE))
-    palette.setColor(QPalette.ColorRole.WindowText, QColor(DesignTokens.COLOR_TEXT_PRIMARY))
+    palette.setColor(
+        QPalette.ColorRole.WindowText, QColor(DesignTokens.COLOR_TEXT_PRIMARY)
+    )
     palette.setColor(QPalette.ColorRole.Base, QColor(DesignTokens.COLOR_BG_BASE))
-    palette.setColor(QPalette.ColorRole.AlternateBase, QColor(DesignTokens.COLOR_BG_ALT))
+    palette.setColor(
+        QPalette.ColorRole.AlternateBase, QColor(DesignTokens.COLOR_BG_ALT)
+    )
     palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(DesignTokens.COLOR_BG_ALT))
-    palette.setColor(QPalette.ColorRole.ToolTipText, QColor(DesignTokens.COLOR_TEXT_PRIMARY))
+    palette.setColor(
+        QPalette.ColorRole.ToolTipText, QColor(DesignTokens.COLOR_TEXT_PRIMARY)
+    )
     palette.setColor(QPalette.ColorRole.Text, QColor(DesignTokens.COLOR_TEXT_PRIMARY))
     palette.setColor(QPalette.ColorRole.Button, QColor(DesignTokens.COLOR_BG_ALT))
-    palette.setColor(QPalette.ColorRole.ButtonText, QColor(DesignTokens.COLOR_TEXT_PRIMARY))
+    palette.setColor(
+        QPalette.ColorRole.ButtonText, QColor(DesignTokens.COLOR_TEXT_PRIMARY)
+    )
     palette.setColor(QPalette.ColorRole.BrightText, QColor("#FFFFFF"))
     palette.setColor(QPalette.ColorRole.Link, QColor(DesignTokens.COLOR_PRIMARY))
-    palette.setColor(QPalette.ColorRole.Highlight, QColor(DesignTokens.COLOR_PRIMARY_LIGHT))
-    palette.setColor(QPalette.ColorRole.HighlightedText, QColor(DesignTokens.COLOR_TEXT_PRIMARY))
-    
+    palette.setColor(
+        QPalette.ColorRole.Highlight, QColor(DesignTokens.COLOR_PRIMARY_LIGHT)
+    )
+    palette.setColor(
+        QPalette.ColorRole.HighlightedText, QColor(DesignTokens.COLOR_TEXT_PRIMARY)
+    )
+
     app.setPalette(palette)

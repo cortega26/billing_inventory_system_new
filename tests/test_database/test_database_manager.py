@@ -64,12 +64,10 @@ class TestDatabaseManager:
 
         # Verify table exists
         cursor = db_manager._get_cursor()
-        cursor.execute(
-            """
+        cursor.execute("""
             SELECT name FROM sqlite_master 
             WHERE type='table' AND name='test_table'
-        """
-        )
+        """)
         assert cursor.fetchone() is not None
 
     def test_insert_and_fetch(self, db_manager, test_table_schema):

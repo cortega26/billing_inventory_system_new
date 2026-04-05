@@ -9,7 +9,9 @@ def test_init_db_applies_startup_pragmas_outside_transactions(tmp_path):
     try:
         init_db(str(db_path))
 
-        journal_mode = DatabaseManager.execute_query("PRAGMA journal_mode").fetchone()[0]
+        journal_mode = DatabaseManager.execute_query("PRAGMA journal_mode").fetchone()[
+            0
+        ]
         synchronous = DatabaseManager.execute_query("PRAGMA synchronous").fetchone()[0]
         created_index = DatabaseManager.fetch_one(
             """

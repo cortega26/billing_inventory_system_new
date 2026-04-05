@@ -32,27 +32,22 @@ def init_db(db_path: str = "billing_inventory.db"):
         with DatabaseManager.transaction():
             cursor = DatabaseManager._get_cursor()
 
-            cursor.execute(
-                """
+            cursor.execute("""
                 SELECT sql FROM sqlite_master 
                 WHERE type='table' AND name='customers'
-            """
-            )
+            """)
 
             result = cursor.fetchone()
             if result and "REGEXP" in result[0]:
                 # Migration needed
-                cursor.execute(
-                    """
+                cursor.execute("""
                     CREATE TEMPORARY TABLE customers_backup AS 
                     SELECT * FROM customers
-                """
-                )
+                """)
 
                 cursor.execute("DROP TABLE customers")
 
-                cursor.execute(
-                    """
+                cursor.execute("""
                     CREATE TABLE customers (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         identifier_9 TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -62,19 +57,16 @@ def init_db(db_path: str = "billing_inventory.db"):
                         CHECK (identifier_9 NOT GLOB '*[^0-9]*'),
                         CHECK (name IS NULL OR LENGTH(name) <= 50)
                     )
-                """
-                )
+                """)
 
-                cursor.execute(
-                    """
+                cursor.execute("""
                     INSERT INTO customers (id, identifier_9, name)
                     SELECT id, identifier_9, name 
                     FROM customers_backup
                     WHERE LENGTH(identifier_9) = 9 
                     AND SUBSTR(identifier_9, 1, 1) = '9'
                     AND identifier_9 NOT GLOB '*[^0-9]*'
-                """
-                )
+                """)
 
                 cursor.execute("DROP TABLE customers_backup")
 

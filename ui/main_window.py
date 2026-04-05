@@ -128,7 +128,9 @@ class MainWindow(QMainWindow):
             action = QAction(self)
             action.setShortcut(QKeySequence(key))
             # Use default argument capture to bind the specific index
-            action.triggered.connect(lambda checked=False, idx=index: self.switch_to_tab(idx))
+            action.triggered.connect(
+                lambda checked=False, idx=index: self.switch_to_tab(idx)
+            )
             self.addAction(action)
 
     @ui_operation()
@@ -179,6 +181,7 @@ class MainWindow(QMainWindow):
         event_system.product_deleted.connect(self.on_product_deleted)
         event_system.sale_added.connect(self.on_sale_added)
         event_system.purchase_added.connect(self.on_purchase_added)
+
     @ui_operation(show_dialog=True)
     def on_tab_changed(self, index):
         self.settings.setValue("LastTabIndex", index)
@@ -281,18 +284,25 @@ class MainWindow(QMainWindow):
     @ui_operation(show_dialog=True)
     def backup_data(self):
         from services.backup_service import backup_service
+
         try:
             self.show_status_message("Creating backup...")
             backup_path = backup_service.create_backup()
             if backup_path:
-                QMessageBox.information(self, "Backup Successful", f"Backup created at:\n{backup_path}")
+                QMessageBox.information(
+                    self, "Backup Successful", f"Backup created at:\n{backup_path}"
+                )
                 self.show_status_message("Backup created successfully")
             else:
-                QMessageBox.warning(self, "Backup Failed", "Failed to create backup. Check logs for details.")
+                QMessageBox.warning(
+                    self,
+                    "Backup Failed",
+                    "Failed to create backup. Check logs for details.",
+                )
                 self.show_status_message("Backup failed")
         except Exception as e:
-             logger.error(f"Manual backup error: {e}")
-             QMessageBox.critical(self, "Backup Error", f"An error occurred: {e}")
+            logger.error(f"Manual backup error: {e}")
+            QMessageBox.critical(self, "Backup Error", f"An error occurred: {e}")
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(UIException, show_dialog=True)

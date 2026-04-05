@@ -29,7 +29,7 @@ class BackupService:
         if not backup_dir.is_absolute():
             # Relative to project root (assuming CWD is project root)
             backup_dir = Path.cwd() / backup_dir
-        
+
         if not backup_dir.exists():
             try:
                 backup_dir.mkdir(parents=True, exist_ok=True)
@@ -49,7 +49,7 @@ class BackupService:
             if not db_path.exists():
                 logger.error(f"Database file not found at {db_path}")
                 return None
-            
+
             backup_dir = self.get_backup_dir()
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             backup_filename = f"backup_{timestamp}_{db_path.name}"
@@ -58,25 +58,27 @@ class BackupService:
             # Use SQLite native backup API for consistency
             # Open destination connection
             dest_conn = sqlite3.connect(str(backup_path))
-            
+
             try:
                 # Get source connection
                 # We use the existing connection from DatabaseManager to ensure we capture current state including WAL
                 with DatabaseManager.get_db_connection() as source_conn:
                     source_conn.backup(dest_conn)
-                
-                logger.info(f"Backup created successfully (sqlite3 backup): {backup_path}")
-                
+
+                logger.info(
+                    f"Backup created successfully (sqlite3 backup): {backup_path}"
+                )
+
                 # Also cleanup old backups after creating a new one
                 self.cleanup_old_backups()
-                
+
                 return str(backup_path)
             finally:
                 dest_conn.close()
 
         except Exception as e:
             logger.error(f"Failed to create backup: {e}")
-            if 'backup_path' in locals() and backup_path.exists():
+            if "backup_path" in locals() and backup_path.exists():
                 try:
                     backup_path.unlink()
                 except Exception:
@@ -88,7 +90,7 @@ class BackupService:
         try:
             retention_days = config.get("backup_retention_days", 7)
             backup_dir = self.get_backup_dir()
-            
+
             now = time.time()
             cutoff = now - (retention_days * 86400)
 
@@ -110,7 +112,9 @@ class BackupService:
             return
 
         self._stop_event.clear()
-        self._scheduler_thread = threading.Thread(target=self._scheduler_loop, daemon=True)
+        self._scheduler_thread = threading.Thread(
+            target=self._scheduler_loop, daemon=True
+        )
         self._scheduler_thread.start()
         logger.info("Backup scheduler started.")
 
@@ -127,15 +131,15 @@ class BackupService:
             try:
                 interval_hours = config.get("backup_interval", 24)
                 interval_seconds = interval_hours * 3600
-                
+
                 if self._should_run_backup(interval_seconds):
                     self.create_backup()
-                
+
                 # Check every minute
-                time.sleep(60) 
+                time.sleep(60)
             except Exception as e:
                 logger.error(f"Error in backup scheduler loop: {e}")
-                time.sleep(300) # Retry after 5 mins on error
+                time.sleep(300)  # Retry after 5 mins on error
 
     def _should_run_backup(self, interval_seconds: int) -> bool:
         """Check if enough time has passed since last backup."""
@@ -144,12 +148,13 @@ class BackupService:
             backups = list(backup_dir.glob("backup_*.db"))
             if not backups:
                 return True
-            
+
             latest_backup = max(backups, key=lambda p: p.stat().st_mtime)
             time_since_last = time.time() - latest_backup.stat().st_mtime
-            
+
             return time_since_last >= interval_seconds
         except Exception:
             return True
+
 
 backup_service = BackupService()

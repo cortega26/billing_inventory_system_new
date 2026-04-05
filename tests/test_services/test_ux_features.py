@@ -1,4 +1,3 @@
-
 import os
 import sys
 
@@ -21,8 +20,8 @@ def test_manual():
     DatabaseManager.initialize(":memory:")
     # Load schema
     with open("schema.sql", "r") as f:
-         with DatabaseManager.get_db_connection() as conn:
-             conn.executescript(f.read())
+        with DatabaseManager.get_db_connection() as conn:
+            conn.executescript(f.read())
 
     print("Setup Services...")
     inventory_service = InventoryService()
@@ -31,17 +30,34 @@ def test_manual():
     customer_service = CustomerService()
 
     from services.category_service import CategoryService
+
     category_service = CategoryService()
     cat_id = category_service.create_category("Test Category")
 
     print("Testing Low Stock...")
     # Create products
-    p1_id = product_service.create_product({
-        "name": "Low Item", "barcode": "11111111", "category_id": cat_id, "sell_price": 100, "cost_price": 50, "stock_quantity": 0, "description": "Test Desc"
-    })
-    p2_id = product_service.create_product({
-        "name": "High Item", "barcode": "22222222", "category_id": cat_id, "sell_price": 100, "cost_price": 50, "stock_quantity": 0, "description": "Test Desc"
-    })
+    p1_id = product_service.create_product(
+        {
+            "name": "Low Item",
+            "barcode": "11111111",
+            "category_id": cat_id,
+            "sell_price": 100,
+            "cost_price": 50,
+            "stock_quantity": 0,
+            "description": "Test Desc",
+        }
+    )
+    p2_id = product_service.create_product(
+        {
+            "name": "High Item",
+            "barcode": "22222222",
+            "category_id": cat_id,
+            "sell_price": 100,
+            "cost_price": 50,
+            "stock_quantity": 0,
+            "description": "Test Desc",
+        }
+    )
 
     # Set inventory
     inventory_service.set_quantity(p1_id, 3.0)
@@ -66,26 +82,30 @@ def test_manual():
     print("Testing Today's Sales...")
     # Create sale for today
     cust_id = customer_service.create_customer("999999999", "Test Customer")
-    p_id = product_service.create_product({
-        "name": "Test Product", "barcode": "33333333", "sell_price": 1000, "cost_price": 500, "stock_quantity": 100, "description": "Test Desc", "category_id": cat_id
-    })
-    
+    p_id = product_service.create_product(
+        {
+            "name": "Test Product",
+            "barcode": "33333333",
+            "sell_price": 1000,
+            "cost_price": 500,
+            "stock_quantity": 100,
+            "description": "Test Desc",
+            "category_id": cat_id,
+        }
+    )
+
     today = datetime.now().strftime("%Y-%m-%d")
     inventory_service.set_quantity(p_id, 100.0)
-    
-    items = [{
-        "product_id": p_id,
-        "quantity": 2.0,
-        "sell_price": 1000,
-        "profit": 1000 
-    }]
-    
+
+    items = [{"product_id": p_id, "quantity": 2.0, "sell_price": 1000, "profit": 1000}]
+
     sale_service.create_sale(cust_id, today, items)
 
     # Get total sales for today
     todays_sales = sale_service.get_total_sales(today, today)
     assert todays_sales == 2000
     print("  Today's Sales OK")
+
 
 if __name__ == "__main__":
     try:
@@ -94,6 +114,7 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"FAILED: {e}")
         import traceback
+
         traceback.print_exc()
 
 
@@ -107,7 +128,7 @@ class TestUXFeatures:
         DatabaseManager.execute_query("DELETE FROM inventory")
         DatabaseManager.execute_query("DELETE FROM products")
         DatabaseManager.execute_query("DELETE FROM customers")
-        
+
         self.inventory_service = InventoryService()
         self.sale_service = SaleService()
         self.product_service = ProductService()
@@ -118,12 +139,26 @@ class TestUXFeatures:
 
     def test_low_stock_threshold(self):
         # Create products
-        p1_id = self.product_service.create_product({
-            "name": "Low Item", "barcode": "11111111", "category_id": self.cat_id, "sell_price": 100, "cost_price": 50, "stock_quantity": 0
-        })
-        p2_id = self.product_service.create_product({
-            "name": "High Item", "barcode": "22222222", "category_id": self.cat_id, "sell_price": 100, "cost_price": 50, "stock_quantity": 0
-        })
+        p1_id = self.product_service.create_product(
+            {
+                "name": "Low Item",
+                "barcode": "11111111",
+                "category_id": self.cat_id,
+                "sell_price": 100,
+                "cost_price": 50,
+                "stock_quantity": 0,
+            }
+        )
+        p2_id = self.product_service.create_product(
+            {
+                "name": "High Item",
+                "barcode": "22222222",
+                "category_id": self.cat_id,
+                "sell_price": 100,
+                "cost_price": 50,
+                "stock_quantity": 0,
+            }
+        )
 
         # Set inventory
         self.inventory_service.set_quantity(p1_id, 3.0)
@@ -145,23 +180,29 @@ class TestUXFeatures:
     def test_todays_sales(self):
         # Create sale for today
         cust_id = self.customer_service.create_customer("999999999", "Test Customer")
-        p_id = self.product_service.create_product({
-            "name": "Test Product", "barcode": "33333333", "sell_price": 1000, "cost_price": 500
-        })
+        p_id = self.product_service.create_product(
+            {
+                "name": "Test Product",
+                "barcode": "33333333",
+                "sell_price": 1000,
+                "cost_price": 500,
+            }
+        )
         self.inventory_service.set_quantity(p_id, 100.0)
-        
+
         today = datetime.now().strftime("%Y-%m-%d")
-        
-        items = [{
-            "product_id": p_id,
-            "quantity": 2.0,
-            "sell_price": 1000,
-            "profit": 1000 # 2 * (1000-500)
-        }]
-        
+
+        items = [
+            {
+                "product_id": p_id,
+                "quantity": 2.0,
+                "sell_price": 1000,
+                "profit": 1000,  # 2 * (1000-500)
+            }
+        ]
+
         self.sale_service.create_sale(cust_id, today, items)
 
         # Get total sales for today
         todays_sales = self.sale_service.get_total_sales(today, today)
         assert todays_sales == 2000
-

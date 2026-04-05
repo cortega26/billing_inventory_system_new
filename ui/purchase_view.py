@@ -297,7 +297,9 @@ class PurchaseView(QWidget):
                 # Visual feedback for error
                 self.barcode_input.setStyleSheet("background-color: #ffebee;")
                 QTimer.singleShot(1000, lambda: self.barcode_input.setStyleSheet(""))
-                show_error_message("Error", f"No se encontró producto con código: {barcode}")
+                show_error_message(
+                    "Error", f"No se encontró producto con código: {barcode}"
+                )
         except Exception as e:
             logger.error(f"Error processing barcode: {str(e)}")
             show_error_message("Error", f"Error procesando código de barras: {str(e)}")
@@ -521,7 +523,9 @@ class PurchaseView(QWidget):
                 elif action == delete_action:
                     self.delete_purchase(purchase)
             else:
-                show_error_message("Error", f"Compra con ID {purchase_id} no encontrada")
+                show_error_message(
+                    "Error", f"Compra con ID {purchase_id} no encontrada"
+                )
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(

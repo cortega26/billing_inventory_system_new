@@ -217,7 +217,10 @@ class ProductService:
                 """,
                 (product_id, product_id),
             )
-            has_history = bool(history_row and (history_row["has_sales"] or history_row["has_purchases"]))
+            has_history = bool(
+                history_row
+                and (history_row["has_sales"] or history_row["has_purchases"])
+            )
             if has_history:
                 raise ValidationException(
                     "Cannot delete product with sales or purchase history"

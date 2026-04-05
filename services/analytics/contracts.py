@@ -6,13 +6,14 @@ from typing import Any, Dict, List, Type
 @dataclass
 class MetricResult:
     """Standardized result wrapper for metric execution."""
+
     data: List[Dict[str, Any]]
     meta: Dict[str, Any]
 
 
 class Metric(ABC):
     """Abstract base class for all analytics metrics."""
-    
+
     @property
     @abstractmethod
     def name(self) -> str:
@@ -40,7 +41,7 @@ class Metric(ABC):
     def get_parameters(self, **kwargs) -> tuple:
         """Returns the parameters to bind to the query."""
         pass
-    
+
     def validate_params(self, **kwargs) -> None:
         """Optional hook to validate parameters before execution."""
         pass

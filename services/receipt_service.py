@@ -1,4 +1,3 @@
-
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
@@ -18,14 +17,14 @@ class ReceiptService:
     def generate_pdf(self, sale: Sale, items: list, filepath: str) -> None:
         """
         Generate a PDF receipt for a sale.
-        
+
         Args:
             sale: The Sale object (with customer_id, receipt_id, dates, totals).
             items: List of SaleItem objects.
             filepath: Destination path for the PDF.
         """
         filepath = validate_string(filepath, max_length=255)
-        
+
         try:
             c = canvas.Canvas(filepath, pagesize=letter)
             width, height = letter
@@ -48,14 +47,22 @@ class ReceiptService:
             y -= 20
             for item in items:
                 # Handle potentially missing product names or use ID
-                p_name = item.product_name if hasattr(item, 'product_name') and item.product_name else f"Product ID: {item.product_id}"
-                
+                p_name = (
+                    item.product_name
+                    if hasattr(item, "product_name") and item.product_name
+                    else f"Product ID: {item.product_id}"
+                )
+
                 c.drawString(50, y, p_name)
                 c.drawString(250, y, str(item.quantity))
                 c.drawString(350, y, f"${item.unit_price:,}".replace(",", "."))
-                
+
                 # item.total_price() is a method on SaleItem usually
-                total_line = item.total_price() if hasattr(item, 'total_price') else int(item.quantity * item.unit_price)
+                total_line = (
+                    item.total_price()
+                    if hasattr(item, "total_price")
+                    else int(item.quantity * item.unit_price)
+                )
                 c.drawString(450, y, f"${total_line:,}".replace(",", "."))
                 y -= 20
 
@@ -82,7 +89,7 @@ class ReceiptService:
         """
         sale_id = validate_integer(sale_id, min_value=1)
         phone_number = validate_string(phone_number, max_length=20)
-        
+
         # This is a placeholder. You'll need to implement the actual WhatsApp API integration.
         logger.info(
             "Sending receipt via WhatsApp",

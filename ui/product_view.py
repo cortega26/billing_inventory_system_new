@@ -105,7 +105,9 @@ class EditProductDialog(QDialog):
         layout.addRow("Precio Venta:", self.sell_price_input)
 
         # Add help text for barcode
-        barcode_help = QLabel("Opcional - Debe tener 8, 12, 13 o 14 dígitos si se ingresa")
+        barcode_help = QLabel(
+            "Opcional - Debe tener 8, 12, 13 o 14 dígitos si se ingresa"
+        )
         barcode_help.setStyleSheet("color: gray; font-size: 10px;")
         layout.addRow("", barcode_help)
 

@@ -253,9 +253,7 @@ class CustomerService:
                     UPDATE customers 
                     SET {} 
                     WHERE id = ?
-                """.format(
-                    ", ".join(update_fields)
-                )
+                """.format(", ".join(update_fields))
                 params.append(customer_id)
 
                 # Debug log the actual SQL and parameters

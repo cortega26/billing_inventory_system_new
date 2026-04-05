@@ -19,11 +19,7 @@ class SalesDailyMetric(Metric):
 
     @property
     def output_schema(self) -> Dict[str, Type]:
-        return {
-            "date": str,
-            "total_sales": int,
-            "sale_count": int
-        }
+        return {"date": str, "total_sales": int, "sale_count": int}
 
     def validate_params(self, **kwargs) -> None:
         validate_date(kwargs.get("start_date"))
@@ -40,7 +36,7 @@ class SalesDailyMetric(Metric):
             GROUP BY strftime('%Y-%m-%d', date)
             ORDER BY date ASC
         """
-        
+
     def get_parameters(self, **kwargs) -> tuple:
         return (kwargs["start_date"], kwargs["end_date"])
 
@@ -49,7 +45,7 @@ class TopProductsMetric(Metric):
     @property
     def name(self) -> str:
         return "top_products"
-    
+
     @property
     def description(self) -> str:
         return "Top selling products by quantity sold within a date range."
@@ -60,7 +56,7 @@ class TopProductsMetric(Metric):
             "product_id": int,
             "name": str,
             "total_quantity": float,
-            "total_revenue": int
+            "total_revenue": int,
         }
 
     def validate_params(self, **kwargs) -> None:
@@ -99,11 +95,7 @@ class LowStockMetric(Metric):
 
     @property
     def output_schema(self) -> Dict[str, Type]:
-        return {
-            "product_id": int,
-            "name": str,
-            "quantity": float
-        }
+        return {"product_id": int, "name": str, "quantity": float}
 
     def validate_params(self, **kwargs) -> None:
         validate_float_non_negative(kwargs.get("threshold", 10))
@@ -139,7 +131,7 @@ class InventoryAgingMetric(Metric):
             "product_id": int,
             "name": str,
             "stock_quantity": float,
-            "last_sold_date": str
+            "last_sold_date": str,
         }
 
     def validate_params(self, **kwargs) -> None:
@@ -180,11 +172,7 @@ class DepartmentSalesMetric(Metric):
 
     @property
     def output_schema(self) -> Dict[str, Type]:
-        return {
-            "category": str,
-            "total_sales": int,
-            "units_sold": float
-        }
+        return {"category": str, "total_sales": int, "units_sold": float}
 
     def validate_params(self, **kwargs) -> None:
         validate_date(kwargs.get("start_date"))

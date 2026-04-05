@@ -92,7 +92,7 @@ class SaleItem:
 @dataclass
 class Sale:
     id: int
-    customer_id: int
+    customer_id: Optional[int]
     date: datetime
     total_amount: int  # Chilean Pesos - always integer
     total_profit: int  # Chilean Pesos - always integer
@@ -110,7 +110,11 @@ class Sale:
         try:
             return cls(
                 id=int(row["id"]),
-                customer_id=int(row["customer_id"]),
+                customer_id=(
+                    int(row["customer_id"])
+                    if row.get("customer_id") is not None
+                    else None
+                ),
                 # date=datetime.fromisoformat(row["date"]),
                 date=datetime.strptime(row["date"], "%Y-%m-%d"),
                 total_amount=int(row["total_amount"]),
@@ -123,7 +127,9 @@ class Sale:
             raise
 
     @staticmethod
-    def validate_customer_id(customer_id: int) -> None:
+    def validate_customer_id(customer_id: Optional[int]) -> None:
+        if customer_id is None:
+            return
         if not isinstance(customer_id, int) or customer_id <= 0:
             raise ValidationException("Invalid customer ID")
 
@@ -166,7 +172,7 @@ class Sale:
         self.validate_date(new_date)
         self.date = new_date
 
-    def update_customer(self, new_customer_id: int) -> None:
+    def update_customer(self, new_customer_id: Optional[int]) -> None:
         self.validate_customer_id(new_customer_id)
         self.customer_id = new_customer_id
 

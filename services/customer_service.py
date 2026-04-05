@@ -48,7 +48,7 @@ class CustomerService:
         identifier_9 = validate_identifier_9(sanitize_html(str(identifier_9)))
 
         if name is not None:
-            temp_customer = Customer(id=0, identifier_9="000000000", name=name)
+            temp_customer = Customer(id=0, identifier_9="900000000", name=name)
             name = temp_customer.name  # This will be the normalized version
 
         if identifier_3or4:

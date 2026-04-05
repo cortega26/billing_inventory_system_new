@@ -61,6 +61,7 @@ class Customer:
             not isinstance(identifier, str)
             or len(identifier) != 9
             or not identifier.isdigit()
+            or not identifier.startswith("9")
         ):
             raise ValidationException("identifier_9 must be a string of 9 digits")
 
@@ -80,6 +81,7 @@ class Customer:
                 not isinstance(identifier, str)
                 or len(identifier) not in (3, 4)
                 or not identifier.isdigit()
+                or identifier.startswith("0")
             ):
                 raise ValidationException(
                     "identifier_3or4 must be a string of 3 or 4 digits"

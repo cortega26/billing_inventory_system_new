@@ -1,10 +1,9 @@
-import sqlite3
 import logging
-from typing import Any, Dict, List
+import sqlite3
 from pathlib import Path
 
-from services.analytics.contracts import Metric, MetricResult
 from config import DATABASE_PATH
+from services.analytics.contracts import Metric, MetricResult
 
 logger = logging.getLogger(__name__)
 

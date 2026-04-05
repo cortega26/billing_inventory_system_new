@@ -61,10 +61,10 @@
 
 ### Data Backup
 
-- Frequency: Weekly
-- Retention: Last 2 weeks only
+- Frequency: Automatic daily backups
+- Retention: Last 7 days
 - Scope: All historical data
-- Timing: No specific schedule required
+- Timing: Scheduler checks the configured interval and creates a backup when the last one is older than that interval
 
 ## Technical Implementation
 
@@ -80,7 +80,7 @@
 - Monetary display: Dot separators everywhere
 - Supported themes: default, dark, light only
 - Sound effects: Barcode scans only
-- Language: English only
+- Language: English-first. New or modified top-level UI strings must be English, but legacy screens still contain Spanish strings pending migration.
 
 ### Data Validation Rules
 
@@ -123,12 +123,12 @@
 - Self-contained system
 - No external integrations
 - No multi-currency support
-- Single language (English) UI
+- English-first UI with legacy Spanish strings still being migrated
 
 ### Future Compatibility Notes
 
 - Designed for CLP only
 - No multi-currency expansion planned
 - No additional theme support planned
-- No multi-language support planned
+- No full multi-language support planned beyond the current English-first migration
   

@@ -2,6 +2,7 @@ from datetime import date
 
 import pytest
 
+from database.database_manager import DatabaseManager
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
 from services.purchase_service import PurchaseService
@@ -26,6 +27,7 @@ def inventory_service(db_manager):
 
 
 from services.category_service import CategoryService
+
 
 @pytest.fixture
 def category_service(db_manager):
@@ -140,3 +142,35 @@ class TestPurchaseService:
         assert stats["total_purchases"] == 1
         assert stats["total_amount"] > 0
         assert len(stats["suppliers"]) == 1
+
+    def test_create_purchase_rolls_back_on_invalid_product(self, purchase_service):
+        invalid_data = {
+            "supplier": "Broken Supplier",
+            "date": date.today().isoformat(),
+            "items": [{"product_id": 9999, "quantity": 10, "cost_price": 900}],
+        }
+
+        with pytest.raises(Exception):
+            purchase_service.create_purchase(**invalid_data)
+
+        assert DatabaseManager.fetch_one("SELECT id FROM purchases") is None
+        assert DatabaseManager.fetch_one("SELECT id FROM purchase_items") is None
+
+    def test_update_purchase_rolls_back_on_invalid_product(
+        self, purchase_service, sample_purchase_data, inventory_service, sample_product
+    ):
+        purchase_id = purchase_service.create_purchase(**sample_purchase_data)
+
+        with pytest.raises(Exception):
+            purchase_service.update_purchase(
+                purchase_id,
+                sample_purchase_data["supplier"],
+                sample_purchase_data["date"],
+                [{"product_id": 9999, "quantity": 5, "cost_price": 800}],
+            )
+
+        purchase = purchase_service.get_purchase(purchase_id)
+        inventory = inventory_service.get_inventory(sample_product.id)
+        assert len(purchase.items) == 1
+        assert purchase.items[0].quantity == 10.0
+        assert inventory.quantity == 10.0

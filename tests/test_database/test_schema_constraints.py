@@ -1,8 +1,10 @@
 
+
 import pytest
-import sqlite3
+
 from database.database_manager import DatabaseManager
 from utils.exceptions import DatabaseException
+
 
 class TestSchemaConstraints:
     

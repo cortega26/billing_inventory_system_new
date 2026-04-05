@@ -14,8 +14,8 @@ from utils.system.event_system import event_system
 from utils.system.logger import logger
 from utils.validation.validators import (
     validate_integer,
-    validate_string,
     validate_money,
+    validate_string,
 )
 
 
@@ -201,37 +201,38 @@ class ProductService:
             raise DatabaseException(f"Failed to update product: {str(e)}")
 
     @db_operation(show_dialog=True)
-    @handle_exceptions(DatabaseException, UIException, show_dialog=True)
+    @handle_exceptions(
+        ValidationException, DatabaseException, UIException, show_dialog=True
+    )
     def delete_product(self, product_id: int) -> None:
-        """Delete a product and clear caches."""
+        """Delete a product only when it has no ledger history."""
         product_id = validate_integer(product_id, min_value=1)
 
         try:
-            DatabaseManager.begin_transaction()
-
-            # First delete related records
-            DatabaseManager.execute_query(
-                "DELETE FROM sale_items WHERE product_id = ?", (product_id,)
+            history_row = DatabaseManager.fetch_one(
+                """
+                SELECT
+                    EXISTS(SELECT 1 FROM sale_items WHERE product_id = ?) AS has_sales,
+                    EXISTS(SELECT 1 FROM purchase_items WHERE product_id = ?) AS has_purchases
+                """,
+                (product_id, product_id),
             )
+            has_history = bool(history_row and (history_row["has_sales"] or history_row["has_purchases"]))
+            if has_history:
+                raise ValidationException(
+                    "Cannot delete product with sales or purchase history"
+                )
 
-            DatabaseManager.execute_query(
-                "DELETE FROM purchase_items WHERE product_id = ?", (product_id,)
-            )
+            with DatabaseManager.transaction():
+                DatabaseManager.execute_query(
+                    "DELETE FROM inventory WHERE product_id = ?", (product_id,)
+                )
 
-            DatabaseManager.execute_query(
-                "DELETE FROM inventory WHERE product_id = ?", (product_id,)
-            )
+                query = "DELETE FROM products WHERE id = ?"
+                cursor = DatabaseManager.execute_query(query, (product_id,))
 
-            # Finally delete the product
-            query = "DELETE FROM products WHERE id = ?"
-            cursor = DatabaseManager.execute_query(query, (product_id,))
-
-            if cursor.rowcount == 0:
-                DatabaseManager.rollback_transaction()
-                raise NotFoundException(f"Product with ID {product_id} not found")
-
-            # Commit all changes
-            DatabaseManager.commit_transaction()
+                if cursor.rowcount == 0:
+                    raise NotFoundException(f"Product with ID {product_id} not found")
 
             # Clear product cache
             self.clear_cache()
@@ -243,11 +244,12 @@ class ProductService:
             logger.info(f"Product deleted successfully: ID {product_id}")
 
         except Exception as e:
-            DatabaseManager.rollback_transaction()
             logger.error(
                 "Failed to delete product",
                 extra={"error": str(e), "product_id": product_id},
             )
+            if isinstance(e, (ValidationException, NotFoundException)):
+                raise
             raise DatabaseException(f"Failed to delete product: {str(e)}")
 
     @db_operation(show_dialog=True)

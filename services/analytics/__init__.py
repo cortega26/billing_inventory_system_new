@@ -1,11 +1,11 @@
 from services.analytics.contracts import Metric, MetricResult
 from services.analytics.engine import AnalyticsEngine
 from services.analytics.metrics import (
+    DepartmentSalesMetric,
+    InventoryAgingMetric,
+    LowStockMetric,
     SalesDailyMetric,
     TopProductsMetric,
-    LowStockMetric,
-    InventoryAgingMetric,
-    DepartmentSalesMetric
 )
 
 __all__ = [

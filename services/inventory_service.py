@@ -2,7 +2,7 @@ from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 from database.database_manager import DatabaseManager
-from models.enums import InventoryAction, QUANTITY_PRECISION
+from models.enums import QUANTITY_PRECISION, InventoryAction
 from models.inventory import Inventory
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import (
@@ -23,13 +23,16 @@ from utils.validation.validators import (
 
 class InventoryService:
     @staticmethod
-    def apply_batch_updates(items: List[Any], multiplier: float = 1.0) -> None:
+    def apply_batch_updates(
+        items: List[Any], multiplier: float = 1.0, emit_events: bool = True
+    ) -> None:
         """
         Apply inventory updates for a batch of items.
         
         Args:
             items: List of dicts (with 'product_id', 'quantity') or objects (with attributes).
             multiplier: 1.0 for adding to inventory (Purchase), -1.0 for removing (Sale).
+            emit_events: Whether to clear caches and emit inventory events per update.
         """
         for item in items:
             # Handle dict or object
@@ -46,7 +49,12 @@ class InventoryService:
 
             try:
                 change = abs(float(qty)) * multiplier
-                InventoryService.update_quantity(p_id, change)
+                if emit_events:
+                    InventoryService.update_quantity(p_id, change)
+                else:
+                    InventoryService.update_quantity(
+                        p_id, change, emit_events=False
+                    )
             except ValidationException:
                 raise
             except Exception as e:
@@ -56,7 +64,9 @@ class InventoryService:
     @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
-    def update_quantity(product_id: int, quantity_change: float) -> None:
+    def update_quantity(
+        product_id: int, quantity_change: float, emit_events: bool = True
+    ) -> None:
         """Update the quantity of a product in inventory."""
         product_id = validate_integer(product_id, min_value=1)
         quantity_change = validate_float(
@@ -89,8 +99,9 @@ class InventoryService:
                 product_id, new_quantity, action=InventoryAction.CREATE
             )
 
-        InventoryService.clear_cache()
-        event_system.inventory_changed.emit(product_id)
+        if emit_events:
+            InventoryService.clear_cache()
+            event_system.inventory_changed.emit(product_id)
         logger.info(
             f"Inventory updated for product {product_id}",
             extra={"quantity_change": quantity_change, "new_quantity": new_quantity},

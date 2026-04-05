@@ -2,5 +2,7 @@
     "version": "1.0",
     "theme": "dark",
     "language": "en",
-    "backup_interval": 24
+    "backup_interval": 24,
+    "backup_dir": "backups",
+    "backup_retention_days": 7
 }

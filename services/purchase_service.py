@@ -2,19 +2,24 @@ from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 from database.database_manager import DatabaseManager
+from models.enums import (
+    MAX_PRICE_CLP,
+    MAX_PURCHASE_ITEMS,
+    QUANTITY_PRECISION,
+    TimeInterval,
+)
 from models.purchase import Purchase, PurchaseItem
 from services.inventory_service import InventoryService
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import DatabaseException, NotFoundException, ValidationException
+from utils.math.financial_calculator import FinancialCalculator
 from utils.system.event_system import event_system
 from utils.system.logger import logger
-from models.enums import MAX_PURCHASE_ITEMS, QUANTITY_PRECISION, TimeInterval, MAX_PRICE_CLP
 from utils.validation.validators import (
     validate_date,
     validate_integer,
     validate_string,
 )
-from utils.math.financial_calculator import FinancialCalculator
 
 
 class PurchaseService:
@@ -33,13 +38,16 @@ class PurchaseService:
             FinancialCalculator.calculate_item_total(item["quantity"], item["cost_price"]) for item in items
         )
 
-        purchase_id = PurchaseService._insert_purchase(supplier, date, total_amount)
+        with DatabaseManager.transaction():
+            purchase_id = PurchaseService._insert_purchase(supplier, date, total_amount)
 
-        if purchase_id is None:
-            raise ValidationException("Failed to create purchase record")
+            if purchase_id is None:
+                raise ValidationException("Failed to create purchase record")
 
-        PurchaseService._insert_purchase_items(purchase_id, items)
-        InventoryService.apply_batch_updates(items, multiplier=1.0)
+            PurchaseService._insert_purchase_items(purchase_id, items)
+            InventoryService.apply_batch_updates(
+                items, multiplier=1.0, emit_events=False
+            )
 
         logger.info(
             "Purchase created",
@@ -49,8 +57,9 @@ class PurchaseService:
                 "total_amount": total_amount,
             },
         )
-        PurchaseService.clear_cache()
-        event_system.purchase_added.emit(purchase_id)
+        PurchaseService._finalize_purchase_mutation(
+            purchase_id, items, event_system.purchase_added
+        )
         return purchase_id
 
     @staticmethod
@@ -98,17 +107,21 @@ class PurchaseService:
         purchase_id = validate_integer(purchase_id, min_value=1)
         items = PurchaseService.get_purchase_items(purchase_id)
 
-        InventoryService.apply_batch_updates(items, multiplier=-1.0)
+        with DatabaseManager.transaction():
+            InventoryService.apply_batch_updates(
+                items, multiplier=-1.0, emit_events=False
+            )
 
-        DatabaseManager.execute_query(
-            "DELETE FROM purchase_items WHERE purchase_id = ?", (purchase_id,)
-        )
-        DatabaseManager.execute_query(
-            "DELETE FROM purchases WHERE id = ?", (purchase_id,)
-        )
+            DatabaseManager.execute_query(
+                "DELETE FROM purchase_items WHERE purchase_id = ?", (purchase_id,)
+            )
+            DatabaseManager.execute_query(
+                "DELETE FROM purchases WHERE id = ?", (purchase_id,)
+            )
         logger.info("Purchase deleted", extra={"purchase_id": purchase_id})
-        PurchaseService.clear_cache()
-        event_system.purchase_deleted.emit(purchase_id)
+        PurchaseService._finalize_purchase_mutation(
+            purchase_id, items, event_system.purchase_deleted
+        )
 
     @staticmethod
     @lru_cache(maxsize=1)
@@ -133,16 +146,21 @@ class PurchaseService:
         PurchaseService._validate_purchase_items(items)
 
         old_items = PurchaseService.get_purchase_items(purchase_id)
-        InventoryService.apply_batch_updates(old_items, multiplier=-1.0)
 
         # Calculate total with proper rounding for money values
         total_amount = sum(
             FinancialCalculator.calculate_item_total(item["quantity"], item["cost_price"]) for item in items
         )
 
-        PurchaseService._update_purchase(purchase_id, supplier, date, total_amount)
-        PurchaseService._update_purchase_items(purchase_id, items)
-        InventoryService.apply_batch_updates(items, multiplier=1.0)
+        with DatabaseManager.transaction():
+            InventoryService.apply_batch_updates(
+                old_items, multiplier=-1.0, emit_events=False
+            )
+            PurchaseService._update_purchase(purchase_id, supplier, date, total_amount)
+            PurchaseService._update_purchase_items(purchase_id, items)
+            InventoryService.apply_batch_updates(
+                items, multiplier=1.0, emit_events=False
+            )
 
         logger.info(
             "Purchase updated",
@@ -152,8 +170,9 @@ class PurchaseService:
                 "total_amount": total_amount,
             },
         )
-        PurchaseService.clear_cache()
-        event_system.purchase_updated.emit(purchase_id)
+        PurchaseService._finalize_purchase_mutation(
+            purchase_id, [*old_items, *items], event_system.purchase_updated
+        )
 
     @staticmethod
     def _validate_purchase_items(items: List[Dict[str, Any]]) -> None:
@@ -182,6 +201,15 @@ class PurchaseService:
 
             except (ValueError, TypeError) as e:
                 raise ValidationException(f"Invalid item data: {str(e)}")
+
+    @staticmethod
+    def _finalize_purchase_mutation(purchase_id: int, items: List[Any], signal: Any) -> None:
+        """Refresh caches and emit post-commit events for purchase mutations."""
+        InventoryService.clear_cache()
+        for product_id in PurchaseService._get_product_ids(items):
+            event_system.inventory_changed.emit(product_id)
+        PurchaseService.clear_cache()
+        signal.emit(purchase_id)
 
     @staticmethod
     @db_operation(show_dialog=True)
@@ -352,6 +380,15 @@ class PurchaseService:
             },
         )
         return top_suppliers
+
+    @staticmethod
+    def _get_product_ids(items: List[Any]) -> List[int]:
+        product_ids: List[int] = []
+        for item in items:
+            product_id = item["product_id"] if isinstance(item, dict) else getattr(item, "product_id", None)
+            if product_id is not None and product_id not in product_ids:
+                product_ids.append(int(product_id))
+        return product_ids
 
     # void_purchase removed (alias for delete_purchase)
 

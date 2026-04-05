@@ -1,12 +1,12 @@
+
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
-from typing import Optional
 
 from models.sale import Sale
-from services.customer_service import CustomerService
+from utils.exceptions import ValidationException
 from utils.system.logger import logger
 from utils.validation.validators import validate_integer, validate_string
-from utils.exceptions import ValidationException
+
 
 class ReceiptService:
     def __init__(self):

@@ -1,4 +1,3 @@
-from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from PySide6.QtCore import QDate, QPoint, Qt, QTimer, Signal
@@ -42,12 +41,12 @@ from utils.helpers import (
     show_error_message,
     show_info_message,
 )
+from utils.math.financial_calculator import FinancialCalculator
 from utils.system.event_system import event_system
 from utils.system.logger import logger
 from utils.ui.sound import SoundEffect
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
 from utils.validation.validators import validate_date
-from utils.math.financial_calculator import FinancialCalculator
 
 
 class EditSaleDialog(QDialog):
@@ -142,7 +141,11 @@ class EditSaleDialog(QDialog):
     def load_sale_data(self):
         try:
             # Load customer info
-            customer = self.customer_service.get_customer(self.sale.customer_id)
+            customer = (
+                self.customer_service.get_customer(self.sale.customer_id)
+                if self.sale.customer_id is not None
+                else None
+            )
             if customer:
                 display_parts = []
                 if customer.identifier_3or4:
@@ -1069,7 +1072,11 @@ class SaleView(QWidget):
         """Update the sales history table with proper formatting."""
         self.sale_table.setRowCount(len(sales))
         for row, sale in enumerate(sales):
-            customer = self.customer_service.get_customer(sale.customer_id)
+            customer = (
+                self.customer_service.get_customer(sale.customer_id)
+                if sale.customer_id is not None
+                else None
+            )
 
             # Basic sale information
             self.sale_table.setItem(row, 0, NumericTableWidgetItem(sale.id))
@@ -1132,12 +1139,6 @@ class SaleView(QWidget):
         delete_button.setToolTip("Delete this sale")
         delete_button.setMaximumWidth(40)
 
-        if sale.date is not None and datetime.now() - sale.date > timedelta(hours=1240):
-            edit_button.setEnabled(False)
-            edit_button.setToolTip("Sales can only be edited within 1240 hours")
-            delete_button.setEnabled(False)
-            delete_button.setToolTip("Sales can only be deleted within 1240 hours")
-
         for btn in [view_button, edit_button, print_button, delete_button]:
             actions_layout.addWidget(btn)
 
@@ -1151,11 +1152,6 @@ class SaleView(QWidget):
         """Edit an existing sale."""
         if sale is None:
             raise ValidationException("No sale selected for editing")
-
-        if datetime.now() - sale.date > timedelta(hours=1240):
-            raise ValidationException(
-                "Sales can only be edited within 1240 hours of creation"
-            )
 
         try:
             dialog = EditSaleDialog(
@@ -1256,11 +1252,6 @@ class SaleView(QWidget):
                     show_error_message("Error", "Sale not found")
                     return
 
-                # Disable edit/delete actions for old sales
-                if sale.date and datetime.now() - sale.date > timedelta(hours=1240):
-                    edit_action.setEnabled(False)
-                    delete_action.setEnabled(False)
-
                 action = menu.exec(self.sale_table.mapToGlobal(position))
                 if action:
                     if action == view_action:
@@ -1306,7 +1297,11 @@ class SaleView(QWidget):
         """View sale details with proper money formatting."""
         try:
             items = self.sale_service.get_sale_items(sale.id)
-            customer = self.customer_service.get_customer(sale.customer_id)
+            customer = (
+                self.customer_service.get_customer(sale.customer_id)
+                if sale.customer_id is not None
+                else None
+            )
 
             receipt_id = sale.receipt_id or self.sale_service.generate_receipt(sale.id)
 
@@ -1364,7 +1359,11 @@ class SaleView(QWidget):
     def generate_receipt_preview(self, sale: Sale) -> str:
         """Generate a text preview of the receipt with proper formatting."""
         try:
-            customer = self.customer_service.get_customer(sale.customer_id)
+            customer = (
+                self.customer_service.get_customer(sale.customer_id)
+                if sale.customer_id is not None
+                else None
+            )
             items = self.sale_service.get_sale_items(sale.id)
 
             receipt = []

@@ -230,6 +230,18 @@ class TestDatabaseManager:
         cursor.execute("SELECT 1")
         assert cursor.fetchone() is not None
 
+    def test_apply_startup_pragmas_requires_no_transaction(self, db_manager):
+        """Startup pragmas must not be applied while a transaction is open."""
+        DatabaseManager.begin_transaction()
+
+        try:
+            with pytest.raises(DatabaseException) as excinfo:
+                DatabaseManager.apply_startup_pragmas()
+        finally:
+            DatabaseManager.rollback_transaction()
+
+        assert "outside a transaction" in str(excinfo.value)
+
     def test_large_dataset(self, db_manager, test_table_schema):
         """Test handling of large datasets."""
         DatabaseManager.execute_query(test_table_schema)

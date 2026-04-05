@@ -1,27 +1,23 @@
-import random
-import string
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QComboBox,
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
     QFormLayout,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QMenu,
-    QMessageBox,
-    QProgressBar,
     QPushButton,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
-    QAbstractItemView,
-    QHeaderView,
 )
 
 from services.category_service import CategoryService
@@ -31,9 +27,7 @@ from utils.decorators import handle_exceptions, ui_operation
 from utils.exceptions import DatabaseException, UIException, ValidationException
 from utils.helpers import create_table, show_error_message, show_info_message
 from utils.system.event_system import event_system
-from utils.system.logger import logger
 from utils.ui.table_items import NumericTableWidgetItem
-from utils.validation.validators import validate_string
 
 
 class EditInventoryDialog(QDialog):

@@ -316,13 +316,15 @@ class CustomerView(QWidget):
                     actions_layout.setContentsMargins(0, 0, 0, 0)
 
                     edit_button = QPushButton("Editar")
-                    edit_button.setFixedWidth(50)
+                    edit_button.setFixedWidth(80)
+                    edit_button.setFixedHeight(24)
                     edit_button.clicked.connect(
                         lambda _, cid=cust.id: self.edit_customer_by_id(cid)
                     )
 
                     delete_button = QPushButton("Eliminar")
-                    delete_button.setFixedWidth(50)
+                    delete_button.setFixedWidth(80)
+                    delete_button.setFixedHeight(24)
                     delete_button.clicked.connect(
                         lambda _, cid=cust.id: self.delete_customer_by_id(cid)
                     )

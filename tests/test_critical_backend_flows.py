@@ -1,13 +1,16 @@
 import pytest
-from datetime import datetime, timedelta
-from services.inventory_service import InventoryService
-from services.sale_service import SaleService
-from services.purchase_service import PurchaseService
-from services.product_service import ProductService
+
+from models.enums import (
+    MAX_PRICE_CLP,
+)
 from services.category_service import CategoryService
 from services.customer_service import CustomerService
-from models.enums import InventoryAction, QUANTITY_PRECISION, MAX_PRICE_CLP, MAX_SALE_ITEMS
-from utils.exceptions import ValidationException, DatabaseException
+from services.inventory_service import InventoryService
+from services.product_service import ProductService
+from services.purchase_service import PurchaseService
+from services.sale_service import SaleService
+from utils.exceptions import ValidationException
+
 
 class TestCriticalBackendFlows:
     @pytest.fixture(autouse=True)
@@ -29,7 +32,7 @@ class TestCriticalBackendFlows:
             "cost_price": 1000,
             "sell_price": 2000
         })
-        self.cust_id = self.customer_service.create_customer("123456789", "Test Customer")
+        self.cust_id = self.customer_service.create_customer("923456789", "Test Customer")
 
     def test_full_cycle_purchase_sale_refund(self):
         """
@@ -40,7 +43,7 @@ class TestCriticalBackendFlows:
         """
         # 1. Purchase 100 items
         items = [{"product_id": self.prod_id, "quantity": 100.0, "cost_price": 1000}]
-        purchase_id = self.purchase_service.create_purchase("Supplier A", "2023-01-01", items)
+        self.purchase_service.create_purchase("Supplier A", "2023-01-01", items)
         
         inventory = self.inventory_service.get_inventory(self.prod_id)
         assert inventory.quantity == 100.0
@@ -101,25 +104,23 @@ class TestCriticalBackendFlows:
             })
         assert "cannot exceed" in str(excinfo.value) or "exceeds maximum" in str(excinfo.value)
 
-    def test_sale_edit_window(self):
-        """Verify correct logic for edit window."""
-        # Create a sale 1 year ago
+    def test_historical_sale_can_still_be_updated(self):
+        """Historical sales should remain editable and keep inventory consistent."""
         items = [{"product_id": self.prod_id, "quantity": 100.0, "cost_price": 1000}]
-        self.purchase_service.create_purchase("Supplier A", "2022-01-01", items) # Ensure stock
-        
+        self.purchase_service.create_purchase("Supplier A", "2022-01-01", items)
+
         sale_items = [
             {"product_id": self.prod_id, "quantity": 1.0, "sell_price": 2000, "profit": 1000}
         ]
-        # Manually insert an old sale since create_sale uses current time or provided string date, 
-        # but the check uses creation time vs now.
-        # However, `create_sale` inserts `date` column. `created_at` might be separate but `sale_service.update_sale` checks `sale.date`.
-        # Code: `sale_datetime = datetime.fromisoformat(sale.date.isoformat())`
-        
-        # Let's try to update a sale made with a date > EDIT_WINDOW_HOURS ago
-        old_date = (datetime.now() - timedelta(hours=1300)).strftime("%Y-%m-%d")
+        old_date = "2022-01-02"
         sale_id = self.sale_service.create_sale(self.cust_id, old_date, sale_items)
-        
-        with pytest.raises(ValidationException) as excinfo:
-            self.sale_service.update_sale(sale_id, self.cust_id, old_date, sale_items)
-        
-        assert "can only be edited within" in str(excinfo.value)
+
+        updated_items = [
+            {"product_id": self.prod_id, "quantity": 2.0, "sell_price": 2000, "profit": 2000}
+        ]
+        self.sale_service.update_sale(sale_id, self.cust_id, old_date, updated_items)
+
+        sale = self.sale_service.get_sale(sale_id)
+        inventory = self.inventory_service.get_inventory(self.prod_id)
+        assert sale.items[0].quantity == 2.0
+        assert inventory.quantity == 98.0

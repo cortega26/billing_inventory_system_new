@@ -354,12 +354,18 @@ def validate_identifier(value: str, length: Union[int, Tuple[int, ...]]) -> str:
 
 def validate_9digit_identifier(value: str) -> str:
     """Validate a 9-digit identifier."""
-    return validate_identifier(value, length=9)
+    value = validate_identifier(value, length=9)
+    if not value.startswith("9"):
+        raise ValidationException("Identifier must start with 9")
+    return value
 
 
 def validate_3or4digit_identifier(value: str) -> str:
     """Validate a 3 or 4-digit identifier."""
-    return validate_identifier(value, length=(3, 4))
+    value = validate_identifier(value, length=(3, 4))
+    if value.startswith("0"):
+        raise ValidationException("Identifier cannot start with 0")
+    return value
 
 
 def validate_list(

@@ -1,17 +1,17 @@
-import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 from database.database_manager import DatabaseManager
+from models.enums import MAX_SALE_ITEMS, QUANTITY_PRECISION
 from models.sale import Sale, SaleItem
 from services.customer_service import CustomerService
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
 from services.receipt_service import ReceiptService
-from models.enums import QUANTITY_PRECISION, MAX_SALE_ITEMS, EDIT_WINDOW_HOURS
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import DatabaseException, NotFoundException, ValidationException
+from utils.math.financial_calculator import FinancialCalculator
 from utils.system.event_system import event_system
 from utils.system.logger import logger
 from utils.validation.validators import (
@@ -20,7 +20,6 @@ from utils.validation.validators import (
     validate_integer,
     validate_string,
 )
-from utils.math.financial_calculator import FinancialCalculator
 
 
 class SaleService:
@@ -42,32 +41,35 @@ class SaleService:
         4) Emit sale_added event so UI (Sales Tab) refreshes automatically.
         """
         try:
-            # If no date was provided, use today's date in "YYYY-MM-DD" format
-            sale_date_str = date or datetime.now().strftime("%Y-%m-%d")
+            customer_id = validate_integer(customer_id, min_value=1)
+            sale_date_str = validate_date(date) if date else datetime.now().strftime("%Y-%m-%d")
+            self._validate_sale_items(items)
 
-            # 1) Create the sale row with placeholders
-            insert_query = """
-                INSERT INTO sales (customer_id, date, total_amount, total_profit)
-                VALUES (?, ?, 0, 0)
-            """
-            cursor = DatabaseManager.execute_query(
-                insert_query, (customer_id, sale_date_str)
+            total_amount = sum(
+                FinancialCalculator.calculate_item_total(
+                    item["quantity"], item["sell_price"]
+                )
+                for item in items
             )
-            sale_id = cursor.lastrowid
-            if sale_id is None:
-                raise DatabaseException("Failed to get new sale ID after insert.")
+            total_profit = sum(int(item["profit"]) for item in items)
 
-            # 2) Insert all sale items referencing this sale_id
-            items_query = """
-                INSERT INTO sale_items (sale_id, product_id, quantity, price, profit)
-                VALUES (?, ?, ?, ?, ?)
-            """
-            # Convert your 'items' list into the parameters needed
-            batch_params = []
-            for item in items:
-                # item might look like:
-                # { "product_id": 123, "quantity": 2.0, "sell_price": 1000, "profit": 300 }
-                batch_params.append(
+            with DatabaseManager.transaction():
+                insert_query = """
+                    INSERT INTO sales (customer_id, date, total_amount, total_profit)
+                    VALUES (?, ?, 0, 0)
+                """
+                cursor = DatabaseManager.execute_query(
+                    insert_query, (customer_id, sale_date_str)
+                )
+                sale_id = cursor.lastrowid
+                if sale_id is None:
+                    raise DatabaseException("Failed to get new sale ID after insert.")
+
+                items_query = """
+                    INSERT INTO sale_items (sale_id, product_id, quantity, price, profit)
+                    VALUES (?, ?, ?, ?, ?)
+                """
+                batch_params = [
                     (
                         sale_id,
                         int(item["product_id"]),
@@ -75,43 +77,25 @@ class SaleService:
                         int(item["sell_price"]),
                         int(item["profit"]),
                     )
+                    for item in items
+                ]
+                DatabaseManager.executemany(items_query, batch_params)
+
+                receipt_id = self._build_receipt_id(sale_date_str)
+                update_query = """
+                    UPDATE sales
+                    SET total_amount = ?, total_profit = ?, receipt_id = ?
+                    WHERE id = ?
+                """
+                DatabaseManager.execute_query(
+                    update_query, (total_amount, total_profit, receipt_id, sale_id)
                 )
-            DatabaseManager.executemany(items_query, batch_params)
 
-            # 3) Compute final totals + receipt ID
-            total_amount = 0
-            total_profit = 0
-            for item in items:
-                qty = float(item["quantity"])
-                unit_price = int(item["sell_price"])
-                # item["profit"] is already quantity * (unit_price - cost_price)
+                InventoryService.apply_batch_updates(
+                    items, multiplier=-1.0, emit_events=False
+                )
 
-                # Sum up sale totals
-                total_amount += FinancialCalculator.calculate_item_total(qty, unit_price)
-                total_profit += int(item["profit"])
-
-            # generate receipt ID from date
-            sale_date_obj = datetime.strptime(sale_date_str, "%Y-%m-%d")
-            receipt_id = self.generate_receipt_id(sale_date_obj)
-
-            # 4) Update the 'sales' row with correct totals & receipt_id
-            update_query = """
-                UPDATE sales
-                SET total_amount = ?, total_profit = ?, receipt_id = ?
-                WHERE id = ?
-            """
-            DatabaseManager.execute_query(
-                update_query, (total_amount, total_profit, receipt_id, sale_id)
-            )
-
-            # 5) Emit the event => the UI's Sales Tab is presumably listening for this
-            event_system.sale_added.emit(sale_id)
-
-            # 5) Inventory update - consolidated
-            InventoryService.apply_batch_updates(items, multiplier=-1.0)
-
-            # 6) Clear the cached get_all_sales
-            SaleService.get_all_sales.cache_clear()
+            self._finalize_sale_mutation(sale_id, items, event_system.sale_added)
 
             return sale_id
 
@@ -244,16 +228,19 @@ class SaleService:
         sale_id = validate_integer(sale_id, min_value=1)
         items = self.get_sale_items(sale_id)
 
-        InventoryService.apply_batch_updates(items, multiplier=1.0)
-
         try:
-            DatabaseManager.execute_query(
-                "DELETE FROM sale_items WHERE sale_id = ?", (sale_id,)
-            )
-            DatabaseManager.execute_query("DELETE FROM sales WHERE id = ?", (sale_id,))
+            with DatabaseManager.transaction():
+                InventoryService.apply_batch_updates(
+                    items, multiplier=1.0, emit_events=False
+                )
+                DatabaseManager.execute_query(
+                    "DELETE FROM sale_items WHERE sale_id = ?", (sale_id,)
+                )
+                DatabaseManager.execute_query(
+                    "DELETE FROM sales WHERE id = ?", (sale_id,)
+                )
             logger.info("Sale deleted", extra={"sale_id": sale_id})
-            event_system.sale_deleted.emit(sale_id)
-            self.clear_cache()
+            self._finalize_sale_mutation(sale_id, items, event_system.sale_deleted)
         except Exception as e:
             logger.error(
                 "Failed to delete sale", extra={"error": str(e), "sale_id": sale_id}
@@ -274,17 +261,7 @@ class SaleService:
         if not sale:
             raise ValidationException(f"Sale with ID {sale_id} not found.")
 
-        sale_datetime = datetime.fromisoformat(sale.date.isoformat())
-
-        if datetime.now() - sale_datetime > timedelta(hours=EDIT_WINDOW_HOURS):
-            raise ValidationException(
-                f"Sales can only be edited within {EDIT_WINDOW_HOURS} hours of creation."
-            )
-
         old_items = self.get_sale_items(sale_id)
-
-        # Revert previous inventory changes
-        InventoryService.apply_batch_updates(old_items, multiplier=1.0)
 
         total_amount = 0
         total_profit = 0
@@ -307,15 +284,20 @@ class SaleService:
             total_amount += item_total
             total_profit += item_profit
 
-        self._update_sale(sale_id, customer_id, date, total_amount, total_profit)
-        self._update_sale_items(sale_id, items)
-        InventoryService.apply_batch_updates(items, multiplier=-1.0)
+        with DatabaseManager.transaction():
+            InventoryService.apply_batch_updates(
+                old_items, multiplier=1.0, emit_events=False
+            )
+            self._update_sale(sale_id, customer_id, date, total_amount, total_profit)
+            self._update_sale_items(sale_id, items)
+            InventoryService.apply_batch_updates(
+                items, multiplier=-1.0, emit_events=False
+            )
 
         logger.info(
             "Sale updated", extra={"sale_id": sale_id, "customer_id": customer_id}
         )
-        event_system.sale_updated.emit(sale_id)
-        # self.clear_cache()
+        self._finalize_sale_mutation(sale_id, [*old_items, *items], event_system.sale_updated)
 
     @staticmethod
     @db_operation(show_dialog=True)
@@ -365,60 +347,8 @@ class SaleService:
 
     @staticmethod
     def generate_receipt_id(sale_date: datetime) -> str:
-        """Thread-safe receipt ID generation using database transaction."""
-        date_part = sale_date.strftime("%y%m%d")
-        max_retries = 5
-
-        for attempt in range(max_retries):
-            try:
-                # Use manual transaction control to support retry/rollback
-                # Access cursor directly to avoid auto-commit from execute_query
-                cursor = DatabaseManager._get_cursor()
-                cursor.execute("BEGIN EXCLUSIVE")
-
-                query = """
-                    SELECT MAX(CAST(SUBSTR(receipt_id, 7) AS INTEGER)) as last_number
-                    FROM sales
-                    WHERE receipt_id LIKE ? || '%'
-                """
-                cursor.execute(query, (date_part,))
-                result = cursor.fetchone()
-
-                last_number = (
-                    int(result["last_number"])
-                    if result and result["last_number"]
-                    else 0
-                )
-                new_number = last_number + 1
-                receipt_id = f"{date_part}{new_number:03d}"
-
-                # Verify uniqueness
-                check_query = "SELECT COUNT(*) as count FROM sales WHERE receipt_id = ?"
-                cursor.execute(check_query, (receipt_id,))
-                check_result = cursor.fetchone()
-
-                if check_result is not None and check_result["count"] > 0:
-                    # Collision detected, retry
-                    DatabaseManager._connection.rollback()
-                    continue
-
-                DatabaseManager._connection.commit()
-                return receipt_id
-
-            except Exception:
-                # If transaction fails, rollback
-                try:
-                    DatabaseManager._connection.rollback()
-                except Exception:
-                    pass
-                if attempt == max_retries - 1:
-                    # Use UUID as fallback
-                    import uuid
-
-                    return f"ERR{uuid.uuid4().hex[:9].upper()}"
-                time.sleep(0.1 * (attempt + 1))  # Exponential backoff
-
-        raise DatabaseException("Failed to generate receipt ID after retries")
+        """Generate the next receipt ID for the provided sale date."""
+        return SaleService._build_receipt_id(sale_date.strftime("%Y-%m-%d"))
 
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
@@ -474,6 +404,36 @@ class SaleService:
         """Clear the sale cache."""
         SaleService.get_all_sales.cache_clear()
         logger.debug("Sale cache cleared")
+
+    def _finalize_sale_mutation(self, sale_id: int, items: List[Any], signal: Any) -> None:
+        """Refresh caches and emit post-commit events for sale mutations."""
+        InventoryService.clear_cache()
+        for product_id in self._get_product_ids(items):
+            event_system.inventory_changed.emit(product_id)
+        self.clear_cache()
+        signal.emit(sale_id)
+
+    @staticmethod
+    def _build_receipt_id(sale_date_str: str) -> str:
+        sale_date = datetime.strptime(sale_date_str, "%Y-%m-%d")
+        date_part = sale_date.strftime("%y%m%d")
+        query = """
+            SELECT MAX(CAST(SUBSTR(receipt_id, 7) AS INTEGER)) as last_number
+            FROM sales
+            WHERE receipt_id LIKE ?
+        """
+        result = DatabaseManager.fetch_one(query, (f"{date_part}%",))
+        last_number = int(result["last_number"]) if result and result["last_number"] else 0
+        return f"{date_part}{last_number + 1:03d}"
+
+    @staticmethod
+    def _get_product_ids(items: List[Any]) -> List[int]:
+        product_ids: List[int] = []
+        for item in items:
+            product_id = item["product_id"] if isinstance(item, dict) else getattr(item, "product_id", None)
+            if product_id is not None and product_id not in product_ids:
+                product_ids.append(int(product_id))
+        return product_ids
 
     def _validate_sale_items(self, items: List[Dict[str, Any]]) -> None:
         if not items:

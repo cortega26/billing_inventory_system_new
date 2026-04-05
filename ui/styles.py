@@ -1,6 +1,7 @@
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication
 
+
 class DesignTokens:
     # Color Palette - DARK MODE
     # Base Scale

@@ -79,27 +79,27 @@ class MainWindow(QMainWindow):
         self.setMenuBar(menu_bar)
 
         file_menu = self.create_menu(
-            "&Archivo",
+            "&File",
             [
-                ("&Exportar Datos", "Ctrl+E", self.export_data),
-                ("&Importar Datos", "Ctrl+I", self.import_data),
-                ("&Copia de Seguridad", None, self.backup_data),
-                ("&Salir", QKeySequence.StandardKey.Quit, self.close),
+                ("&Export Data", "Ctrl+E", self.export_data),
+                ("&Import Data", "Ctrl+I", self.import_data),
+                ("&Create Backup", None, self.backup_data),
+                ("E&xit", QKeySequence.StandardKey.Quit, self.close),
             ],
         )
         view_menu = self.create_menu(
-            "&Ver",
-            [("&Actualizar", QKeySequence.StandardKey.Refresh, self.refresh_current_tab)],
+            "&View",
+            [("&Refresh", QKeySequence.StandardKey.Refresh, self.refresh_current_tab)],
         )
         help_menu = self.create_menu(
-            "&Ayuda",
+            "&Help",
             [
                 (
-                    "&Guía de Usuario",
+                    "&User Guide",
                     QKeySequence.StandardKey.HelpContents,
                     self.show_user_guide,
                 ),
-                ("&Acerca de", None, self.show_about_dialog),
+                ("&About", None, self.show_about_dialog),
             ],
         )
 
@@ -110,7 +110,7 @@ class MainWindow(QMainWindow):
     def setup_status_bar(self):
         self.status_bar = QStatusBar(self)
         self.setStatusBar(self.status_bar)
-        self.status_bar.showMessage("Listo")
+        self.status_bar.showMessage("Ready")
 
     def setup_global_shortcuts(self):
         """Setup global keyboard shortcuts for navigation."""
@@ -141,13 +141,13 @@ class MainWindow(QMainWindow):
     def create_tabs(self):
         try:
             tabs: Dict[str, Type[QWidget]] = {
-                "Resumen": DashboardView,
-                "Clientes": CustomerView,
-                "Productos": ProductView,
-                "Ventas": SaleView,
-                "Compras": PurchaseView,
-                "Inventario": InventoryView,
-                "Analítica": AnalyticsView,
+                "Dashboard": DashboardView,
+                "Customers": CustomerView,
+                "Products": ProductView,
+                "Sales": SaleView,
+                "Purchases": PurchaseView,
+                "Inventory": InventoryView,
+                "Analytics": AnalyticsView,
             }
 
             for tab_name, view_class in tabs.items():
@@ -183,24 +183,24 @@ class MainWindow(QMainWindow):
     def on_tab_changed(self, index):
         self.settings.setValue("LastTabIndex", index)
         tab_name = self.tab_widget.tabText(index)
-        self.status_bar.showMessage(f"Vista actual: {tab_name}")
+        self.status_bar.showMessage(f"Current view: {tab_name}")
 
     @ui_operation(show_dialog=True)
     def show_about_dialog(self):
         QMessageBox.about(
             self,
-            "Acerca de",
+            "About",
             f"{APP_NAME} v{APP_VERSION}\n\n"
-            f"Desarrollado por {COMPANY_NAME}\n\n"
-            "Sistema de gestión de inventario y facturación.",
+            f"Developed by {COMPANY_NAME}\n\n"
+            "Inventory and billing system.",
         )
 
     @ui_operation(show_dialog=True)
     def closeEvent(self, event):
         reply = QMessageBox.question(
             self,
-            "Salir",
-            "¿Está seguro de que desea salir?",
+            "Exit",
+            "Are you sure you want to exit?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -283,12 +283,6 @@ class MainWindow(QMainWindow):
         from services.backup_service import backup_service
         try:
             self.show_status_message("Creating backup...")
-            # Run in a separate thread to avoid freezing UI? 
-            # For simplicity, if DB is small, running in main thread is okay for now, 
-            # but ideally use QThread or just thread it. 
-            # Since create_backup is just a file copy, it should be fast.
-            # But let's wrap it slightly if it takes time.
-            # Given "local retail system", we can keep it simple.
             backup_path = backup_service.create_backup()
             if backup_path:
                 QMessageBox.information(self, "Backup Successful", f"Backup created at:\n{backup_path}")

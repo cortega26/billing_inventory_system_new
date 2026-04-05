@@ -12,7 +12,7 @@ def customer_service(db_manager):
 @pytest.fixture
 def sample_customer_data():
     return {
-        "identifier_9": "123456789",  # 9-digit identifier
+        "identifier_9": "923456789",  # 9-digit identifier
         "name": "Test Customer",
         "identifier_3or4": "123",  # 3-digit identifier
     }
@@ -124,13 +124,13 @@ class TestCustomerService:
             {
                 "id": 1,
                 "name": "John Doe",
-                "identifier_9": "111222333",
+                "identifier_9": "911222333",
                 "identifier_3or4": "123",
             },
             {
                 "id": 2,
                 "name": "Jane Doe",
-                "identifier_9": "444555666",
+                "identifier_9": "944555666",
                 "identifier_3or4": "456",
             },
         ]
@@ -147,9 +147,9 @@ class TestCustomerService:
 
         # Test search by identifier
         mock_fetch.return_value = [mock_rows[0]]
-        results = customer_service.search_customers("111")
+        results = customer_service.search_customers("911")
         assert len(results) == 1
-        assert results[0].identifier_9 == "111222333"
+        assert results[0].identifier_9 == "911222333"
 
     def test_get_customer_purchase_history(
         self, customer_service, sample_customer_data
@@ -167,8 +167,8 @@ class TestCustomerService:
         """Test identifier validation."""
         # Valid identifiers
         assert (
-            customer_service.validate_identifier("123456789", "identifier_9")
-            == "123456789"
+            customer_service.validate_identifier("923456789", "identifier_9")
+            == "923456789"
         )
         assert customer_service.validate_identifier("123", "identifier_3or4") == "123"
         assert customer_service.validate_identifier("1234", "identifier_3or4") == "1234"

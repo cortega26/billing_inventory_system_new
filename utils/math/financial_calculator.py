@@ -1,5 +1,6 @@
-from decimal import Decimal, ROUND_HALF_UP
-from typing import Union, Dict, Any, List
+from decimal import ROUND_HALF_UP, Decimal
+from typing import Any, Dict, List, Union
+
 
 class FinancialCalculator:
     """

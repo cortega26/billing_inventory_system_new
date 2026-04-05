@@ -13,7 +13,7 @@ class Product:
     id: int
     name: str
     description: str
-    category_id: int
+    category_id: Optional[int]
     cost_price: int  # Chilean Pesos - always integer
     sell_price: int  # Chilean Pesos - always integer
     barcode: Optional[str] = None
@@ -75,11 +75,13 @@ class Product:
             id=int(row["id"]),
             name=str(row["name"]),
             description=str(row["description"] or ""),
-            category_id=int(row["category_id"]),
+            category_id=(
+                int(row["category_id"]) if row.get("category_id") is not None else None
+            ),
             cost_price=int(row["cost_price"] or 0),
             sell_price=int(row["sell_price"] or 0),
             barcode=row.get("barcode"),
-            category_name=row.get("category_name", "Uncategorized"),
+            category_name=row.get("category_name") or "Uncategorized",
             created_at=(
                 datetime.fromisoformat(row["created_at"])
                 if "created_at" in row

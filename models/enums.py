@@ -1,4 +1,5 @@
-from enum import Enum, auto
+from enum import Enum
+
 
 class StockMovementType(str, Enum):
     SALE = "sale"
@@ -20,4 +21,3 @@ QUANTITY_PRECISION = 3
 MAX_PRICE_CLP = 1_000_000
 MAX_SALE_ITEMS = 1000
 MAX_PURCHASE_ITEMS = 1000
-EDIT_WINDOW_HOURS = 1240

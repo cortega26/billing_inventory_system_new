@@ -17,15 +17,10 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QSizePolicy,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
-    QTableWidget,
-    QTableWidgetItem,
-    QHeaderView,
 )
-
-from utils.helpers import create_table, format_price
-from utils.ui.table_items import NumericTableWidgetItem
 
 from services.analytics_service import AnalyticsService
 from services.customer_service import CustomerService
@@ -34,8 +29,10 @@ from services.purchase_service import PurchaseService
 from services.sale_service import SaleService
 from utils.decorators import ui_operation
 from utils.exceptions import UIException
+from utils.helpers import create_table
 from utils.system.event_system import event_system
 from utils.system.logger import logger
+from utils.ui.table_items import NumericTableWidgetItem
 
 
 class MetricWidget(QFrame):
@@ -237,8 +234,9 @@ class DashboardView(QWidget):
                 
                 # Highlight critical stock
                 if item["quantity"] <= 3:
-                     from ui.styles import DesignTokens
                      from PySide6.QtGui import QColor
+
+                     from ui.styles import DesignTokens
                      for col in range(3):
                         item_widget = self.low_stock_table.item(row, col)
                         item_widget.setBackground(QColor(DesignTokens.COLOR_ERROR))

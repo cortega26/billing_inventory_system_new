@@ -52,6 +52,8 @@ class TestConfig:
         assert config.get("theme") == "default"
         assert config.get("language") == "en"
         assert config.get("backup_interval") == 24
+        assert config.get("backup_dir") == "backups"
+        assert config.get("backup_retention_days") == 7
 
     def test_get_nested_config_value(self, config):
         """Test getting nested configuration values."""
@@ -88,6 +90,17 @@ class TestConfig:
         # Should create default
         config = Config()
         assert config.get("version") == "1.0"
+        assert config.get("backup_dir") == "backups"
+        assert config.get("backup_retention_days") == 7
+
+    def test_load_config_backfills_default_backup_settings(self, temp_config_file):
+        """Legacy config files should inherit newly added backup defaults."""
+        Config._reset_for_testing(temp_config_file)
+
+        config = Config()
+
+        assert config.get("backup_dir") == "backups"
+        assert config.get("backup_retention_days") == 7
 
     def test_save_config(self, config, temp_config_file):
         """Test saving configuration changes."""

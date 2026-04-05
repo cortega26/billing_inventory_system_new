@@ -1,6 +1,12 @@
-from typing import Dict, List, Type, Any
+from typing import Dict, Type
+
 from services.analytics.contracts import Metric
-from utils.validation.validators import validate_date, validate_integer, validate_float_non_negative
+from utils.validation.validators import (
+    validate_date,
+    validate_float_non_negative,
+    validate_integer,
+)
+
 
 class SalesDailyMetric(Metric):
     @property

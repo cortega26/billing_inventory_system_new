@@ -1,5 +1,5 @@
-import pytest
 from utils.math.financial_calculator import FinancialCalculator
+
 
 class TestFinancialCalculator:
     def test_calculate_item_total_simple(self):

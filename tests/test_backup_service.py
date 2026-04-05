@@ -1,10 +1,11 @@
-import shutil
 import time
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
+
 from services.backup_service import BackupService
+
 
 @pytest.fixture
 def backup_service(tmp_path):

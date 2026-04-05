@@ -1,15 +1,15 @@
 import sqlite3
-import pytest
 from datetime import datetime, timedelta
-from pathlib import Path
+
+import pytest
 
 from services.analytics.engine import AnalyticsEngine
 from services.analytics.metrics import (
+    DepartmentSalesMetric,
+    InventoryAgingMetric,
+    LowStockMetric,
     SalesDailyMetric,
     TopProductsMetric,
-    LowStockMetric,
-    InventoryAgingMetric,
-    DepartmentSalesMetric
 )
 
 # --- Fixtures ---

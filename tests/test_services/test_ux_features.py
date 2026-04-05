@@ -1,17 +1,20 @@
 
-import sys
 import os
+import sys
+
 sys.path.append(os.getcwd())
 
-import pytest
 from datetime import datetime
-from services.inventory_service import InventoryService
-from services.sale_service import SaleService
-from services.product_service import ProductService
-from services.customer_service import CustomerService
+
+import pytest
+
 from database.database_manager import DatabaseManager
-from models.enums import InventoryAction
 from services.category_service import CategoryService
+from services.customer_service import CustomerService
+from services.inventory_service import InventoryService
+from services.product_service import ProductService
+from services.sale_service import SaleService
+
 
 def test_manual():
     print("Initializing DB...")

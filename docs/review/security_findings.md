@@ -22,7 +22,7 @@ A threat model analysis and security review was conducted on the Billing Invento
 ### 2.3. Backups (HIGH - REMEDIATED)
 - **Finding:** `backup_interval` was defined but no backup logic existed.
 - **Risk:** Data loss in case of corruption or accidental deletion.
-- **Remediation:** Implemented `BackupService` with automated daily backups and 7-day retention. Added manual backup option to UI.
+- **Remediation:** Implemented `BackupService` with automated daily backups, 7-day retention, and a manual backup option in the UI. The product specification and runtime defaults were later reconciled to match this behavior.
 
 ### 2.4. File Operations (MEDIUM - REMEDIATED)
 - **Finding:** `excel_exporter.py` took a `filename` argument that was directly used to create files.

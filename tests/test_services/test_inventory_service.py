@@ -1,7 +1,7 @@
-import pytest
 from unittest.mock import MagicMock, patch
+
 from services.inventory_service import InventoryService
-from utils.exceptions import ValidationException
+
 
 class TestInventoryServiceUpdates:
     @patch('services.inventory_service.InventoryService.update_quantity')

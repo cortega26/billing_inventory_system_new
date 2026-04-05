@@ -2,6 +2,7 @@ from datetime import date
 
 import pytest
 
+from database.database_manager import DatabaseManager
 from services.customer_service import CustomerService
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
@@ -33,6 +34,7 @@ def inventory_service(db_manager):
 
 from services.category_service import CategoryService
 
+
 @pytest.fixture
 def category_service(db_manager):
     return CategoryService()
@@ -59,7 +61,7 @@ def sample_product(product_service, sample_category):
 @pytest.fixture
 def sample_customer(customer_service):
     customer_id = customer_service.create_customer(
-        identifier_9="123456789", name="Test Customer"
+        identifier_9="923456789", name="Test Customer"
     )
     return customer_service.get_customer(customer_id)
 
@@ -114,6 +116,9 @@ class TestSaleService:
         # Attempt to create sale
         with pytest.raises(ValidationException):
             sale_service.create_sale(**sample_sale_data)
+
+        assert DatabaseManager.fetch_one("SELECT id FROM sales") is None
+        assert DatabaseManager.fetch_one("SELECT id FROM sale_items") is None
 
     def test_create_sale_invalid_quantity(self, sale_service, sample_sale_data):
         sample_sale_data["items"][0]["quantity"] = -1
@@ -214,3 +219,81 @@ class TestSaleService:
         assert stats["total_sales"] == 1
         assert stats["total_amount"] > 0
         assert stats["total_profit"] > 0
+
+    def test_get_sale_after_customer_deleted(
+        self,
+        sale_service,
+        sample_sale_data,
+        inventory_service,
+        sample_product,
+        customer_service,
+        sample_customer,
+    ):
+        inventory_service.update_quantity(sample_product.id, 10.0)
+        sale_id = sale_service.create_sale(**sample_sale_data)
+
+        customer_service.delete_customer(sample_customer.id)
+
+        sale = sale_service.get_sale(sale_id)
+        assert sale.customer_id is None
+        assert len(sale.items) == 1
+
+    def test_update_historical_sale_is_allowed(
+        self, sale_service, sample_sale_data, inventory_service, sample_product
+    ):
+        inventory_service.update_quantity(sample_product.id, 10.0)
+        historical_date = "2020-01-01"
+        sale_id = sale_service.create_sale(
+            sample_sale_data["customer_id"],
+            historical_date,
+            sample_sale_data["items"],
+        )
+
+        updated_items = [
+            {
+                "product_id": sample_product.id,
+                "quantity": 1,
+                "sell_price": sample_product.sell_price,
+                "profit": sample_product.sell_price - sample_product.cost_price,
+            }
+        ]
+
+        sale_service.update_sale(
+            sale_id,
+            sample_sale_data["customer_id"],
+            historical_date,
+            updated_items,
+        )
+
+        sale = sale_service.get_sale(sale_id)
+        inventory = inventory_service.get_inventory(sample_product.id)
+        assert len(sale.items) == 1
+        assert sale.items[0].quantity == 1.0
+        assert inventory.quantity == 9.0
+
+    def test_update_sale_rolls_back_on_insufficient_inventory(
+        self, sale_service, sample_sale_data, inventory_service, sample_product
+    ):
+        inventory_service.update_quantity(sample_product.id, 10.0)
+        sale_id = sale_service.create_sale(**sample_sale_data)
+
+        with pytest.raises(ValidationException):
+            sale_service.update_sale(
+                sale_id,
+                sample_sale_data["customer_id"],
+                sample_sale_data["date"],
+                [
+                    {
+                        "product_id": sample_product.id,
+                        "quantity": 11,
+                        "sell_price": sample_product.sell_price,
+                        "profit": 11
+                        * (sample_product.sell_price - sample_product.cost_price),
+                    }
+                ],
+            )
+
+        sale = sale_service.get_sale(sale_id)
+        inventory = inventory_service.get_inventory(sample_product.id)
+        assert sale.items[0].quantity == 2.0
+        assert inventory.quantity == 8.0

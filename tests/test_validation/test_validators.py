@@ -128,11 +128,13 @@ class TestValidators:
     def test_identifier_validation(self):
         """Test identifier validation."""
         # 9-digit identifier
-        assert validate_9digit_identifier("123456789") == "123456789"
+        assert validate_9digit_identifier("923456789") == "923456789"
         with pytest.raises(ValidationException):
             validate_9digit_identifier("12345678")  # Too short
         with pytest.raises(ValidationException):
             validate_9digit_identifier("1234567890")  # Too long
+        with pytest.raises(ValidationException):
+            validate_9digit_identifier("123456789")  # Must start with 9
 
         # 3or4-digit identifier
         assert validate_3or4digit_identifier("123") == "123"
@@ -141,6 +143,8 @@ class TestValidators:
             validate_3or4digit_identifier("12")  # Too short
         with pytest.raises(ValidationException):
             validate_3or4digit_identifier("12345")  # Too long
+        with pytest.raises(ValidationException):
+            validate_3or4digit_identifier("0123")  # Cannot start with 0
 
     def test_validate_and_sanitize(self):
         """Test combined validation and sanitization."""

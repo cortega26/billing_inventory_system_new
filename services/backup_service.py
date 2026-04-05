@@ -1,15 +1,14 @@
-import os
-import shutil
+import sqlite3
 import threading
 import time
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-import sqlite3
-from config import config, DATABASE_PATH
+from config import DATABASE_PATH, config
 from database.database_manager import DatabaseManager
 from utils.system.logger import logger
+
 
 class BackupService:
     _instance: Optional["BackupService"] = None
@@ -124,18 +123,8 @@ class BackupService:
 
     def _scheduler_loop(self) -> None:
         """Loop to check if it's time to backup."""
-        # Run one immediately on startup? Or wait?
-        # Let's run safe check: if no backup exists for today, create one?
-        # Or simply rely on interval.
-        # Config interval is in hours.
-        
         while not self._stop_event.is_set():
             try:
-                # Interval check logic could be more complex (e.g., store last backup time in config),
-                # but valid simple approach: Sleep for interval.
-                # However, if app restarts often, we might spam backups or miss them.
-                # Better: Check modification time of latest backup.
-                
                 interval_hours = config.get("backup_interval", 24)
                 interval_seconds = interval_hours * 3600
                 

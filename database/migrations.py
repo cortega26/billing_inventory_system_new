@@ -39,28 +39,7 @@ def add_performance_indexes():
                     raise DatabaseException(
                         f"Index creation failed: {str(index_error)}"
                     )
-
-            # Enable WAL mode and optimize performance
-            pragmas = [
-                "PRAGMA journal_mode=WAL",
-                "PRAGMA synchronous=NORMAL",
-                "PRAGMA cache_size=2000",
-                "PRAGMA temp_store=MEMORY",
-                "PRAGMA foreign_keys=ON",
-                "PRAGMA auto_vacuum=INCREMENTAL",
-                "PRAGMA mmap_size=268435456",  # 256MB memory mapping
-            ]
-
-            for pragma in pragmas:
-                try:
-                    DatabaseManager.execute_query(pragma)
-                    logger.info(f"Applied optimization: {pragma}")
-                except Exception as pragma_error:
-                    logger.warning(
-                        f"Failed to apply pragma {pragma}: {str(pragma_error)}"
-                    )
-
-        logger.info("All performance indexes and optimizations completed successfully")
+        logger.info("All performance indexes completed successfully")
 
     except Exception as e:
         logger.error(f"Failed to create indexes: {str(e)}")

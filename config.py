@@ -115,13 +115,12 @@ class Config:
                     )
                     if config_file.exists():
                         try:
-                            print(
-                                f"DEBUG: Loading config from {config_file}, size={config_file.stat().st_size}"
-                            )
                             with open(config_file, "r") as f:
                                 loaded_config = json.load(f)
-                            cls._validate_config(loaded_config)
-                            cls._config = loaded_config
+                            merged_config = cls._get_default_config()
+                            merged_config.update(loaded_config)
+                            cls._validate_config(merged_config)
+                            cls._config = merged_config
                             cls._last_load_time = time.time()
                         except (IOError, JSONDecodeError) as e:
                             logging.error(f"Error loading configuration: {e}")
@@ -176,6 +175,8 @@ class Config:
             "theme": (str, ["default", "dark", "light"]),
             "language": (str, ["en", "es"]),
             "backup_interval": (int, (1, 168)),  # 1 hour to 1 week
+            "backup_dir": (str, None),
+            "backup_retention_days": (int, (1, 365)),
         }
 
         for key, (expected_type, valid_values) in required_keys.items():

@@ -146,54 +146,65 @@ class SaleService:
         return sales
 
     @staticmethod
-    @lru_cache(maxsize=1)
+    @lru_cache(maxsize=128)
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    @staticmethod
-    def get_all_sales() -> List[Sale]:
-        """Get all sales with items in optimized queries."""
-        # Get all sales
+    def get_all_sales(limit: int = 100, offset: int = 0) -> List[Sale]:
+        """Get a page of sales with items in optimized queries.
+
+        Args:
+            limit: Maximum number of sales to return (default 100).
+            offset: Number of sales to skip for pagination (default 0).
+        """
+        limit = validate_integer(limit, min_value=1)
+        offset = validate_integer(offset, min_value=0)
+
         sales_query = """
-            SELECT s.*, 
+            SELECT s.*,
                 COALESCE(s.total_amount, 0) as total_amount,
                 COALESCE(s.total_profit, 0) as total_profit
             FROM sales s
             ORDER BY s.date DESC
-        """
-
-        # Get all sale items in one query
-        items_query = """
-            SELECT si.*,
-                p.name as product_name,
-                COALESCE(si.quantity, 0) as quantity,
-                COALESCE(si.price, 0) as price,
-                COALESCE(si.profit, 0) as profit
-            FROM sale_items si
-            LEFT JOIN products p ON si.product_id = p.id
-            ORDER BY si.sale_id, si.id
+            LIMIT ? OFFSET ?
         """
 
         try:
-            # Fetch all data
-            sales_rows = DatabaseManager.fetch_all(sales_query)
-            items_rows = DatabaseManager.fetch_all(items_query)
+            sales_rows = DatabaseManager.fetch_all(sales_query, (limit, offset))
+            if not sales_rows:
+                return []
 
-            # Group items by sale_id
-            items_by_sale = {}
+            sales = [Sale.from_db_row(row) for row in sales_rows]
+            sale_ids = [sale.id for sale in sales]
+
+            # Fetch items only for this page's sales — avoids loading the full table
+            placeholders = ",".join("?" * len(sale_ids))
+            items_query = f"""
+                SELECT si.*,
+                    p.name as product_name,
+                    COALESCE(si.quantity, 0) as quantity,
+                    COALESCE(si.price, 0) as price,
+                    COALESCE(si.profit, 0) as profit
+                FROM sale_items si
+                LEFT JOIN products p ON si.product_id = p.id
+                WHERE si.sale_id IN ({placeholders})
+                ORDER BY si.sale_id, si.id
+            """
+            items_rows = DatabaseManager.fetch_all(items_query, tuple(sale_ids))
+
+            items_by_sale: Dict[int, List[SaleItem]] = {}
             for item_row in items_rows:
-                sale_id = item_row["sale_id"]
-                if sale_id not in items_by_sale:
-                    items_by_sale[sale_id] = []
-                items_by_sale[sale_id].append(SaleItem.from_db_row(item_row))
+                sid = item_row["sale_id"]
+                if sid not in items_by_sale:
+                    items_by_sale[sid] = []
+                items_by_sale[sid].append(SaleItem.from_db_row(item_row))
 
-            # Build sales with items
-            sales = []
-            for sale_row in sales_rows:
-                sale = Sale.from_db_row(sale_row)
+            for sale in sales:
                 sale.items = items_by_sale.get(sale.id, [])
-                sales.append(sale)
 
-            logger.info(f"Retrieved {len(sales)} sales with items")
+            logger.info(
+                f"Retrieved {len(sales)} sales",
+                extra={"limit": limit, "offset": offset},
+            )
             return sales
 
         except Exception as e:
@@ -216,12 +227,8 @@ class SaleService:
         rows = DatabaseManager.fetch_all(query, (sale_id,))
         items = []
         for row in rows:
-            try:
-                item = SaleItem.from_db_row(row)
-                items.append(item)
-            except Exception as e:
-                logger.error(f"Error processing sale item for sale {sale_id}: {str(e)}")
-                logger.error(f"Problematic row data: {row}")
+            item = SaleItem.from_db_row(row)
+            items.append(item)
         return items
 
     @db_operation(show_dialog=True)
@@ -251,6 +258,40 @@ class SaleService:
 
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
+    def cancel_sale(self, sale_id: int) -> None:
+        """
+        Cancel a sale by setting status='cancelled' and reverting stock.
+
+        Unlike delete_sale, the sale record is preserved for audit purposes.
+        Raises ValidationException if the sale is already cancelled.
+        """
+        sale_id = validate_integer(sale_id, min_value=1)
+        sale = self.get_sale(sale_id)
+        if not sale:
+            raise NotFoundException(f"Sale with ID {sale_id} not found")
+        if sale.status == "cancelled":
+            raise ValidationException(f"Sale {sale_id} is already cancelled")
+
+        items = self.get_sale_items(sale_id)
+
+        try:
+            with DatabaseManager.transaction():
+                InventoryService.apply_batch_updates(
+                    items, multiplier=1.0, emit_events=False
+                )
+                DatabaseManager.execute_query(
+                    "UPDATE sales SET status = 'cancelled' WHERE id = ?", (sale_id,)
+                )
+            logger.info("Sale cancelled", extra={"sale_id": sale_id})
+            self._finalize_sale_mutation(sale_id, items, event_system.sale_updated)
+        except Exception as e:
+            logger.error(
+                "Failed to cancel sale", extra={"error": str(e), "sale_id": sale_id}
+            )
+            raise DatabaseException(f"Failed to cancel sale: {str(e)}")
+
+    @db_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def update_sale(
         self, sale_id: int, customer_id: int, date: str, items: List[Dict[str, Any]]
     ) -> None:
@@ -265,28 +306,12 @@ class SaleService:
 
         old_items = self.get_sale_items(sale_id)
 
-        total_amount = 0
-        total_profit = 0
-        for item in items:
-            product = self.product_service.get_product(item["product_id"])
-            if product is None:
-                raise ValidationException(
-                    f"Product with ID {item['product_id']} not found"
-                )
-            if product.cost_price is None or product.sell_price is None:
-                raise ValidationException(
-                    f"Cost/Sell price not set for product '{product.name}'"
-                )
-
-            item_total = FinancialCalculator.calculate_item_total(
-                item["quantity"], item["sell_price"]
-            )
-            item_profit = FinancialCalculator.calculate_item_profit(
-                item["quantity"], item["sell_price"], product.cost_price
-            )
-
-            total_amount += item_total
-            total_profit += item_profit
+        # item["profit"] was computed server-side by _validate_sale_items above
+        total_amount = sum(
+            FinancialCalculator.calculate_item_total(item["quantity"], item["sell_price"])
+            for item in items
+        )
+        total_profit = sum(item["profit"] for item in items)
 
         with DatabaseManager.transaction():
             InventoryService.apply_batch_updates(
@@ -470,6 +495,16 @@ class SaleService:
                 if not isinstance(sell_price, int):
                     raise ValidationException("Item sell price must be an integer")
 
+                # Compute profit server-side; ignore any client-supplied value
+                product = self.product_service.get_product(item["product_id"])
+                if product is None:
+                    raise ValidationException(
+                        f"Product with ID {item['product_id']} not found"
+                    )
+                item["profit"] = FinancialCalculator.calculate_item_profit(
+                    quantity, sell_price, product.cost_price
+                )
+
             except (ValueError, TypeError):
                 raise ValidationException("Invalid quantity or price format")
 
@@ -565,21 +600,65 @@ class SaleService:
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_sales_by_date_range(self, start_date: str, end_date: str) -> List[Sale]:
+    def get_sales_by_date_range(
+        self,
+        start_date: str,
+        end_date: str,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> List[Sale]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
+        limit = validate_integer(limit, min_value=1)
+        offset = validate_integer(offset, min_value=0)
+
         query = """
             SELECT * FROM sales
             WHERE date BETWEEN ? AND ?
             ORDER BY date DESC
+            LIMIT ? OFFSET ?
         """
-        rows = DatabaseManager.fetch_all(query, (start_date, end_date))
+        rows = DatabaseManager.fetch_all(query, (start_date, end_date, limit, offset))
+        if not rows:
+            return []
+
         sales = [Sale.from_db_row(row) for row in rows]
+        sale_ids = [sale.id for sale in sales]
+
+        # Batch-load items for this page — eliminates N+1
+        placeholders = ",".join("?" * len(sale_ids))
+        items_query = f"""
+            SELECT si.*,
+                p.name as product_name,
+                COALESCE(si.quantity, 0) as quantity,
+                COALESCE(si.price, 0) as price,
+                COALESCE(si.profit, 0) as profit
+            FROM sale_items si
+            LEFT JOIN products p ON si.product_id = p.id
+            WHERE si.sale_id IN ({placeholders})
+            ORDER BY si.sale_id, si.id
+        """
+        items_rows = DatabaseManager.fetch_all(items_query, tuple(sale_ids))
+
+        items_by_sale: Dict[int, List[SaleItem]] = {}
+        for item_row in items_rows:
+            sid = item_row["sale_id"]
+            if sid not in items_by_sale:
+                items_by_sale[sid] = []
+            items_by_sale[sid].append(SaleItem.from_db_row(item_row))
+
         for sale in sales:
-            sale.items = self.get_sale_items(sale.id)
+            sale.items = items_by_sale.get(sale.id, [])
+
         logger.info(
             "Sales by date range retrieved",
-            extra={"start_date": start_date, "end_date": end_date, "count": len(sales)},
+            extra={
+                "start_date": start_date,
+                "end_date": end_date,
+                "limit": limit,
+                "offset": offset,
+                "count": len(sales),
+            },
         )
         return sales
 

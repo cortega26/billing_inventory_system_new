@@ -86,11 +86,30 @@ class PurchaseService:
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
     def get_all_purchases() -> List[Purchase]:
-        query = "SELECT * FROM purchases ORDER BY date DESC"
-        rows = DatabaseManager.fetch_all(query)
+        rows = DatabaseManager.fetch_all("SELECT * FROM purchases ORDER BY date DESC")
+        if not rows:
+            return []
+
         purchases = [Purchase.from_db_row(row) for row in rows]
+        purchase_ids = [p.id for p in purchases]
+
+        # Batch-load all items in a single query — eliminates N+1
+        placeholders = ",".join("?" * len(purchase_ids))
+        items_rows = DatabaseManager.fetch_all(
+            f"SELECT * FROM purchase_items WHERE purchase_id IN ({placeholders}) ORDER BY purchase_id, id",
+            tuple(purchase_ids),
+        )
+
+        items_by_purchase: Dict[int, List[PurchaseItem]] = {}
+        for item_row in items_rows:
+            pid = item_row["purchase_id"]
+            if pid not in items_by_purchase:
+                items_by_purchase[pid] = []
+            items_by_purchase[pid].append(PurchaseItem.from_db_row(item_row))
+
         for purchase in purchases:
-            purchase.items = PurchaseService.get_purchase_items(purchase.id)
+            purchase.items = items_by_purchase.get(purchase.id, [])
+
         logger.info("All purchases retrieved", extra={"count": len(purchases)})
         return purchases
 
@@ -245,10 +264,6 @@ class PurchaseService:
                 (purchase_id, item["product_id"], quantity_str, item["cost_price"]),
             )
 
-            update_query = "UPDATE products SET cost_price = ? WHERE id = ?"
-            DatabaseManager.execute_query(
-                update_query, (item["cost_price"], item["product_id"])
-            )
 
     # _update_inventory and _revert_inventory removed in favor of InventoryService.apply_batch_updates
 
@@ -425,8 +440,10 @@ class PurchaseService:
     @db_operation(show_dialog=True)
     def get_purchase_statistics(start_date: str, end_date: str) -> Dict[str, Any]:
         """Get purchase statistics for a period."""
+        start_date = validate_date(start_date)
+        end_date = validate_date(end_date)
         query = """
-            SELECT 
+            SELECT
                 COUNT(*) as total_purchases,
                 COALESCE(SUM(total_amount), 0) as total_amount,
                 COUNT(DISTINCT supplier) as supplier_count
@@ -434,6 +451,12 @@ class PurchaseService:
             WHERE date BETWEEN ? AND ?
         """
         row = DatabaseManager.fetch_one(query, (start_date, end_date))
+        if not row:
+            return {
+                "total_purchases": 0,
+                "total_amount": 0,
+                "suppliers": PurchaseService.get_suppliers(),
+            }
         return {
             "total_purchases": row["total_purchases"],
             "total_amount": row["total_amount"],

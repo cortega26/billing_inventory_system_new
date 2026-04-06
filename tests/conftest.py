@@ -81,8 +81,6 @@ def clear_test_data(db_manager):
                 "inventory",
                 "sales",
                 "purchases",
-                "users",
-                "suppliers",
                 "customers",
                 "categories",
             ]

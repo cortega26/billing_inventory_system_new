@@ -17,6 +17,7 @@ class AnalyticsService:
     def get_sales_by_weekday(start_date: str, end_date: str) -> List[Dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
+        AnalyticsService._validate_date_range(start_date, end_date)
         query = """
             SELECT 
                 CASE CAST(strftime('%w', date) AS INTEGER)
@@ -51,11 +52,12 @@ class AnalyticsService:
     ) -> List[Dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
+        AnalyticsService._validate_date_range(start_date, end_date)
         limit = validate_integer(limit, min_value=1)
         query = """
-            SELECT p.id, p.name, 
-                   ROUND(SUM(si.quantity), 3) as total_quantity, 
-                   SUM(ROUND(si.quantity * si.price)) as total_revenue,
+            SELECT p.id, p.name,
+                   ROUND(SUM(si.quantity), 3) as total_quantity,
+                   CAST(SUM(ROUND(si.quantity * si.price)) AS INTEGER) as total_revenue,
                    COUNT(DISTINCT s.id) as sale_count
             FROM products p
             JOIN sale_items si ON p.id = si.product_id
@@ -86,6 +88,7 @@ class AnalyticsService:
         """
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
+        AnalyticsService._validate_date_range(start_date, end_date)
         query = """
             SELECT
                 strftime('%Y-%m-%d', date) as date,
@@ -110,8 +113,9 @@ class AnalyticsService:
     def get_weekly_profit_trend(start_date: str, end_date: str) -> List[Dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
+        AnalyticsService._validate_date_range(start_date, end_date)
         query = """
-            SELECT 
+            SELECT
                 strftime('%Y-%W', date) as week,
                 MIN(date) as week_start,
                 SUM(total_profit) as weekly_profit
@@ -136,12 +140,13 @@ class AnalyticsService:
     ) -> List[Dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
+        AnalyticsService._validate_date_range(start_date, end_date)
         limit = validate_integer(limit, min_value=1, max_value=100)
         query = """
-            SELECT 
+            SELECT
                 p.id,
                 p.name,
-                SUM(ROUND(si.quantity * (si.price - p.cost_price))) as total_profit,
+                CAST(SUM(ROUND(si.quantity * (si.price - p.cost_price))) AS INTEGER) as total_profit,
                 ROUND(SUM(si.quantity), 3) as sales_volume
             FROM products p
             JOIN sale_items si ON p.id = si.product_id
@@ -164,10 +169,11 @@ class AnalyticsService:
     ) -> List[Dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
+        AnalyticsService._validate_date_range(start_date, end_date)
         query = """
-            SELECT 
+            SELECT
                 c.name as category,
-                SUM(ROUND(si.quantity * si.price)) as total_sales,
+                CAST(SUM(ROUND(si.quantity * si.price)) AS INTEGER) as total_sales,
                 ROUND(SUM(si.quantity), 3) as number_of_products_sold,
                 COUNT(DISTINCT s.id) as sale_count
             FROM categories c
@@ -194,12 +200,13 @@ class AnalyticsService:
     ) -> List[Dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
+        AnalyticsService._validate_date_range(start_date, end_date)
         limit = validate_integer(limit, min_value=1)
         query = """
-            SELECT p.id, p.name, 
-                   SUM(ROUND(si.quantity * si.price)) as total_revenue,
-                   SUM(ROUND(si.quantity * p.cost_price)) as total_cost,
-                   SUM(ROUND(si.quantity * (si.price - p.cost_price))) as total_profit,
+            SELECT p.id, p.name,
+                   CAST(SUM(ROUND(si.quantity * si.price)) AS INTEGER) as total_revenue,
+                   CAST(SUM(ROUND(si.quantity * p.cost_price)) AS INTEGER) as total_cost,
+                   CAST(SUM(ROUND(si.quantity * (si.price - p.cost_price))) AS INTEGER) as total_profit,
                    COUNT(DISTINCT s.id) as sale_count
             FROM products p
             JOIN sale_items si ON p.id = si.product_id
@@ -220,6 +227,7 @@ class AnalyticsService:
     def get_profit_trend(start_date: str, end_date: str) -> List[Dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
+        AnalyticsService._validate_date_range(start_date, end_date)
         query = """
             SELECT
                 strftime('%Y-%m-%d', date) as date,
@@ -244,6 +252,7 @@ class AnalyticsService:
     ) -> List[Dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
+        AnalyticsService._validate_date_range(start_date, end_date)
         query = """
             SELECT 
                 CASE 
@@ -258,15 +267,15 @@ class AnalyticsService:
                 ROUND(AVG(profit_margin), 2) as average_margin,
                 SUM(total_sales) as total_sales
             FROM (
-                SELECT 
+                SELECT
                     p.id,
-                    CASE 
-                        WHEN SUM(ROUND(si.quantity * si.price)) > 0 
-                        THEN (CAST(SUM(ROUND(si.quantity * (si.price - p.cost_price))) AS FLOAT) / 
-                              SUM(ROUND(si.quantity * si.price))) * 100
-                        ELSE 0 
+                    CASE
+                        WHEN CAST(SUM(ROUND(si.quantity * si.price)) AS INTEGER) > 0
+                        THEN (CAST(SUM(ROUND(si.quantity * (si.price - p.cost_price))) AS FLOAT) /
+                              CAST(SUM(ROUND(si.quantity * si.price)) AS INTEGER)) * 100
+                        ELSE 0
                     END as profit_margin,
-                    SUM(ROUND(si.quantity * si.price)) as total_sales
+                    CAST(SUM(ROUND(si.quantity * si.price)) AS INTEGER) as total_sales
                 FROM products p
                 JOIN sale_items si ON p.id = si.product_id
                 JOIN sales s ON si.sale_id = s.id
@@ -294,6 +303,7 @@ class AnalyticsService:
     def get_sales_summary(start_date: str, end_date: str) -> Dict[str, Any]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
+        AnalyticsService._validate_date_range(start_date, end_date)
         query = """
             SELECT 
                 COUNT(*) as total_sales,
@@ -349,7 +359,8 @@ class AnalyticsService:
             logger.error(f"Invalid range type: {range_type}")
             raise ValueError("Invalid range type")
 
-    def _validate_date_range(self, start_date: str, end_date: str) -> None:
+    @staticmethod
+    def _validate_date_range(start_date: str, end_date: str) -> None:
         """Validate date range for analytics queries."""
         try:
             start = datetime.fromisoformat(start_date)

@@ -7,6 +7,13 @@ from utils.exceptions import DatabaseException
 from utils.system.logger import logger
 
 
+def _get_inventory_service():
+    """Deferred import to avoid circular dependency."""
+    from services.inventory_service import InventoryService
+
+    return InventoryService
+
+
 class DataValidationService:
     """Service for validating data integrity across the application."""
 
@@ -65,62 +72,70 @@ class DataValidationService:
     @db_operation(show_dialog=True)
     def fix_invalid_sales() -> None:
         """
-        Fix invalid sales data by removing future sales and orphaned items.
+        Fix invalid sales data by removing future-dated sales and orphaned items.
+
+        Inventory is reverted for each deleted sale within the same transaction so
+        that a crash between the stock revert and the delete cannot leave stock in
+        an inconsistent state.
         """
         logger.info("Starting sales data fix")
 
-        try:
-            invalid_sales, orphaned_items = DataValidationService.diagnose_sales_data()
+        invalid_sales, orphaned_items = DataValidationService.diagnose_sales_data()
 
-            if not invalid_sales and not orphaned_items:
-                logger.info("No invalid sales data found")
-                return
+        if not invalid_sales and not orphaned_items:
+            logger.info("No invalid sales data found")
+            return
 
-            with DatabaseManager.get_db_connection() as conn:
-                if invalid_sales:
-                    # Validate and sanitize IDs first
-                    sale_ids = []
-                    for sale in invalid_sales:
-                        try:
-                            sale_id = int(sale.get("id", 0))
-                            if 0 < sale_id <= 2147483647:
-                                sale_ids.append(sale_id)
-                        except (ValueError, TypeError):
-                            logger.error(f"Invalid sale ID skipped: {sale.get('id')}")
-                            continue
+        # Validate and sanitize IDs before opening the transaction
+        sale_ids = []
+        for sale in invalid_sales:
+            try:
+                sale_id = int(sale.get("id", 0))
+                if 0 < sale_id <= 2147483647:
+                    sale_ids.append(sale_id)
+            except (ValueError, TypeError):
+                logger.error(f"Invalid sale ID skipped: {sale.get('id')}")
 
-                    if sale_ids:
-                        # Use parameterized query with validated IDs
-                        placeholders = ",".join(["?" for _ in sale_ids])
-                        delete_items_query = f"""
-                            DELETE FROM sale_items 
-                            WHERE sale_id IN ({placeholders})
-                        """
-                        cursor = conn.execute(delete_items_query, sale_ids)
+        InventoryService = _get_inventory_service()
 
-                if orphaned_items:
-                    item_ids = [item["id"] for item in orphaned_items]
-                    placeholders = ",".join("?" * len(item_ids))
+        with DatabaseManager.transaction():
+            if sale_ids:
+                placeholders = ",".join("?" * len(sale_ids))
 
-                    logger.info(f"Deleting orphaned items: {item_ids}")
-                    delete_orphaned_query = f"""
-                        DELETE FROM sale_items 
-                        WHERE id IN ({placeholders})
-                    """
-                    cursor = conn.execute(delete_orphaned_query, item_ids)
-                    logger.info(f"Deleted {cursor.rowcount} orphaned items")
+                # Fetch items so we can revert inventory before deleting
+                items_rows = DatabaseManager.fetch_all(
+                    f"SELECT * FROM sale_items WHERE sale_id IN ({placeholders})",
+                    sale_ids,
+                )
+                if items_rows:
+                    InventoryService.apply_batch_updates(
+                        items_rows, multiplier=1.0, emit_events=False
+                    )
 
-                conn.commit()
-                logger.info("Sales data fix completed successfully")
+                DatabaseManager.execute_query(
+                    f"DELETE FROM sale_items WHERE sale_id IN ({placeholders})",
+                    sale_ids,
+                )
+                DatabaseManager.execute_query(
+                    f"DELETE FROM sales WHERE id IN ({placeholders})",
+                    sale_ids,
+                )
+                logger.info(f"Deleted {len(sale_ids)} invalid sales with inventory reverted")
 
-        except sqlite3.Error as e:
-            logger.error(f"Database error during fix: {e}")
-            logger.error("Failed SQL operations details:")
-            raise DatabaseException(f"Database error during fix: {e}")
-        except Exception as e:
-            logger.error(f"Error during sales fix: {e}")
-            logger.error("Full error details:")
-            raise
+            if orphaned_items:
+                item_ids = [item["id"] for item in orphaned_items]
+                placeholders = ",".join("?" * len(item_ids))
+                DatabaseManager.execute_query(
+                    f"DELETE FROM sale_items WHERE id IN ({placeholders})",
+                    item_ids,
+                )
+                logger.info(f"Deleted {len(item_ids)} orphaned sale items")
+
+        # Emit inventory events after the transaction commits
+        if sale_ids:
+            InventoryService.clear_cache()
+
+        logger.info("Sales data fix completed successfully")
 
     @staticmethod
     def validate_all_data():

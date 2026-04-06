@@ -131,7 +131,8 @@ class Purchase:
         """Recalculate total amount ensuring proper CLP handling."""
         try:
             total = sum(item.total_price() for item in self.items)
-            self._total_amount = validate_money(total, "Total amount")
+            # No upper cap — purchase totals can exceed any single unit price
+            self._total_amount = validate_money(total, "Total amount", max_value=None)
         except Exception as e:
             logger.error(f"Error calculating total: {str(e)}")
             raise ValidationException("Error calculating total amount")

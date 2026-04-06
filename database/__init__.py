@@ -22,11 +22,9 @@ def init_db(db_path: str = "billing_inventory.db"):
                 with DatabaseManager.get_db_connection() as conn:
                     conn.executescript(schema_sql)
         else:
-            # Fallback or strict error?
-            # If running from different CWD, might miss it.
-            # Try absolute path relative to project root?
-            # For now assume CWD is project root as per standard run.
-            pass
+            raise DatabaseException(
+                f"schema.sql not found. Expected at: {os.path.abspath(schema_path)}"
+            )
 
         # Check if migration is needed
         with DatabaseManager.transaction():

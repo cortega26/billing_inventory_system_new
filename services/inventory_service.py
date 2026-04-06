@@ -14,6 +14,7 @@ from utils.exceptions import (
 from utils.system.event_system import event_system
 from utils.system.logger import logger
 from utils.validation.validators import (
+    validate_date,
     validate_float,
     validate_float_non_negative,
     validate_integer,
@@ -200,12 +201,21 @@ class InventoryService:
         new_quantity = validate_float_non_negative(new_quantity)
         new_quantity = round(new_quantity, QUANTITY_PRECISION)
 
-        InventoryService._modify_inventory(
-            product_id, new_quantity, action=InventoryAction.UPDATE
-        )
+        current = InventoryService.get_inventory(product_id)
+        old_quantity = current.quantity if current else 0.0
+        quantity_change = round(new_quantity - old_quantity, QUANTITY_PRECISION)
 
-        event_system.inventory_changed.emit(product_id)
+        with DatabaseManager.transaction():
+            InventoryService._modify_inventory(
+                product_id, new_quantity, action=InventoryAction.UPDATE
+            )
+            DatabaseManager.execute_query(
+                "INSERT INTO inventory_adjustments (product_id, quantity_change, reason, date) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+                (product_id, quantity_change, "manual_set"),
+            )
+
         InventoryService.clear_cache()
+        event_system.inventory_changed.emit(product_id)
         logger.info(
             "Inventory quantity set",
             extra={"product_id": product_id, "new_quantity": new_quantity},
@@ -261,14 +271,17 @@ class InventoryService:
         # Round to precision
         quantity_change = round(quantity_change, QUANTITY_PRECISION)
 
-        InventoryService.update_quantity(product_id, quantity_change)
+        with DatabaseManager.transaction():
+            InventoryService.update_quantity(
+                product_id, quantity_change, emit_events=False
+            )
+            DatabaseManager.execute_query(
+                "INSERT INTO inventory_adjustments (product_id, quantity_change, reason, date) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+                (product_id, quantity_change, reason),
+            )
 
-        query = """
-            INSERT INTO inventory_adjustments (product_id, quantity_change, reason, date) 
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-        """
-        DatabaseManager.execute_query(query, (product_id, str(quantity_change), reason))
         InventoryService.clear_cache()
+        event_system.inventory_changed.emit(product_id)
         logger.info(
             "Inventory adjusted",
             extra={
@@ -328,8 +341,10 @@ class InventoryService:
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
     def get_inventory_turnover(start_date: str, end_date: str) -> Dict[int, float]:
-        start_date = validate_string(start_date)
-        end_date = validate_string(end_date)
+        start_date = validate_date(start_date)
+        end_date = validate_date(end_date)
+        # inventory has exactly one row per product, so AVG(quantity) == quantity.
+        # Use the current quantity directly as the denominator.
         query = """
             WITH sales_data AS (
                 SELECT si.product_id, SUM(si.quantity) as total_sold
@@ -337,19 +352,14 @@ class InventoryService:
                 JOIN sales s ON si.sale_id = s.id
                 WHERE s.date BETWEEN ? AND ?
                 GROUP BY si.product_id
-            ),
-            avg_inventory AS (
-                SELECT product_id, AVG(quantity) as avg_quantity
-                FROM inventory
-                GROUP BY product_id
             )
-            SELECT sd.product_id, 
-                   CASE WHEN ai.avg_quantity > 0 
-                        THEN sd.total_sold / ai.avg_quantity 
-                        ELSE 0 
+            SELECT sd.product_id,
+                   CASE WHEN i.quantity > 0
+                        THEN sd.total_sold / i.quantity
+                        ELSE 0
                    END as turnover_ratio
             FROM sales_data sd
-            JOIN avg_inventory ai ON sd.product_id = ai.product_id
+            JOIN inventory i ON sd.product_id = i.product_id
         """
         result = DatabaseManager.fetch_all(query, (start_date, end_date))
         turnover_ratios = {

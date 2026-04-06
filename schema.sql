@@ -48,7 +48,9 @@ CREATE TABLE IF NOT EXISTS sales (
     date TEXT NOT NULL,
     total_amount INTEGER NOT NULL DEFAULT 0,
     total_profit INTEGER NOT NULL DEFAULT 0,
-    receipt_id TEXT,
+    receipt_id TEXT UNIQUE,
+    status TEXT NOT NULL DEFAULT 'confirmed' CHECK (status IN ('confirmed', 'cancelled')),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
 );
 
@@ -60,6 +62,7 @@ CREATE TABLE IF NOT EXISTS sale_items (
     quantity DECIMAL(10,3) NOT NULL,
     price INTEGER NOT NULL,
     profit INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE,
     FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT
 );
@@ -69,7 +72,8 @@ CREATE TABLE IF NOT EXISTS purchases (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     supplier TEXT NOT NULL,
     date TEXT NOT NULL,
-    total_amount INTEGER NOT NULL
+    total_amount INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- Purchase items table

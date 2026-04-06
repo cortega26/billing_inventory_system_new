@@ -84,8 +84,9 @@ def validate_string(
     if max_length is not None and len(value) > max_length:
         raise ValidationException(f"Value cannot exceed {max_length} characters")
 
-    # Use Python string methods instead of REGEXP
-    if not all(c.isalnum() or c.isspace() or c in "-." for c in value):
+    # Allow alphanumeric (incl. Unicode/Spanish: ñ, á, é…), spaces, and common punctuation
+    allowed_extra = set("-.,;:()'/&%#+")
+    if not all(c.isalpha() or c.isdigit() or c.isspace() or c in allowed_extra for c in value):
         raise ValidationException("Value contains invalid characters")
 
     return value
@@ -187,14 +188,19 @@ def validate_int_non_negative(value: int) -> int:
     return validate_integer(value, min_value=0)
 
 
-def validate_money(value: Any, field_name: str = "Amount") -> int:
+def validate_money(
+    value: Any, field_name: str = "Amount", max_value: Optional[int] = 1_000_000
+) -> int:
     """
     Validate a money value (Chilean Pesos).
-    Must be a positive integer not exceeding 1.000.000 CLP.
+
+    By default caps at 1.000.000 CLP (suitable for unit prices).
+    Pass max_value=None to skip the upper-bound check (suitable for totals).
 
     Args:
         value: Value to validate
         field_name: Name of field for error messages
+        max_value: Upper bound (inclusive). None = no upper bound.
 
     Returns:
         int: Validated money value
@@ -212,8 +218,8 @@ def validate_money(value: Any, field_name: str = "Amount") -> int:
             raise ValidationException(f"{field_name} must be an integer")
         if money_value < 0:
             raise ValidationException(f"{field_name} cannot be negative")
-        if money_value > 1_000_000:
-            raise ValidationException(f"{field_name} cannot exceed 1.000.000 CLP")
+        if max_value is not None and money_value > max_value:
+            raise ValidationException(f"{field_name} cannot exceed {max_value:,} CLP")
         return money_value
     except (ValueError, TypeError):
         raise ValidationException(f"Invalid {field_name.lower()} value")
@@ -223,23 +229,23 @@ def validate_money_multiplication(
     amount: int, quantity: float, field_name: str = "Total"
 ) -> int:
     """
-    Validate multiplication of money value by quantity.
-    Result must not exceed 1.000.000 CLP.
+    Multiply a unit price by quantity and return the rounded integer result.
+
+    The result is a line total (not a unit price) so no upper-bound cap is applied.
 
     Args:
-        amount: Base amount in CLP
+        amount: Unit price in CLP
         quantity: Quantity multiplier
         field_name: Name of field for error messages
 
     Returns:
-        int: Validated result
+        int: Rounded integer result
 
     Raises:
-        ValidationException: If result is invalid
+        ValidationException: If calculation fails
     """
     try:
-        result = int(round(float(amount) * quantity))
-        return validate_money(result, field_name)
+        return int(round(float(amount) * quantity))
     except (ValueError, TypeError):
         raise ValidationException(f"Invalid {field_name.lower()} calculation")
 

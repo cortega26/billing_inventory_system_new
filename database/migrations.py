@@ -24,6 +24,8 @@ def add_performance_indexes():
         # New indexes for performance
         "CREATE INDEX IF NOT EXISTS idx_products_name ON products(name COLLATE NOCASE)",
         "CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(date DESC)",
+        # Unique constraint on receipt_id (NULL values excluded — each non-null must be unique)
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_receipt_id ON sales(receipt_id) WHERE receipt_id IS NOT NULL",
     ]
 
     try:
@@ -46,10 +48,45 @@ def add_performance_indexes():
         raise DatabaseException(f"Failed to create indexes: {str(e)}")
 
 
+def add_schema_columns():
+    """Add new columns to existing databases (idempotent — safe to run repeatedly)."""
+    alterations = [
+        # [M-1] Sales status (cancel without deleting)
+        "ALTER TABLE sales ADD COLUMN status TEXT NOT NULL DEFAULT 'confirmed'",
+        # [M-2] Record insertion timestamps (separate from the business date)
+        "ALTER TABLE sales ADD COLUMN created_at TEXT NOT NULL DEFAULT (datetime('now'))",
+        "ALTER TABLE sale_items ADD COLUMN created_at TEXT NOT NULL DEFAULT (datetime('now'))",
+        "ALTER TABLE purchases ADD COLUMN created_at TEXT NOT NULL DEFAULT (datetime('now'))",
+    ]
+
+    try:
+        with DatabaseManager.transaction():
+            for sql in alterations:
+                try:
+                    DatabaseManager.execute_query(sql)
+                    col = sql.split("ADD COLUMN")[1].split()[0]
+                    table = sql.split("ALTER TABLE")[1].split()[0]
+                    logger.info(f"Added column '{col}' to '{table}'")
+                except Exception as e:
+                    # SQLite raises OperationalError "duplicate column name" when the
+                    # column already exists — treat that as a no-op, not a failure.
+                    if "duplicate column name" in str(e).lower():
+                        pass
+                    else:
+                        raise DatabaseException(f"Column migration failed: {str(e)}")
+        logger.info("Schema column migrations completed successfully")
+    except DatabaseException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to add schema columns: {str(e)}")
+        raise DatabaseException(f"Failed to add schema columns: {str(e)}") from e
+
+
 def run_migrations():
     """Run all database migrations."""
     try:
         add_performance_indexes()
+        add_schema_columns()
         logger.info("Database migrations completed successfully")
         return True
     except Exception as e:

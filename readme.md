@@ -1,4 +1,4 @@
-# El Rincón de Ébano - Inventory and Billing System
+# Inventory and Billing System
 ![CI](https://github.com/cortega26/billing_inventory_system_new/actions/workflows/ci.yml/badge.svg)
 
 An inventory and billing management system designed specifically for Chilean minimarket operations.

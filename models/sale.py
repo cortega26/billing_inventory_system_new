@@ -89,6 +89,9 @@ class SaleItem:
         }
 
 
+VALID_STATUSES = frozenset({"confirmed", "cancelled"})
+
+
 @dataclass
 class Sale:
     id: int
@@ -97,6 +100,7 @@ class Sale:
     total_amount: int  # Chilean Pesos - always integer
     total_profit: int  # Chilean Pesos - always integer
     receipt_id: Optional[str] = None
+    status: str = "confirmed"
     items: List[SaleItem] = field(default_factory=list)
 
     def __post_init__(self):
@@ -104,6 +108,7 @@ class Sale:
         self.validate_date(self.date)
         self.validate_total_amount(self.total_amount)
         self.validate_total_profit(self.total_profit)
+        self.validate_status(self.status)
 
     @classmethod
     def from_db_row(cls, row: Dict[str, Any]) -> "Sale":
@@ -120,6 +125,7 @@ class Sale:
                 total_amount=int(row["total_amount"]),
                 total_profit=int(row["total_profit"]),
                 receipt_id=row.get("receipt_id"),
+                status=row.get("status", "confirmed"),
             )
         except (ValueError, TypeError) as e:
             logger.error(f"Error creating Sale from row: {row}")
@@ -150,6 +156,13 @@ class Sale:
         if not isinstance(total_profit, int):
             raise ValidationException("Total profit must be an integer")
 
+    @staticmethod
+    def validate_status(status: str) -> None:
+        if status not in VALID_STATUSES:
+            raise ValidationException(
+                f"Invalid sale status '{status}'. Must be one of: {sorted(VALID_STATUSES)}"
+            )
+
     def add_item(self, item: SaleItem) -> None:
         self.items.append(item)
         self.recalculate_total()
@@ -161,12 +174,15 @@ class Sale:
     def recalculate_total(self) -> None:
         """Recalculate totals ensuring proper CLP handling."""
         self.total_amount = sum(item.total_price() for item in self.items)
-        # Validate final total
-        self.total_amount = validate_money(self.total_amount, "Total amount")
+        # Validate final total — no upper cap; totals can exceed any single unit price
+        self.total_amount = validate_money(
+            self.total_amount, "Total amount", max_value=None
+        )
 
-        # Calculate and validate total profit
+        # Profit can be negative (selling below cost) — only require integer type
         self.total_profit = sum(item.profit for item in self.items)
-        self.total_profit = validate_money(self.total_profit, "Total profit")
+        if not isinstance(self.total_profit, int):
+            raise ValidationException("Total profit must be an integer")
 
     def update_date(self, new_date: datetime) -> None:
         self.validate_date(new_date)
@@ -187,6 +203,7 @@ class Sale:
             "total_amount": self.total_amount,
             "total_profit": self.total_profit,
             "receipt_id": self.receipt_id,
+            "status": self.status,
             "items": [item.to_dict() for item in self.items],
         }
 

@@ -17,8 +17,8 @@ def sample_product(sample_category):
         name="Test Product",
         description="Test Description",
         category_id=sample_category.id,
-        cost_price=1000.0,
-        sell_price=1500.0,
+        cost_price=1000,
+        sell_price=1500,
         barcode="12345678",
     )
 
@@ -27,8 +27,8 @@ class TestProduct:
     def test_product_creation(self, sample_product):
         assert sample_product.id == 1
         assert sample_product.name == "Test Product"
-        assert float(sample_product.cost_price) == 1000.0
-        assert float(sample_product.sell_price) == 1500.0
+        assert sample_product.cost_price == 1000
+        assert sample_product.sell_price == 1500
 
     def test_invalid_price(self):
         with pytest.raises(ValidationException):
@@ -37,8 +37,20 @@ class TestProduct:
                 name="Test Product",
                 description="Test",
                 category_id=1,
-                cost_price=-1000.0,
-                sell_price=1500.0,
+                cost_price=-1000,
+                sell_price=1500,
+                barcode="12345678",
+            )
+
+    def test_float_price_rejected(self):
+        with pytest.raises(ValidationException):
+            Product(
+                id=1,
+                name="Test Product",
+                description="Test",
+                category_id=1,
+                cost_price=1000.5,
+                sell_price=1500,
                 barcode="12345678",
             )
 
@@ -54,8 +66,8 @@ class TestProduct:
         product_dict = sample_product.to_dict()
         assert product_dict["id"] == 1
         assert product_dict["name"] == "Test Product"
-        assert product_dict["cost_price"] == 1000.0
-        assert product_dict["sell_price"] == 1500.0
+        assert product_dict["cost_price"] == 1000
+        assert product_dict["sell_price"] == 1500
 
     def test_barcode_validation(self):
         """Test barcode validation."""

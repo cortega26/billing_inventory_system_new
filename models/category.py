@@ -187,12 +187,12 @@ class Category:
         return self.name.lower() < other.name.lower()
 
     @classmethod
-    def create_empty(cls, id: int = -1) -> "Category":
+    def create_empty(cls, id: int = 0) -> "Category":
         """
         Create an empty category instance.
 
         Args:
-            id: Category ID (defaults to -1)
+            id: Category ID (defaults to 0, meaning not yet persisted)
 
         Returns:
             Category: New empty Category instance

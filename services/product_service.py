@@ -35,55 +35,50 @@ class ProductService:
             validated_data["description"] = None
 
         try:
-            DatabaseManager.begin_transaction()
+            with DatabaseManager.transaction():
+                query = """
+                INSERT INTO products (
+                    name, description, category_id, cost_price, sell_price, barcode
+                ) VALUES (
+                    :name, :description, :category_id, :cost_price, :sell_price, :barcode
+                )
+                """
+                cursor = DatabaseManager.execute_query(query, validated_data)
+                product_id = cursor.lastrowid
 
-            query = """
-            INSERT INTO products (
-                name, description, category_id, cost_price, sell_price, barcode
-            ) VALUES (
-                :name, :description, :category_id, :cost_price, :sell_price, :barcode
-            )
-            """
-            cursor = DatabaseManager.execute_query(query, validated_data)
-            product_id = cursor.lastrowid
+                if not product_id:
+                    raise DatabaseException(
+                        "Failed to create product: No product ID returned"
+                    )
 
-            if product_id:
                 # Initialize inventory with 0 quantity
                 inventory_query = """
-                INSERT INTO inventory (product_id, quantity) 
+                INSERT INTO inventory (product_id, quantity)
                 VALUES (?, 0.000)
                 """
                 DatabaseManager.execute_query(inventory_query, (product_id,))
-                DatabaseManager.commit_transaction()
 
-                # Clear caches
-                self.clear_cache()
+            # Clear caches and emit events after successful commit
+            self.clear_cache()
+            logger.info(
+                "Product created with inventory initialized",
+                extra={"product_id": product_id, "name": validated_data["name"]},
+            )
+            try:
+                event_system.product_added.emit(product_id)
+                event_system.inventory_changed.emit(product_id)
+            except Exception as e:
+                logger.warning(f"Failed to emit events for product creation: {e}")
 
-                logger.info(
-                    "Product created with inventory initialized",
-                    extra={"product_id": product_id, "name": validated_data["name"]},
-                )
-
-                # Emit events directly
-                try:
-                    event_system.product_added.emit(product_id)
-                    event_system.inventory_changed.emit(product_id)
-                except Exception as e:
-                    logger.warning(f"Failed to emit events for product creation: {e}")
-
-                return product_id
-            else:
-                DatabaseManager.rollback_transaction()
-                raise DatabaseException(
-                    "Failed to create product: No product ID returned"
-                )
+            return product_id
 
         except Exception as e:
-            DatabaseManager.rollback_transaction()
             logger.error(
                 "Failed to create product",
                 extra={"error": str(e), "data": validated_data},
             )
+            if isinstance(e, (ValidationException, DatabaseException)):
+                raise
             raise DatabaseException(f"Failed to create product: {str(e)}")
 
     @db_operation(show_dialog=True)

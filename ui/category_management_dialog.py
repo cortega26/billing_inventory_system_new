@@ -117,7 +117,7 @@ class CategoryManagementDialog(QDialog):
             logger.info(f"Loaded {len(categories)} categories")
         except Exception as e:
             logger.error(f"Error loading categories: {str(e)}")
-            raise DatabaseException(f"Failed to load categories: {str(e)}")
+            raise DatabaseException(f"Error al cargar categorías: {str(e)}")
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(

@@ -54,9 +54,33 @@ def add_schema_columns():
         # [M-1] Sales status (cancel without deleting)
         "ALTER TABLE sales ADD COLUMN status TEXT NOT NULL DEFAULT 'confirmed'",
         # [M-2] Record insertion timestamps (separate from the business date)
-        "ALTER TABLE sales ADD COLUMN created_at TEXT NOT NULL DEFAULT (datetime('now'))",
-        "ALTER TABLE sale_items ADD COLUMN created_at TEXT NOT NULL DEFAULT (datetime('now'))",
-        "ALTER TABLE purchases ADD COLUMN created_at TEXT NOT NULL DEFAULT (datetime('now'))",
+        "ALTER TABLE sales ADD COLUMN created_at TEXT NOT NULL DEFAULT '1970-01-01 00:00:00'",
+        "ALTER TABLE sale_items ADD COLUMN created_at TEXT NOT NULL DEFAULT '1970-01-01 00:00:00'",
+        "ALTER TABLE purchases ADD COLUMN created_at TEXT NOT NULL DEFAULT '1970-01-01 00:00:00'",
+        """
+        CREATE TRIGGER IF NOT EXISTS trg_sales_created_at
+        AFTER INSERT ON sales
+        WHEN NEW.created_at = '1970-01-01 00:00:00'
+        BEGIN
+            UPDATE sales SET created_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END;
+        """,
+        """
+        CREATE TRIGGER IF NOT EXISTS trg_sale_items_created_at
+        AFTER INSERT ON sale_items
+        WHEN NEW.created_at = '1970-01-01 00:00:00'
+        BEGIN
+            UPDATE sale_items SET created_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END;
+        """,
+        """
+        CREATE TRIGGER IF NOT EXISTS trg_purchases_created_at
+        AFTER INSERT ON purchases
+        WHEN NEW.created_at = '1970-01-01 00:00:00'
+        BEGIN
+            UPDATE purchases SET created_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END;
+        """,
     ]
 
     try:
@@ -64,9 +88,12 @@ def add_schema_columns():
             for sql in alterations:
                 try:
                     DatabaseManager.execute_query(sql)
-                    col = sql.split("ADD COLUMN")[1].split()[0]
-                    table = sql.split("ALTER TABLE")[1].split()[0]
-                    logger.info(f"Added column '{col}' to '{table}'")
+                    if "ADD COLUMN" in sql:
+                        col = sql.split("ADD COLUMN")[1].split()[0]
+                        table = sql.split("ALTER TABLE")[1].split()[0]
+                        logger.info(f"Added column '{col}' to '{table}'")
+                    else:
+                        logger.info("Executed supplementary migration step")
                 except Exception as e:
                     # SQLite raises OperationalError "duplicate column name" when the
                     # column already exists — treat that as a no-op, not a failure.

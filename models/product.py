@@ -31,9 +31,13 @@ class Product:
             raise ValidationException("Product name is required")
 
         if not isinstance(self.cost_price, int) or isinstance(self.cost_price, bool):
-            raise ValidationException("cost_price must be an integer (CLP, no decimals)")
+            raise ValidationException(
+                "cost_price must be an integer (CLP, no decimals)"
+            )
         if not isinstance(self.sell_price, int) or isinstance(self.sell_price, bool):
-            raise ValidationException("sell_price must be an integer (CLP, no decimals)")
+            raise ValidationException(
+                "sell_price must be an integer (CLP, no decimals)"
+            )
 
         if self.cost_price < 0:
             raise ValidationException("Cost price cannot be negative")

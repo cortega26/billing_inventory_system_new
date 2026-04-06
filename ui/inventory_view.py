@@ -273,7 +273,7 @@ class InventoryView(QWidget):
                 self.inventory_service.adjust_stock(
                     product_id=item["product_id"],
                     quantity_change=data["adjustment"],
-                    reason=data["reason"] or "Manual adjustment",
+                    reason=data["reason"] or "Ajuste manual",
                 )
                 self.load_inventory()
                 show_info_message("Éxito", "Inventario actualizado correctamente")

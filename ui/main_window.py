@@ -79,27 +79,33 @@ class MainWindow(QMainWindow):
         self.setMenuBar(menu_bar)
 
         file_menu = self.create_menu(
-            "&File",
+            "&Archivo",
             [
-                ("&Export Data", "Ctrl+E", self.export_data),
-                ("&Import Data", "Ctrl+I", self.import_data),
-                ("&Create Backup", None, self.backup_data),
-                ("E&xit", QKeySequence.StandardKey.Quit, self.close),
+                ("&Exportar Datos", "Ctrl+E", self.export_data),
+                ("&Importar Datos", "Ctrl+I", self.import_data),
+                ("&Crear Copia de Seguridad", None, self.backup_data),
+                ("&Salir", QKeySequence.StandardKey.Quit, self.close),
             ],
         )
         view_menu = self.create_menu(
-            "&View",
-            [("&Refresh", QKeySequence.StandardKey.Refresh, self.refresh_current_tab)],
-        )
-        help_menu = self.create_menu(
-            "&Help",
+            "&Ver",
             [
                 (
-                    "&User Guide",
+                    "&Actualizar",
+                    QKeySequence.StandardKey.Refresh,
+                    self.refresh_current_tab,
+                )
+            ],
+        )
+        help_menu = self.create_menu(
+            "&Ayuda",
+            [
+                (
+                    "&Guía de Usuario",
                     QKeySequence.StandardKey.HelpContents,
                     self.show_user_guide,
                 ),
-                ("&About", None, self.show_about_dialog),
+                ("&Acerca de", None, self.show_about_dialog),
             ],
         )
 
@@ -110,7 +116,7 @@ class MainWindow(QMainWindow):
     def setup_status_bar(self):
         self.status_bar = QStatusBar(self)
         self.setStatusBar(self.status_bar)
-        self.status_bar.showMessage("Ready")
+        self.status_bar.showMessage("Listo")
 
     def setup_global_shortcuts(self):
         """Setup global keyboard shortcuts for navigation."""
@@ -143,13 +149,13 @@ class MainWindow(QMainWindow):
     def create_tabs(self):
         try:
             tabs: Dict[str, Type[QWidget]] = {
-                "Dashboard": DashboardView,
-                "Customers": CustomerView,
-                "Products": ProductView,
-                "Sales": SaleView,
-                "Purchases": PurchaseView,
-                "Inventory": InventoryView,
-                "Analytics": AnalyticsView,
+                "Panel": DashboardView,
+                "Clientes": CustomerView,
+                "Productos": ProductView,
+                "Ventas": SaleView,
+                "Compras": PurchaseView,
+                "Inventario": InventoryView,
+                "Analíticas": AnalyticsView,
             }
 
             for tab_name, view_class in tabs.items():
@@ -186,24 +192,24 @@ class MainWindow(QMainWindow):
     def on_tab_changed(self, index):
         self.settings.setValue("LastTabIndex", index)
         tab_name = self.tab_widget.tabText(index)
-        self.status_bar.showMessage(f"Current view: {tab_name}")
+        self.status_bar.showMessage(f"Vista actual: {tab_name}")
 
     @ui_operation(show_dialog=True)
     def show_about_dialog(self):
         QMessageBox.about(
             self,
-            "About",
+            "Acerca de",
             f"{APP_NAME} v{APP_VERSION}\n\n"
-            f"Developed by {COMPANY_NAME}\n\n"
-            "Inventory and billing system.",
+            f"Desarrollado por {COMPANY_NAME}\n\n"
+            "Sistema de inventario y facturación.",
         )
 
     @ui_operation(show_dialog=True)
     def closeEvent(self, event):
         reply = QMessageBox.question(
             self,
-            "Exit",
-            "Are you sure you want to exit?",
+            "Salir",
+            "¿Está seguro que desea salir?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -222,27 +228,27 @@ class MainWindow(QMainWindow):
 
     @ui_operation(show_dialog=True)
     def on_product_added(self, product_id: int):
-        self.show_status_message(f"Product added (ID: {product_id})")
+        self.show_status_message(f"Producto agregado (ID: {product_id})")
         self.refresh_relevant_views()
 
     @ui_operation(show_dialog=True)
     def on_product_updated(self, product_id: int):
-        self.show_status_message(f"Product updated (ID: {product_id})")
+        self.show_status_message(f"Producto actualizado (ID: {product_id})")
         self.refresh_relevant_views()
 
     @ui_operation(show_dialog=True)
     def on_product_deleted(self, product_id: int):
-        self.show_status_message(f"Product deleted (ID: {product_id})")
+        self.show_status_message(f"Producto eliminado (ID: {product_id})")
         self.refresh_relevant_views()
 
     @ui_operation(show_dialog=True)
     def on_sale_added(self, sale_id: int):
-        self.show_status_message(f"Sale added (ID: {sale_id})")
+        self.show_status_message(f"Venta agregada (ID: {sale_id})")
         self.refresh_relevant_views()
 
     @ui_operation(show_dialog=True)
     def on_purchase_added(self, purchase_id: int):
-        self.show_status_message(f"Purchase added (ID: {purchase_id})")
+        self.show_status_message(f"Compra agregada (ID: {purchase_id})")
         self.refresh_relevant_views()
 
     @ui_operation(show_dialog=True)
@@ -273,12 +279,12 @@ class MainWindow(QMainWindow):
 
     @ui_operation(show_dialog=True)
     def export_data(self):
-        self.show_status_message("Data export initiated")
+        self.show_status_message("Exportación de datos iniciada")
         # TODO: Implement actual data export logic
 
     @ui_operation(show_dialog=True)
     def import_data(self):
-        self.show_status_message("Data import initiated")
+        self.show_status_message("Importación de datos iniciada")
         # TODO: Implement actual data import logic
 
     @ui_operation(show_dialog=True)
@@ -286,23 +292,27 @@ class MainWindow(QMainWindow):
         from services.backup_service import backup_service
 
         try:
-            self.show_status_message("Creating backup...")
+            self.show_status_message("Creando copia de seguridad...")
             backup_path = backup_service.create_backup()
             if backup_path:
                 QMessageBox.information(
-                    self, "Backup Successful", f"Backup created at:\n{backup_path}"
+                    self,
+                    "Copia de Seguridad Exitosa",
+                    f"Copia de seguridad creada en:\n{backup_path}",
                 )
-                self.show_status_message("Backup created successfully")
+                self.show_status_message("Copia de seguridad creada exitosamente")
             else:
                 QMessageBox.warning(
                     self,
-                    "Backup Failed",
-                    "Failed to create backup. Check logs for details.",
+                    "Error de Copia de Seguridad",
+                    "Error al crear la copia de seguridad. Revise los registros para más detalles.",
                 )
-                self.show_status_message("Backup failed")
+                self.show_status_message("Fallo en la copia de seguridad")
         except Exception as e:
             logger.error(f"Manual backup error: {e}")
-            QMessageBox.critical(self, "Backup Error", f"An error occurred: {e}")
+            QMessageBox.critical(
+                self, "Error en Copia de Seguridad", f"Ha ocurrido un error: {e}"
+            )
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(UIException, show_dialog=True)
@@ -314,12 +324,14 @@ class MainWindow(QMainWindow):
             ):
                 refreshable_widget = cast(RefreshableWidget, current_widget)
                 refreshable_widget.refresh()
-            self.show_status_message("View refreshed")
+            self.show_status_message("Vista actualizada")
         except Exception as e:
             logger.error(f"Error refreshing current tab: {str(e)}")
             raise UIException(f"Failed to refresh current tab: {str(e)}")
 
     @ui_operation(show_dialog=True)
     def show_user_guide(self):
-        QMessageBox.information(self, "User Guide", "User guide content goes here.")
+        QMessageBox.information(
+            self, "Guía de Usuario", "El contenido de la guía de usuario va aquí."
+        )
         # TODO: Implement actual user guide content or link to documentation

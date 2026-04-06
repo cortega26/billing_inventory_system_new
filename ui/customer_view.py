@@ -54,17 +54,17 @@ class EditCustomerDialog(QDialog):
         self.identifier_9_input = QLineEdit(
             self.customer.identifier_9 if self.customer else ""
         )
-        self.identifier_9_input.setPlaceholderText("Ingrese identificador 9 dígitos")
-        layout.addRow("Identificador 9 dígitos:", self.identifier_9_input)
+        self.identifier_9_input.setPlaceholderText("Ingrese N° Celular (9 dígitos)")
+        layout.addRow("N° Celular:", self.identifier_9_input)
 
         # 3 or 4-digit identifier
         self.identifier_3or4_input = QLineEdit(
             self.customer.identifier_3or4 or "" if self.customer else ""
         )
         self.identifier_3or4_input.setPlaceholderText(
-            "Ingrese identificador 3 o 4 dígitos (opcional)"
+            "Ingrese N° Departamento (opcional)"
         )
-        layout.addRow("Identificador 3 o 4 dígitos:", self.identifier_3or4_input)
+        layout.addRow("N° Departamento:", self.identifier_3or4_input)
 
         # Name field
         self.name_input = QLineEdit(self.customer.name or "" if self.customer else "")
@@ -165,8 +165,8 @@ class CustomerView(QWidget):
         self.customer_table = create_table(
             [
                 "ID",
-                "Identificador 9",
-                "Identificador 3/4",
+                "N° Celular",
+                "N° Departamento",
                 "Nombre",
                 "Compras Totales",
                 "Monto Total",
@@ -232,7 +232,7 @@ class CustomerView(QWidget):
 
         except Exception as e:
             logger.error(f"(load_customers) Error loading customers: {str(e)}")
-            show_error_message("Error", f"Failed to load customers: {str(e)}")
+            show_error_message("Error", f"Error al cargar clientes: {str(e)}")
 
         finally:
             QApplication.restoreOverrideCursor()
@@ -297,7 +297,9 @@ class CustomerView(QWidget):
 
                     # Column 3: Name
                     name_item = QTableWidgetItem(cust.name or "")
-                    name_item.setToolTip(cust.name if cust.name else "No name provided")
+                    name_item.setToolTip(
+                        cust.name if cust.name else "No se proporcionó nombre"
+                    )
                     self.customer_table.setItem(row, 3, name_item)
 
                     # Column 4: Total Purchases
@@ -314,17 +316,19 @@ class CustomerView(QWidget):
                     actions_widget = QWidget()
                     actions_layout = QHBoxLayout(actions_widget)
                     actions_layout.setContentsMargins(0, 0, 0, 0)
+                    actions_layout.setSpacing(6)
+                    actions_layout.setAlignment(Qt.AlignCenter)
 
                     edit_button = QPushButton("Editar")
                     edit_button.setFixedWidth(80)
-                    edit_button.setFixedHeight(24)
+                    edit_button.setStyleSheet("padding: 2px 8px;")
                     edit_button.clicked.connect(
                         lambda _, cid=cust.id: self.edit_customer_by_id(cid)
                     )
 
                     delete_button = QPushButton("Eliminar")
                     delete_button.setFixedWidth(80)
-                    delete_button.setFixedHeight(24)
+                    delete_button.setStyleSheet("padding: 2px 8px;")
                     delete_button.clicked.connect(
                         lambda _, cid=cust.id: self.delete_customer_by_id(cid)
                     )
@@ -332,6 +336,7 @@ class CustomerView(QWidget):
                     actions_layout.addWidget(edit_button)
                     actions_layout.addWidget(delete_button)
                     self.customer_table.setCellWidget(row, 6, actions_widget)
+                    self.customer_table.setRowHeight(row, 36)
 
                 except Exception as row_error:
                     logger.error(
@@ -425,7 +430,9 @@ class CustomerView(QWidget):
         try:
             customer = self.customer_service.get_customer(customer_id)
             if not customer:
-                raise ValidationException(f"Customer with ID {customer_id} not found.")
+                raise ValidationException(
+                    f"Cliente con ID {customer_id} no encontrado."
+                )
 
             display_name = customer.get_display_name()
             reply = QMessageBox.question(
@@ -468,7 +475,7 @@ class CustomerView(QWidget):
                     self.customer_updated.emit()
                     logger.info(f"Customer added successfully: ID {customer_id}")
                 else:
-                    raise DatabaseException("Failed to add customer.")
+                    raise DatabaseException("Error al agregar cliente.")
             except Exception as e:
                 logger.error(f"Error adding customer: {str(e)}")
                 raise
@@ -483,7 +490,7 @@ class CustomerView(QWidget):
         Updates DB, then reloads the table.
         """
         if customer is None:
-            raise ValidationException("No customer selected for editing.")
+            raise ValidationException("Ningún cliente seleccionado para editar.")
 
         logger.debug(
             f"[edit_customer] Starting edit for Customer ID={customer.id}, current name='{customer.name}'"
@@ -530,7 +537,7 @@ class CustomerView(QWidget):
     )
     def delete_customer(self, customer: Optional[Customer]):
         if customer is None:
-            raise ValidationException("No customer selected for deletion.")
+            raise ValidationException("Ningún cliente seleccionado para eliminar.")
 
         display_name = customer.get_display_name()
         reply = QMessageBox.question(

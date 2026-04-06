@@ -440,7 +440,7 @@ class PurchaseView(QWidget):
             logger.info(f"Loaded {len(purchases)} purchases")
         except Exception as e:
             logger.error(f"Error loading purchases: {str(e)}")
-            raise DatabaseException(f"Failed to load purchases: {str(e)}")
+            raise DatabaseException(f"Error al cargar compras: {str(e)}")
         finally:
             QApplication.restoreOverrideCursor()
             self.progress_bar.setValue(100)
@@ -560,7 +560,7 @@ class PurchaseView(QWidget):
 
         except Exception as e:
             logger.error(f"Error viewing purchase: {str(e)}")
-            raise UIException(f"Failed to view purchase: {str(e)}")
+            raise UIException(f"Error al ver la compra: {str(e)}")
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(

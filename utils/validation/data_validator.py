@@ -120,7 +120,9 @@ class DataValidationService:
                     f"DELETE FROM sales WHERE id IN ({placeholders})",
                     sale_ids,
                 )
-                logger.info(f"Deleted {len(sale_ids)} invalid sales with inventory reverted")
+                logger.info(
+                    f"Deleted {len(sale_ids)} invalid sales with inventory reverted"
+                )
 
             if orphaned_items:
                 item_ids = [item["id"] for item in orphaned_items]

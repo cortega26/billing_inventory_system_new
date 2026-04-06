@@ -178,10 +178,12 @@ class AnalyticsView(QWidget):
             if analytics_type in analytics_functions:
                 QTimer.singleShot(0, analytics_functions[analytics_type])
             else:
-                raise ValidationException(f"Unknown analytics type: {analytics_type}")
+                raise ValidationException(
+                    f"Tipo analítico desconocido: {analytics_type}"
+                )
         except Exception as e:
             logger.error(f"Error generating analytics: {str(e)}")
-            raise UIException(f"Failed to generate analytics: {str(e)}")
+            raise UIException(f"Error al generar analítica: {str(e)}")
         finally:
             QApplication.restoreOverrideCursor()
 
@@ -216,7 +218,9 @@ class AnalyticsView(QWidget):
             logger.info(f"Displayed sales by weekday analysis: {len(data)} days")
         except Exception as e:
             logger.error(f"Error showing sales by weekday: {str(e)}")
-            raise DatabaseException(f"Failed to show sales by weekday: {str(e)}")
+            raise DatabaseException(
+                f"Error al mostrar ventas por día de la semana: {str(e)}"
+            )
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
@@ -249,7 +253,9 @@ class AnalyticsView(QWidget):
             )
         except Exception as e:
             logger.error(f"Error showing top selling products: {str(e)}")
-            raise DatabaseException(f"Failed to show top selling products: {str(e)}")
+            raise DatabaseException(
+                f"Error al mostrar productos más vendidos: {str(e)}"
+            )
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
@@ -273,7 +279,7 @@ class AnalyticsView(QWidget):
             logger.info(f"Displayed sales trend analysis: {len(data)} days")
         except Exception as e:
             logger.error(f"Error showing sales trend: {str(e)}")
-            raise DatabaseException(f"Failed to show sales trend: {str(e)}")
+            raise DatabaseException(f"Error al mostrar tendencia de ventas: {str(e)}")
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
@@ -299,7 +305,9 @@ class AnalyticsView(QWidget):
             )
         except Exception as e:
             logger.error(f"Error showing category performance: {str(e)}")
-            raise DatabaseException(f"Failed to show category performance: {str(e)}")
+            raise DatabaseException(
+                f"Error al mostrar rendimiento por categoría: {str(e)}"
+            )
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
@@ -338,7 +346,7 @@ class AnalyticsView(QWidget):
             logger.info(f"Displayed profit by product analysis: {len(data)} products")
         except Exception as e:
             logger.error(f"Error showing profit by product: {str(e)}")
-            raise DatabaseException(f"Failed to show profit by product: {str(e)}")
+            raise DatabaseException(f"Error al mostrar ganancia por producto: {str(e)}")
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
@@ -362,7 +370,9 @@ class AnalyticsView(QWidget):
             logger.info(f"Displayed profit trend analysis: {len(data)} days")
         except Exception as e:
             logger.error(f"Error showing profit trend: {str(e)}")
-            raise DatabaseException(f"Failed to show profit trend: {str(e)}")
+            raise DatabaseException(
+                f"Error al mostrar tendencia de ganancias: {str(e)}"
+            )
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
@@ -396,7 +406,7 @@ class AnalyticsView(QWidget):
         except Exception as e:
             logger.error(f"Error showing profit margin distribution: {str(e)}")
             raise DatabaseException(
-                f"Failed to show profit margin distribution: {str(e)}"
+                f"Error al mostrar distribución del margen de ganancia: {str(e)}"
             )
 
     ############################################################################

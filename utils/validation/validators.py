@@ -86,7 +86,9 @@ def validate_string(
 
     # Allow alphanumeric (incl. Unicode/Spanish: ñ, á, é…), spaces, and common punctuation
     allowed_extra = set("-.,;:()'/&%#+")
-    if not all(c.isalpha() or c.isdigit() or c.isspace() or c in allowed_extra for c in value):
+    if not all(
+        c.isalpha() or c.isdigit() or c.isspace() or c in allowed_extra for c in value
+    ):
         raise ValidationException("Value contains invalid characters")
 
     return value

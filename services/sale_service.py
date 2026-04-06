@@ -307,7 +307,9 @@ class SaleService:
 
         # item["profit"] was computed server-side by _validate_sale_items above
         total_amount = sum(
-            FinancialCalculator.calculate_item_total(item["quantity"], item["sell_price"])
+            FinancialCalculator.calculate_item_total(
+                item["quantity"], item["sell_price"]
+            )
             for item in items
         )
         total_profit = sum(item["profit"] for item in items)

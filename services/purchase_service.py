@@ -266,7 +266,6 @@ class PurchaseService:
                 (purchase_id, item["product_id"], quantity_str, item["cost_price"]),
             )
 
-
     # _update_inventory and _revert_inventory removed in favor of InventoryService.apply_batch_updates
 
     @staticmethod

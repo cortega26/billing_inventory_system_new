@@ -194,6 +194,6 @@ Before finishing:
   Prefer `.venv/bin/python -m pytest`.
 - The current shell still does not expose `python` and `ruff` on PATH consistently.
   Prefer `.venv/bin/python` and `.venv/bin/ruff`.
-- The repo currently mixes English and Spanish user-facing strings.
-- New or modified top-level UI strings should be English until the remaining migration is complete.
+- The repo currently uses Spanish for user-facing strings.
+- New or modified UI strings must be in Spanish to maintain consistency.
 - `pytest` currently uses `pytest.ini` and warns that pytest settings in `pyproject.toml` are ignored.

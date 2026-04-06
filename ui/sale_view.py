@@ -483,7 +483,9 @@ class SaleItemDialog(QDialog):
             self.quantity_input.setFocus()
         except Exception as e:
             logger.error(f"Error setting up product details: {str(e)}")
-            show_error_message("Error", f"Failed to set up product details: {str(e)}")
+            show_error_message(
+                "Error", f"Error al configurar los detalles del producto: {str(e)}"
+            )
 
 
 class SaleView(QWidget):
@@ -509,7 +511,7 @@ class SaleView(QWidget):
         customer_layout = QHBoxLayout()
 
         self.customer_id_input = QLineEdit()
-        self.customer_id_input.setPlaceholderText("Ingrese número de Depto")
+        self.customer_id_input.setPlaceholderText("Ingrese N° Departamento o Celular")
         self.customer_id_input.returnPressed.connect(self.select_customer)
 
         # Single label for all customer info
@@ -629,8 +631,8 @@ class SaleView(QWidget):
         self.sale_table = create_table(
             [
                 "ID",
-                "Cliente ID-9",
-                "Depto",
+                "N° Celular",
+                "N° Departamento",
                 "Nombre Cliente",
                 "Fecha",
                 "Monto Total",
@@ -746,10 +748,14 @@ class SaleView(QWidget):
                     f"background-color: {DesignTokens.COLOR_ERROR_BG};"
                 )
                 QTimer.singleShot(1000, lambda: self.barcode_input.setStyleSheet(""))
-                show_error_message("Error", f"No product found with barcode: {barcode}")
+                show_error_message(
+                    "Error", f"No se encontró producto con código: {barcode}"
+                )
         except Exception as e:
             logger.error(f"Error processing barcode: {str(e)}")
-            show_error_message("Error", f"Failed to process barcode: {str(e)}")
+            show_error_message(
+                "Error", f"Error al procesar el código de barras: {str(e)}"
+            )
         finally:
             self.barcode_input.clear()
 
@@ -761,7 +767,9 @@ class SaleView(QWidget):
         """Handle customer selection."""
         identifier = self.customer_id_input.text().strip()
         if not identifier:
-            show_error_message("Error", "Please enter a customer identifier")
+            show_error_message(
+                "Error", "Por favor ingrese N° Celular o N° Departamento"
+            )
             return
 
         try:
@@ -846,7 +854,7 @@ class SaleView(QWidget):
             # Format display text with all available information
             display_parts = []
             if customer.identifier_3or4:
-                display_parts.append(f"Depto: {customer.identifier_3or4}")
+                display_parts.append(f"N° Depto: {customer.identifier_3or4}")
             if customer.name:
                 display_parts.append(f"Nombre: {customer.name}")
             display_parts.append(f"Tel: {customer.identifier_9}")
@@ -1051,7 +1059,7 @@ class SaleView(QWidget):
     def complete_sale(self):
         """Complete the current sale with proper money handling."""
         if not hasattr(self, "selected_customer_id"):
-            raise ValidationException("Please select a customer first")
+            raise ValidationException("Por favor seleccione un cliente primero")
 
         if not self.sale_items:
             raise ValidationException("Por favor agregue al menos un ítem a la venta")
@@ -1080,10 +1088,10 @@ class SaleView(QWidget):
             if sale_id:
                 self.load_sales()
                 self.clear_sale()
-                show_info_message("Success", "Sale completed successfully")
+                show_info_message("Éxito", "Venta completada exitosamente")
 
             else:
-                raise DatabaseException("Failed to create sale")
+                raise DatabaseException("Error al crear la venta")
 
         except Exception as e:
             logger.error(f"Error completing sale: {str(e)}")
@@ -1100,7 +1108,7 @@ class SaleView(QWidget):
             logger.info(f"Loaded {len(sales)} sales")
         except Exception as e:
             logger.error(f"Error loading sales: {str(e)}")
-            raise DatabaseException(f"Failed to load sales: {str(e)}")
+            raise DatabaseException(f"Error al cargar las ventas: {str(e)}")
         finally:
             QApplication.restoreOverrideCursor()
 
@@ -1187,7 +1195,7 @@ class SaleView(QWidget):
     def edit_sale(self, sale: Sale) -> None:
         """Edit an existing sale."""
         if sale is None:
-            raise ValidationException("No sale selected for editing")
+            raise ValidationException("Ninguna venta seleccionada para editar")
 
         try:
             dialog = EditSaleDialog(
@@ -1200,7 +1208,7 @@ class SaleView(QWidget):
 
             if dialog.exec() == QDialog.DialogCode.Accepted:
                 self.load_sales()
-                show_info_message("Success", "Sale updated successfully")
+                show_info_message("Éxito", "Venta actualizada exitosamente")
 
         except Exception as e:
             logger.error(f"Error editing sale: {str(e)}")
@@ -1209,28 +1217,28 @@ class SaleView(QWidget):
     def _safe_edit_sale(self, sale: Optional[Sale]) -> None:
         """Safely handle edit sale action with null check."""
         if sale is None:
-            show_error_message("Error", "No sale selected")
+            show_error_message("Error", "Ninguna venta seleccionada")
             return
         self.edit_sale(sale)
 
     def _safe_view_sale(self, sale: Optional[Sale]) -> None:
         """Safely handle view sale action with null check."""
         if sale is None:
-            show_error_message("Error", "No sale selected")
+            show_error_message("Error", "Ninguna venta seleccionada")
             return
         self.view_sale(sale)
 
     def _safe_print_receipt(self, sale: Optional[Sale]) -> None:
         """Safely handle print receipt action with null check."""
         if sale is None:
-            show_error_message("Error", "No sale selected")
+            show_error_message("Error", "Ninguna venta seleccionada")
             return
         self.print_receipt(sale)
 
     def _safe_delete_sale(self, sale: Optional[Sale]) -> None:
         """Safely handle delete sale action with null check."""
         if sale is None:
-            show_error_message("Error", "No sale selected")
+            show_error_message("Error", "Ninguna venta seleccionada")
             return
         self.delete_sale(sale)
 
@@ -1241,7 +1249,7 @@ class SaleView(QWidget):
     def delete_sale(self, sale: Optional[Sale]) -> None:
         """Delete a sale with validation."""
         if sale is None:
-            raise ValidationException("No sale selected for deletion")
+            raise ValidationException("Ninguna venta seleccionada para eliminar")
 
         if not confirm_action(
             self,
@@ -1254,7 +1262,7 @@ class SaleView(QWidget):
         try:
             self.sale_service.delete_sale(sale.id)
             self.load_sales()
-            show_info_message("Success", "Sale deleted successfully")
+            show_info_message("Éxito", "Venta eliminada exitosamente")
         except Exception as e:
             logger.error(f"Error deleting sale: {str(e)}")
             raise
@@ -1285,7 +1293,7 @@ class SaleView(QWidget):
             try:
                 sale = self.sale_service.get_sale(sale_id)
                 if sale is None:
-                    show_error_message("Error", "Sale not found")
+                    show_error_message("Error", "Venta no encontrada")
                     return
 
                 action = menu.exec(self.sale_table.mapToGlobal(position))
@@ -1315,15 +1323,15 @@ class SaleView(QWidget):
 
             if file_path:
                 self.sale_service.save_receipt_as_pdf(sale.id, file_path)
-                show_info_message("Success", f"Receipt saved to {file_path}")
+                show_info_message("Éxito", f"Recibo guardado en {file_path}")
 
                 # Optional: preview receipt
                 preview = self.generate_receipt_preview(sale)
-                show_info_message("Receipt Preview", preview)
+                show_info_message("Vista Previa de Recibo", preview)
 
         except Exception as e:
             logger.error(f"Error printing receipt: {str(e)}")
-            show_error_message("Error", f"Failed to print receipt: {str(e)}")
+            show_error_message("Error", f"Error al imprimir recibo: {str(e)}")
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(
@@ -1374,13 +1382,13 @@ class SaleView(QWidget):
             message += f"{'Total:':<45}{format_price(sale.total_amount):>19}\n"
             message += "</pre>"
 
-            show_info_message("Sale Details", message)
+            show_info_message("Detalles de Venta", message)
 
             # Offer to print receipt
             reply = QMessageBox.question(
                 self,
-                "Print Receipt",
-                "Would you like to print this receipt?",
+                "Imprimir Recibo",
+                "¿Desea imprimir este recibo?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
             )
@@ -1390,7 +1398,7 @@ class SaleView(QWidget):
 
         except Exception as e:
             logger.error(f"Error viewing sale: {str(e)}")
-            raise UIException(f"Failed to view sale: {str(e)}")
+            raise UIException(f"Error al ver venta: {str(e)}")
 
     def generate_receipt_preview(self, sale: Sale) -> str:
         """Generate a text preview of the receipt with proper formatting."""

@@ -274,7 +274,7 @@ class ProductView(QWidget):
             logger.info("Categories loaded successfully")
         except Exception as e:
             logger.error(f"Error loading categories: {str(e)}")
-            raise DatabaseException(f"Failed to load categories: {str(e)}")
+            raise DatabaseException(f"Error al cargar categorías: {str(e)}")
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
@@ -290,7 +290,7 @@ class ProductView(QWidget):
             logger.info("Products loaded successfully")
         except Exception as e:
             logger.error(f"Error loading products: {str(e)}")
-            raise DatabaseException(f"Failed to load products: {str(e)}")
+            raise DatabaseException(f"Error al cargar productos: {str(e)}")
         finally:
             QApplication.restoreOverrideCursor()
 
@@ -379,7 +379,7 @@ class ProductView(QWidget):
             logger.info("Product table updated successfully")
         except Exception as e:
             logger.error(f"Error updating product table: {str(e)}")
-            raise UIException(f"Failed to update product table: {str(e)}")
+            raise UIException(f"Error al actualizar la tabla de productos: {str(e)}")
         finally:
             QApplication.restoreOverrideCursor()
 
@@ -407,7 +407,7 @@ class ProductView(QWidget):
                     self.product_updated.emit()
                     logger.info(f"Product added successfully: ID {product_id}")
                 else:
-                    raise DatabaseException("Failed to add product.")
+                    raise DatabaseException("Error al agregar producto.")
         except Exception as e:
             logger.error(f"Error adding product: {str(e)}")
             raise
@@ -420,7 +420,9 @@ class ProductView(QWidget):
         if product is None:
             selected_rows = self.product_table.selectionModel().selectedRows()
             if not selected_rows:
-                raise ValidationException("No product selected for editing.")
+                raise ValidationException(
+                    "No se seleccionó ningún producto para editar."
+                )
             row = selected_rows[0].row()
             product_id = int(self.product_table.item(row, 0).text())
             product = self.product_service.get_product(product_id)
@@ -445,7 +447,9 @@ class ProductView(QWidget):
                     logger.error(f"Error updating product: {str(e)}")
                     raise
         else:
-            raise ValidationException(f"Product with ID {product_id} not found.")
+            raise ValidationException(
+                f"No se encontró el producto con ID {product_id}."
+            )
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(
@@ -600,7 +604,7 @@ class ProductView(QWidget):
                     show_error_message("Error", str(e))
         except Exception as e:
             logger.error(f"Error showing context menu: {str(e)}")
-            show_error_message("Error", "Failed to show context menu")
+            show_error_message("Error", "Error al mostrar el menú contextual")
             if action:
                 if action == edit_action:
                     self.edit_product(product)
@@ -615,14 +619,16 @@ class ProductView(QWidget):
 
     @ui_operation(show_dialog=True)
     def export_products(self):
-        # TODO: Implement export functionality
-        show_info_message("Info", "Export functionality not implemented yet.")
+        show_info_message(
+            "Info", "La funcionalidad de exportación aún no está implementada."
+        )
         logger.info("Export products functionality not implemented")
 
     @ui_operation(show_dialog=True)
     def import_products(self):
-        # TODO: Implement import functionality
-        show_info_message("Info", "Import functionality not implemented yet.")
+        show_info_message(
+            "Info", "La funcionalidad de importación aún no está implementada."
+        )
         logger.info("Import products functionality not implemented")
 
     def keyPressEvent(self, event):
@@ -640,7 +646,7 @@ class ProductView(QWidget):
                     except Exception as e:
                         logger.error(f"Error handling delete key event: {str(e)}")
                         show_error_message(
-                            "Error", f"Failed to delete product: {str(e)}"
+                            "Error", f"Error al eliminar producto: {str(e)}"
                         )
             else:
                 super().keyPressEvent(event)

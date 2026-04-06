@@ -8,8 +8,8 @@ from models.enums import (
     QUANTITY_PRECISION,
     TimeInterval,
 )
-from services.analytics_service import AnalyticsService
 from models.purchase import Purchase, PurchaseItem
+from services.analytics_service import AnalyticsService
 from services.inventory_service import InventoryService
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import DatabaseException, NotFoundException, ValidationException

@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from enum import Enum
-from typing import Any, ClassVar, Dict, Optional
+from typing import Any, ClassVar, Dict
 
 from utils.exceptions import ValidationException
 

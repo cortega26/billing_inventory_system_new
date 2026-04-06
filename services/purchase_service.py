@@ -8,6 +8,7 @@ from models.enums import (
     QUANTITY_PRECISION,
     TimeInterval,
 )
+from services.analytics_service import AnalyticsService
 from models.purchase import Purchase, PurchaseItem
 from services.inventory_service import InventoryService
 from utils.decorators import db_operation, handle_exceptions
@@ -237,6 +238,7 @@ class PurchaseService:
     ) -> None:
         """Refresh caches and emit post-commit events for purchase mutations."""
         InventoryService.clear_cache()
+        AnalyticsService.clear_cache()
         for product_id in PurchaseService._get_product_ids(items):
             event_system.inventory_changed.emit(product_id)
         PurchaseService.clear_cache()
@@ -338,10 +340,11 @@ class PurchaseService:
             TimeInterval.WEEK.value: "%Y-%W",
             TimeInterval.MONTH.value: "%Y-%m",
         }
+        fmt = date_format[interval]
 
-        query = f"""
-            SELECT 
-                strftime('{date_format[interval]}', date) as period,
+        query = """
+            SELECT
+                strftime(?, date) as period,
                 COUNT(*) as purchase_count,
                 SUM(total_amount) as total_amount
             FROM purchases
@@ -349,7 +352,7 @@ class PurchaseService:
             GROUP BY period
             ORDER BY period
         """
-        rows = DatabaseManager.fetch_all(query, (start_date, end_date))
+        rows = DatabaseManager.fetch_all(query, (fmt, start_date, end_date))
         trends = [
             {
                 "period": row["period"],
@@ -377,10 +380,10 @@ class PurchaseService:
     ) -> List[Dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
-        limit = validate_integer(limit, min_value=1)
+        limit = validate_integer(limit, min_value=1, max_value=1000)
         query = """
-            SELECT supplier, 
-                   COUNT(*) as purchase_count, 
+            SELECT supplier,
+                   COUNT(*) as purchase_count,
                    SUM(total_amount) as total_amount
             FROM purchases
             WHERE date BETWEEN ? AND ?
@@ -427,6 +430,7 @@ class PurchaseService:
     @db_operation(show_dialog=True)
     def get_supplier_purchases(supplier: str) -> List[Purchase]:
         """Get all purchases for a specific supplier."""
+        supplier = validate_string(supplier, min_length=1, max_length=100)
         query = "SELECT * FROM purchases WHERE supplier = ? ORDER BY date DESC"
         rows = DatabaseManager.fetch_all(query, (supplier,))
         purchases = [Purchase.from_db_row(row) for row in rows]
@@ -467,6 +471,10 @@ class PurchaseService:
     @db_operation(show_dialog=True)
     def get_purchase_history(start_date: str, end_date: str) -> List[Purchase]:
         """Get purchase history for a period."""
+        start_date = validate_date(start_date)
+        end_date = validate_date(end_date)
+        if start_date > end_date:
+            raise ValidationException("start_date must be before or equal to end_date")
         query = "SELECT * FROM purchases WHERE date BETWEEN ? AND ? ORDER BY date DESC"
         rows = DatabaseManager.fetch_all(query, (start_date, end_date))
         purchases = [Purchase.from_db_row(row) for row in rows]

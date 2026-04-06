@@ -35,6 +35,10 @@ class InventoryService:
             multiplier: 1.0 for adding to inventory (Purchase), -1.0 for removing (Sale).
             emit_events: Whether to clear caches and emit inventory events per update.
         """
+        if multiplier not in (1.0, -1.0):
+            raise ValidationException(
+                f"multiplier must be 1.0 (add) or -1.0 (subtract), got {multiplier}"
+            )
         for item in items:
             # Handle dict or object
             if isinstance(item, dict):
@@ -304,8 +308,10 @@ class InventoryService:
         product_id: int, start_date: str, end_date: str
     ) -> List[Dict[str, Any]]:
         product_id = validate_integer(product_id, min_value=1)
-        start_date = validate_string(start_date)
-        end_date = validate_string(end_date)
+        start_date = validate_date(start_date)
+        end_date = validate_date(end_date)
+        if start_date > end_date:
+            raise ValidationException("start_date must be before or equal to end_date")
         query = """
             SELECT 'adjustment' as type, date, quantity_change, reason
             FROM inventory_adjustments

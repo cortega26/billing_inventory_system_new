@@ -53,7 +53,7 @@ class AnalyticsService:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
-        limit = validate_integer(limit, min_value=1)
+        limit = validate_integer(limit, min_value=1, max_value=1000)
         query = """
             SELECT p.id, p.name,
                    ROUND(SUM(si.quantity), 3) as total_quantity,
@@ -201,7 +201,7 @@ class AnalyticsService:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
-        limit = validate_integer(limit, min_value=1)
+        limit = validate_integer(limit, min_value=1, max_value=1000)
         query = """
             SELECT p.id, p.name,
                    CAST(SUM(ROUND(si.quantity * si.price)) AS INTEGER) as total_revenue,

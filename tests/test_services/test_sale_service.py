@@ -299,3 +299,104 @@ class TestSaleService:
         inventory = inventory_service.get_inventory(sample_product.id)
         assert sale.items[0].quantity == 2.0
         assert inventory.quantity == 8.0
+
+
+class TestCancelSale:
+    def test_cancel_sale_sets_status_cancelled(
+        self, sale_service, sample_sale_data, inventory_service, sample_product
+    ):
+        inventory_service.update_quantity(sample_product.id, 10.0)
+        sale_id = sale_service.create_sale(**sample_sale_data)
+
+        sale_service.cancel_sale(sale_id)
+
+        sale = sale_service.get_sale(sale_id)
+        assert sale.status == "cancelled"
+
+    def test_cancel_sale_reverts_inventory(
+        self, sale_service, sample_sale_data, inventory_service, sample_product
+    ):
+        inventory_service.update_quantity(sample_product.id, 10.0)
+        sale_id = sale_service.create_sale(**sample_sale_data)
+
+        # After create: 10 - 2 = 8
+        assert inventory_service.get_inventory(sample_product.id).quantity == 8.0
+
+        sale_service.cancel_sale(sale_id)
+
+        # After cancel: 8 + 2 = 10 (restored)
+        assert inventory_service.get_inventory(sample_product.id).quantity == 10.0
+
+    def test_cancel_sale_twice_raises(
+        self, sale_service, sample_sale_data, inventory_service, sample_product
+    ):
+        inventory_service.update_quantity(sample_product.id, 10.0)
+        sale_id = sale_service.create_sale(**sample_sale_data)
+
+        sale_service.cancel_sale(sale_id)
+
+        with pytest.raises(ValidationException):
+            sale_service.cancel_sale(sale_id)
+
+    def test_cancel_nonexistent_sale_raises(self, sale_service):
+        from utils.exceptions import NotFoundException
+
+        with pytest.raises(NotFoundException):
+            sale_service.cancel_sale(99999)
+
+    def test_cancel_sale_preserves_record(
+        self, sale_service, sample_sale_data, inventory_service, sample_product
+    ):
+        """Cancelled sale remains in DB for audit trail."""
+        inventory_service.update_quantity(sample_product.id, 10.0)
+        sale_id = sale_service.create_sale(**sample_sale_data)
+
+        sale_service.cancel_sale(sale_id)
+
+        sale = sale_service.get_sale(sale_id)
+        assert sale is not None
+        assert sale.id == sale_id
+        assert len(sale.items) == 1
+
+
+class TestGetAllSalesPagination:
+    def test_pagination_limit(
+        self, sale_service, sample_sale_data, inventory_service, sample_product
+    ):
+        inventory_service.update_quantity(sample_product.id, 30.0)
+        for _ in range(5):
+            sale_service.create_sale(**sample_sale_data)
+
+        page = sale_service.get_all_sales(limit=2, offset=0)
+        assert len(page) == 2
+
+    def test_pagination_offset(
+        self, sale_service, sample_sale_data, inventory_service, sample_product
+    ):
+        inventory_service.update_quantity(sample_product.id, 30.0)
+        ids = [sale_service.create_sale(**sample_sale_data) for _ in range(4)]
+
+        page1 = sale_service.get_all_sales(limit=2, offset=0)
+        page2 = sale_service.get_all_sales(limit=2, offset=2)
+
+        page1_ids = {s.id for s in page1}
+        page2_ids = {s.id for s in page2}
+        assert page1_ids.isdisjoint(page2_ids)
+        assert page1_ids | page2_ids == set(ids)
+
+    def test_pagination_offset_beyond_total_returns_empty(
+        self, sale_service, sample_sale_data, inventory_service, sample_product
+    ):
+        inventory_service.update_quantity(sample_product.id, 10.0)
+        sale_service.create_sale(**sample_sale_data)
+
+        page = sale_service.get_all_sales(limit=10, offset=100)
+        assert page == []
+
+    def test_pagination_invalid_limit_raises(self, sale_service):
+        with pytest.raises(ValidationException):
+            sale_service.get_all_sales(limit=0, offset=0)
+
+    def test_pagination_invalid_offset_raises(self, sale_service):
+        with pytest.raises(ValidationException):
+            sale_service.get_all_sales(limit=10, offset=-1)

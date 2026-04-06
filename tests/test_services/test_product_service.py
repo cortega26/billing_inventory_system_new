@@ -18,8 +18,8 @@ class TestInventoryService:
             name="Test Product",
             description="Test Description",
             category_id=1,
-            cost_price=1000.0,
-            sell_price=1500.0,
+            cost_price=1000,
+            sell_price=1500,
             barcode="12345678",
         )
 

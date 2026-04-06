@@ -245,7 +245,13 @@ def validate_money_multiplication(
         ValidationException: If calculation fails
     """
     try:
+        if amount < 0:
+            raise ValidationException(f"{field_name} amount cannot be negative")
+        if quantity < 0:
+            raise ValidationException(f"{field_name} quantity cannot be negative")
         return int(round(float(amount) * quantity))
+    except ValidationException:
+        raise
     except (ValueError, TypeError):
         raise ValidationException(f"Invalid {field_name.lower()} calculation")
 

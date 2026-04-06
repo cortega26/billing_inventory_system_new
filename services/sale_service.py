@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 from database.database_manager import DatabaseManager
 from models.enums import MAX_SALE_ITEMS, QUANTITY_PRECISION
 from models.sale import Sale, SaleItem
+from services.analytics_service import AnalyticsService
 from services.customer_service import CustomerService
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
@@ -267,8 +268,6 @@ class SaleService:
         """
         sale_id = validate_integer(sale_id, min_value=1)
         sale = self.get_sale(sale_id)
-        if not sale:
-            raise NotFoundException(f"Sale with ID {sale_id} not found")
         if sale.status == "cancelled":
             raise ValidationException(f"Sale {sale_id} is already cancelled")
 
@@ -441,6 +440,7 @@ class SaleService:
     ) -> None:
         """Refresh caches and emit post-commit events for sale mutations."""
         InventoryService.clear_cache()
+        AnalyticsService.clear_cache()
         for product_id in self._get_product_ids(items):
             event_system.inventory_changed.emit(product_id)
         self.clear_cache()
@@ -459,7 +459,12 @@ class SaleService:
         last_number = (
             int(result["last_number"]) if result and result["last_number"] else 0
         )
-        return f"{date_part}{last_number + 1:03d}"
+        next_number = last_number + 1
+        if next_number > 999:
+            raise ValidationException(
+                f"Daily receipt limit reached for {sale_date_str} (max 999 per day)"
+            )
+        return f"{date_part}{next_number:03d}"
 
     @staticmethod
     def _get_product_ids(items: List[Any]) -> List[int]:
@@ -557,7 +562,7 @@ class SaleService:
     ) -> List[Dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
-        limit = validate_integer(limit, min_value=1)
+        limit = validate_integer(limit, min_value=1, max_value=1000)
         query = """
             SELECT p.id, p.name, SUM(si.quantity) as total_quantity, SUM(si.quantity * si.price) as total_revenue
             FROM products p

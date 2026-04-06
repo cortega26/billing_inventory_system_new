@@ -286,6 +286,76 @@ Start a new conversation per phase: *"Implement Phase 0 of docs/audit/backlog.md
 
 ---
 
+## PHASE 4 — Cache correctness, validation completeness, test coverage ✅ DONE 2026-04-06
+
+### [P4-1] ✅ Invalidate analytics cache after sale/purchase mutations
+- **Files:** `services/sale_service.py` — `_finalize_sale_mutation`; `services/purchase_service.py` — `_finalize_purchase_mutation`
+- **What to change:** Add `AnalyticsService.clear_cache()` call in both finalize methods, after `InventoryService.clear_cache()`.
+- **Why:** `AnalyticsService` has a `clear_cache()` method and all its methods are `@lru_cache`, but it was never called after mutations. Dashboard charts showed stale data for the entire session after any sale or purchase was created, updated, or deleted.
+- **Implemented:** Added `AnalyticsService.clear_cache()` to both `_finalize_sale_mutation` (sale_service.py) and `_finalize_purchase_mutation` (purchase_service.py). Also added `from services.analytics_service import AnalyticsService` import to both files.
+
+---
+
+### [P4-2] ✅ Validate `multiplier` in `InventoryService.apply_batch_updates`
+- **File:** `services/inventory_service.py` — `apply_batch_updates`
+- **What to change:** Add guard at the start of the method: `if multiplier not in (1.0, -1.0): raise ValidationException(...)`.
+- **Why:** Any caller passing `multiplier=0.5` or `multiplier=2.0` would silently corrupt inventory. The parameter only has two valid values and this should be enforced.
+- **Implemented:** Guard added before the item loop.
+
+---
+
+### [P4-3] ✅ Add input validation to `get_supplier_purchases` and `get_purchase_history`
+- **File:** `services/purchase_service.py`
+- **What to change:**
+  - `get_supplier_purchases`: add `supplier = validate_string(supplier, min_length=1, max_length=100)`.
+  - `get_purchase_history`: add `validate_date` calls for both dates + `start_date > end_date` check.
+- **Why:** Both methods accepted raw, unvalidated strings directly into SQL queries. Invalid input would return empty results silently or produce unexpected behavior.
+- **Implemented:** Both methods now validate their inputs. `get_purchase_history` also raises `ValidationException` if `start_date > end_date`.
+
+---
+
+### [P4-4] ✅ Remove dead code `if not sale:` in `cancel_sale`
+- **File:** `services/sale_service.py` — `cancel_sale` lines 269–271
+- **What to change:** Delete the `if not sale: raise NotFoundException(...)` block.
+- **Why:** `self.get_sale(sale_id)` already raises `NotFoundException` if the sale doesn't exist. The null check immediately after can never execute and misleads future readers about the control flow.
+- **Implemented:** Dead code removed.
+
+---
+
+### [P4-5] ✅ Fix `get_inventory_movements` to use `validate_date` + start ≤ end check
+- **File:** `services/inventory_service.py` — `get_inventory_movements` lines 307–308
+- **What to change:** Replace `validate_string(start_date)` / `validate_string(end_date)` with `validate_date(...)`. Add `if start_date > end_date: raise ValidationException(...)`.
+- **Why:** `validate_string` accepts any non-empty string — an invalid date like `"not-a-date"` would pass silently and return empty results from the BETWEEN clause instead of a clear error.
+- **Implemented:** Both parameters now use `validate_date`. Range check added.
+
+---
+
+### [P4-6] ✅ Guard receipt ID counter overflow in `_build_receipt_id`
+- **File:** `services/sale_service.py` — `_build_receipt_id`
+- **What to change:** After computing `next_number = last_number + 1`, raise `ValidationException` if `next_number > 999`.
+- **Why:** The format string `f"{date_part}{next_number:03d}"` produces a 9-character ID for counters 001–999. Counter 1000 produces a 10-character ID, breaking the format and potentially causing duplicate IDs (e.g., `260406001` clashes with `2604060` + `01`).
+- **Implemented:** Guard added; raises `ValidationException("Daily receipt limit reached for {date} (max 999 per day)")`.
+
+---
+
+### [P4-7] ✅ Add `max_value=1000` to `limit` parameters in reporting methods
+- **Files:** `services/sale_service.py` — `get_top_selling_products`; `services/analytics_service.py` — `get_top_selling_products`, `get_profit_by_product`; `services/purchase_service.py` — `get_top_suppliers`
+- **What to change:** All `validate_integer(limit, min_value=1)` calls in reporting methods should add `max_value=1000`.
+- **Why:** An unbounded `limit` (e.g., `limit=999999999`) causes the query to load the entire table into memory, causing app hangs or OOM errors.
+- **Implemented:** `max_value=1000` added to all four methods.
+
+---
+
+### [P4-8] ✅ Add missing test coverage and fix pre-existing test breakage
+- **Files:** `tests/test_services/test_sale_service.py`, `tests/test_services/test_product_service.py`
+- **What to change:**
+  - `test_sale_service.py`: Add `TestCancelSale` class (5 tests: sets status, reverts inventory, raises on double cancel, raises on nonexistent ID, preserves audit record). Add `TestGetAllSalesPagination` class (5 tests: limit, offset, offset beyond total, invalid limit, invalid offset).
+  - `test_product_service.py`: Fix `sample_product` fixture — `cost_price=1000.0` and `sell_price=1500.0` → `int` (float was rejected by the Phase 1 A-4 fix, leaving 3 tests in ERROR state).
+  - `utils/validation/validators.py`: Restore negative-value guards in `validate_money_multiplication` that were overly stripped in Phase 0. The cap was correctly removed, but negative `amount` and negative `quantity` should still raise `ValidationException`.
+- **Implemented:** All 10 new tests pass. 3 previously ERRORed tests now pass. Full suite: 181 passed, 2 skipped.
+
+---
+
 ## Known non-issues (intentional design decisions)
 
 - No multiuser / authentication — by design for a local desktop app.

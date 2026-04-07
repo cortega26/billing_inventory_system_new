@@ -18,6 +18,8 @@ class Product:
     sell_price: int  # Chilean Pesos - always integer
     barcode: Optional[str] = None
     category_name: Optional[str] = None
+    is_active: bool = True
+    deleted_at: Optional[str] = None
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
 
@@ -95,6 +97,8 @@ class Product:
             sell_price=int(row["sell_price"] or 0),
             barcode=row.get("barcode"),
             category_name=row.get("category_name") or "Uncategorized",
+            is_active=bool(row.get("is_active", 1)),
+            deleted_at=row.get("deleted_at"),
             created_at=(
                 datetime.fromisoformat(row["created_at"])
                 if "created_at" in row
@@ -118,6 +122,8 @@ class Product:
             "cost_price": self.cost_price,
             "sell_price": self.sell_price,
             "barcode": self.barcode,
+            "is_active": self.is_active,
+            "deleted_at": self.deleted_at,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }

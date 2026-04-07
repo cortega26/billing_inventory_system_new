@@ -1,4 +1,4 @@
-from typing import Dict, Protocol, Type, cast
+from typing import Dict, Optional, Protocol, Type, cast
 
 from PySide6.QtCore import QPoint, QSettings, QSize
 from PySide6.QtGui import QAction, QKeySequence
@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from config import APP_NAME, APP_VERSION, COMPANY_NAME
 from ui.analytics_view import AnalyticsView
+from ui.audit_log_view import AuditLogView
 from ui.customer_view import CustomerView
 from ui.dashboard_view import DashboardView
 from ui.inventory_view import InventoryView
@@ -31,11 +32,69 @@ class RefreshableWidget(Protocol):
     def refresh(self) -> None: ...
 
 
+class ExportableWidget(Protocol):
+    def export_current_view(self) -> None: ...
+
+
+def build_backup_skipped_status_message(payload: object) -> str:
+    """Build a user-facing status message for skipped backup events."""
+    if isinstance(payload, dict) and payload.get("reason") == "low_disk_space":
+        return "Alerta: copia de seguridad omitida por espacio insuficiente en disco"
+    return "Alerta: copia de seguridad omitida"
+
+
+DASHBOARD_TAB = "Panel"
+CUSTOMERS_TAB = "Clientes"
+PRODUCTS_TAB = "Productos"
+SALES_TAB = "Ventas"
+PURCHASES_TAB = "Compras"
+INVENTORY_TAB = "Inventario"
+ANALYTICS_TAB = "Analíticas"
+AUDIT_TAB = "Auditoría"
+
+PRODUCT_REFRESH_TARGETS = (
+    DASHBOARD_TAB,
+    PRODUCTS_TAB,
+    SALES_TAB,
+    PURCHASES_TAB,
+    INVENTORY_TAB,
+    ANALYTICS_TAB,
+    AUDIT_TAB,
+)
+CUSTOMER_REFRESH_TARGETS = (
+    CUSTOMERS_TAB,
+    SALES_TAB,
+    AUDIT_TAB,
+)
+SALE_REFRESH_TARGETS = (
+    DASHBOARD_TAB,
+    SALES_TAB,
+    INVENTORY_TAB,
+    ANALYTICS_TAB,
+    AUDIT_TAB,
+)
+PURCHASE_REFRESH_TARGETS = (
+    DASHBOARD_TAB,
+    PURCHASES_TAB,
+    INVENTORY_TAB,
+    ANALYTICS_TAB,
+    AUDIT_TAB,
+)
+INVENTORY_REFRESH_TARGETS = (
+    DASHBOARD_TAB,
+    SALES_TAB,
+    PURCHASES_TAB,
+    INVENTORY_TAB,
+    AUDIT_TAB,
+)
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"{APP_NAME} - v{APP_VERSION}")
         self.settings = QSettings(COMPANY_NAME, APP_NAME)
+        self.views_by_name: Dict[str, QWidget] = {}
         self.setup_ui()
 
     @ui_operation(show_dialog=True)
@@ -128,6 +187,7 @@ class MainWindow(QMainWindow):
             "F5": 0,  # Dashboard (mapped to index 0 in create_tabs)
             "F6": 4,  # Purchases (mapped to index 4 in create_tabs)
             "F7": 6,  # Analytics
+            "F8": 7,  # Audit log
         }
 
         for key, index in shortcuts.items():
@@ -149,17 +209,20 @@ class MainWindow(QMainWindow):
     def create_tabs(self):
         try:
             tabs: Dict[str, Type[QWidget]] = {
-                "Panel": DashboardView,
-                "Clientes": CustomerView,
-                "Productos": ProductView,
-                "Ventas": SaleView,
-                "Compras": PurchaseView,
-                "Inventario": InventoryView,
-                "Analíticas": AnalyticsView,
+                DASHBOARD_TAB: DashboardView,
+                CUSTOMERS_TAB: CustomerView,
+                PRODUCTS_TAB: ProductView,
+                SALES_TAB: SaleView,
+                PURCHASES_TAB: PurchaseView,
+                INVENTORY_TAB: InventoryView,
+                ANALYTICS_TAB: AnalyticsView,
+                AUDIT_TAB: AuditLogView,
             }
 
+            self.views_by_name = {}
             for tab_name, view_class in tabs.items():
                 view = view_class()
+                self.views_by_name[tab_name] = view
                 self.tab_widget.addTab(view, tab_name)
                 logger.info(f"Added {tab_name} tab successfully")
 
@@ -182,11 +245,20 @@ class MainWindow(QMainWindow):
             self.tab_widget.setCurrentIndex(0)
 
     def connect_to_events(self):
-        event_system.product_added.connect(self.on_product_added)
-        event_system.product_updated.connect(self.on_product_updated)
-        event_system.product_deleted.connect(self.on_product_deleted)
-        event_system.sale_added.connect(self.on_sale_added)
-        event_system.purchase_added.connect(self.on_purchase_added)
+        event_system.connect_to_event("product_added", self.on_product_added)
+        event_system.connect_to_event("product_updated", self.on_product_updated)
+        event_system.connect_to_event("product_deleted", self.on_product_deleted)
+        event_system.connect_to_event("customer_added", self.on_customer_changed)
+        event_system.connect_to_event("customer_updated", self.on_customer_changed)
+        event_system.connect_to_event("customer_deleted", self.on_customer_changed)
+        event_system.connect_to_event("sale_added", self.on_sale_added)
+        event_system.connect_to_event("sale_updated", self.on_sale_changed)
+        event_system.connect_to_event("sale_deleted", self.on_sale_changed)
+        event_system.connect_to_event("purchase_added", self.on_purchase_added)
+        event_system.connect_to_event("purchase_updated", self.on_purchase_changed)
+        event_system.connect_to_event("purchase_deleted", self.on_purchase_changed)
+        event_system.connect_to_event("inventory_changed", self.on_inventory_changed)
+        event_system.connect_to_event("backup_skipped", self.on_backup_skipped)
 
     @ui_operation(show_dialog=True)
     def on_tab_changed(self, index):
@@ -229,34 +301,67 @@ class MainWindow(QMainWindow):
     @ui_operation(show_dialog=True)
     def on_product_added(self, product_id: int):
         self.show_status_message(f"Producto agregado (ID: {product_id})")
-        self.refresh_relevant_views()
+        self.refresh_relevant_views(PRODUCT_REFRESH_TARGETS)
 
     @ui_operation(show_dialog=True)
     def on_product_updated(self, product_id: int):
         self.show_status_message(f"Producto actualizado (ID: {product_id})")
-        self.refresh_relevant_views()
+        self.refresh_relevant_views(PRODUCT_REFRESH_TARGETS)
 
     @ui_operation(show_dialog=True)
     def on_product_deleted(self, product_id: int):
         self.show_status_message(f"Producto eliminado (ID: {product_id})")
-        self.refresh_relevant_views()
+        self.refresh_relevant_views(PRODUCT_REFRESH_TARGETS)
+
+    @ui_operation(show_dialog=True)
+    def on_customer_changed(self, _payload: object = None):
+        self.refresh_relevant_views(CUSTOMER_REFRESH_TARGETS)
 
     @ui_operation(show_dialog=True)
     def on_sale_added(self, sale_id: int):
         self.show_status_message(f"Venta agregada (ID: {sale_id})")
-        self.refresh_relevant_views()
+        self.refresh_relevant_views(SALE_REFRESH_TARGETS)
+
+    @ui_operation(show_dialog=True)
+    def on_sale_changed(self, _payload: object = None):
+        self.refresh_relevant_views(SALE_REFRESH_TARGETS)
 
     @ui_operation(show_dialog=True)
     def on_purchase_added(self, purchase_id: int):
         self.show_status_message(f"Compra agregada (ID: {purchase_id})")
-        self.refresh_relevant_views()
+        self.refresh_relevant_views(PURCHASE_REFRESH_TARGETS)
+
+    @ui_operation(show_dialog=True)
+    def on_purchase_changed(self, _payload: object = None):
+        self.refresh_relevant_views(PURCHASE_REFRESH_TARGETS)
+
+    @ui_operation(show_dialog=True)
+    def on_backup_skipped(self, payload: object):
+        message = build_backup_skipped_status_message(payload)
+        logger.warning(message)
+        # Keep visible longer to increase operator awareness.
+        self.show_status_message(message, timeout=15000)
+
+    @ui_operation(show_dialog=True)
+    def on_inventory_changed(self, _payload: object = None):
+        self.refresh_relevant_views(INVENTORY_REFRESH_TARGETS)
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(UIException, show_dialog=True)
-    def refresh_relevant_views(self):
+    def refresh_relevant_views(
+        self, target_tab_names: Optional[tuple[str, ...]] = None
+    ):
         try:
-            for i in range(self.tab_widget.count()):
-                widget = self.tab_widget.widget(i)
+            if target_tab_names is None:
+                target_tab_names = tuple(self.views_by_name.keys())
+
+            refreshed_tabs = set()
+            for tab_name in target_tab_names:
+                if tab_name in refreshed_tabs:
+                    continue
+                refreshed_tabs.add(tab_name)
+
+                widget = self.views_by_name.get(tab_name)
                 if hasattr(widget, "refresh") and callable(getattr(widget, "refresh")):
                     refreshable_widget = cast(RefreshableWidget, widget)
                     refreshable_widget.refresh()
@@ -279,8 +384,15 @@ class MainWindow(QMainWindow):
 
     @ui_operation(show_dialog=True)
     def export_data(self):
-        self.show_status_message("Exportación de datos iniciada")
-        # TODO: Implement actual data export logic
+        current_widget = self.tab_widget.currentWidget()
+        if hasattr(current_widget, "export_current_view") and callable(
+            getattr(current_widget, "export_current_view")
+        ):
+            exportable_widget = cast(ExportableWidget, current_widget)
+            exportable_widget.export_current_view()
+            return
+
+        self.show_status_message("La vista actual no tiene exportación disponible")
 
     @ui_operation(show_dialog=True)
     def import_data(self):

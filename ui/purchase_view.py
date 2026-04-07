@@ -340,13 +340,17 @@ class PurchaseView(QWidget):
             actions_widget = QWidget()
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(0, 0, 0, 0)
+            actions_layout.setSpacing(6)
+            actions_layout.setAlignment(Qt.AlignCenter)
 
             remove_button = QPushButton("Eliminar")
+            remove_button.setFixedWidth(80)
+            remove_button.setStyleSheet("padding: 2px 8px;")
             remove_button.clicked.connect(lambda _, i=row: self.remove_purchase_item(i))
-            remove_button.setMaximumWidth(60)
             actions_layout.addWidget(remove_button)
 
             self.purchase_items_table.setCellWidget(row, 5, actions_widget)
+            self.purchase_items_table.setRowHeight(row, 36)
 
         self.total_amount_label.setText(f"Total: {format_price(total_amount)}")
 
@@ -386,7 +390,6 @@ class PurchaseView(QWidget):
                 self.load_purchases()
                 self.clear_purchase()
                 show_info_message("Éxito", "Compra completada exitosamente")
-                event_system.purchase_added.emit(purchase_id)
                 self.purchase_updated.emit()
             else:
                 raise DatabaseException("Falló al crear compra")
@@ -412,20 +415,26 @@ class PurchaseView(QWidget):
             actions_widget = QWidget()
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(0, 0, 0, 0)
+            actions_layout.setSpacing(6)
+            actions_layout.setAlignment(Qt.AlignCenter)
 
             view_button = QPushButton("Ver")
+            view_button.setFixedWidth(80)
+            view_button.setStyleSheet("padding: 2px 8px;")
             view_button.clicked.connect(lambda _, p=purchase: self.view_purchase(p))
             view_button.setToolTip("Ver detalles de compra")
 
             delete_button = QPushButton("Eliminar")
+            delete_button.setFixedWidth(80)
+            delete_button.setStyleSheet("padding: 2px 8px;")
             delete_button.clicked.connect(lambda _, p=purchase: self.delete_purchase(p))
             delete_button.setToolTip("Eliminar esta compra")
 
             for btn in [view_button, delete_button]:
-                btn.setMaximumWidth(60)
                 actions_layout.addWidget(btn)
 
             self.purchase_table.setCellWidget(row, 4, actions_widget)
+            self.purchase_table.setRowHeight(row, 36)
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
@@ -581,7 +590,6 @@ class PurchaseView(QWidget):
                 self.purchase_service.delete_purchase(purchase.id)
                 self.load_purchases()
                 show_info_message("Éxito", "Compra eliminada exitosamente")
-                event_system.purchase_deleted.emit(purchase.id)
                 self.purchase_updated.emit()
             except Exception as e:
                 logger.error(f"Error deleting purchase: {str(e)}")

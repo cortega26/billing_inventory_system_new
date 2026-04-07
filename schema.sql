@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS products (
     category_id INTEGER,
     cost_price INTEGER NOT NULL DEFAULT 0 CHECK (cost_price >= 0),
     sell_price INTEGER NOT NULL DEFAULT 0 CHECK (sell_price >= 0),
+    is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+    deleted_at TEXT,
     barcode TEXT UNIQUE,
     FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
 );
@@ -30,7 +32,9 @@ CREATE TABLE IF NOT EXISTS inventory (
 CREATE TABLE IF NOT EXISTS customers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     identifier_9 TEXT NOT NULL UNIQUE,
-    name TEXT
+    name TEXT,
+    is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+    deleted_at TEXT
 );
 
 -- Customer identifiers table
@@ -97,6 +101,17 @@ CREATE TABLE IF NOT EXISTS inventory_adjustments (
     FOREIGN KEY (product_id) REFERENCES products(id)
 );
 
+-- Audit log table
+CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    operation TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id INTEGER,
+    actor TEXT,
+    payload TEXT,
+    timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Add composite indexes for frequently joined queries
 CREATE INDEX IF NOT EXISTS idx_sale_items_composite ON sale_items(sale_id, product_id);
 CREATE INDEX IF NOT EXISTS idx_sales_date_customer ON sales(date, customer_id);
@@ -104,5 +119,9 @@ CREATE INDEX IF NOT EXISTS idx_sales_date_customer ON sales(date, customer_id);
 -- Performance Indexes
 CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode);
 CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
+CREATE INDEX IF NOT EXISTS idx_products_is_active ON products(is_active);
 CREATE INDEX IF NOT EXISTS idx_sale_items_product_id ON sale_items(product_id);
 CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(date); 
+CREATE INDEX IF NOT EXISTS idx_customers_is_active ON customers(is_active);
+CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log(timestamp);

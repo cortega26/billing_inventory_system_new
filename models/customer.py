@@ -11,6 +11,8 @@ class Customer:
     identifier_9: str
     name: Optional[str] = None
     identifier_3or4: Optional[str] = None
+    is_active: bool = True
+    deleted_at: Optional[str] = None
     _identifiers: List[str] = field(default_factory=list, init=False)
 
     def __post_init__(self):
@@ -44,6 +46,8 @@ class Customer:
             identifier_9=row["identifier_9"],
             name=row.get("name"),
             identifier_3or4=row.get("identifier_3or4"),
+            is_active=bool(row.get("is_active", 1)),
+            deleted_at=row.get("deleted_at"),
         )
 
     @staticmethod
@@ -202,4 +206,6 @@ class Customer:
             "identifier_9": self.identifier_9,
             "identifier_3or4": self.identifier_3or4,
             "name": self.name,
+            "is_active": self.is_active,
+            "deleted_at": self.deleted_at,
         }

@@ -1,5 +1,6 @@
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -20,6 +21,8 @@ def backup_service(tmp_path):
                 return str(tmp_path / "backups")
             if key == "backup_retention_days":
                 return 7
+            if key == "backup_min_free_mb":
+                return 1
             return default
 
         mock_config.get.side_effect = get_side_effect
@@ -63,6 +66,29 @@ def test_create_backup_no_db(backup_service, tmp_path):
     with patch("services.backup_service.DATABASE_PATH", non_existent_db):
         backup_path = backup_service.create_backup()
         assert backup_path is None
+
+
+def test_create_backup_skips_when_disk_space_low(backup_service, source_db):
+    with patch("services.backup_service.DATABASE_PATH", source_db), patch(
+        "services.backup_service.shutil.disk_usage",
+        return_value=SimpleNamespace(total=100, used=100, free=0),
+    ):
+        backup_path = backup_service.create_backup()
+        assert backup_path is None
+
+
+def test_create_backup_emits_event_when_disk_space_low(backup_service, source_db):
+    with patch("services.backup_service.DATABASE_PATH", source_db), patch(
+        "services.backup_service.shutil.disk_usage",
+        return_value=SimpleNamespace(total=100, used=100, free=0),
+    ), patch("services.backup_service.event_system") as mock_event_system:
+        backup_path = backup_service.create_backup()
+
+        assert backup_path is None
+        mock_event_system.emit_event.assert_called_once()
+        args, _ = mock_event_system.emit_event.call_args
+        assert args[0] == "backup_skipped"
+        assert args[1]["reason"] == "low_disk_space"
 
 
 def test_cleanup_old_backups(backup_service, source_db):

@@ -4,11 +4,11 @@ from typing import Any, Dict, List, Optional
 from database.database_manager import DatabaseManager
 from models.enums import QUANTITY_PRECISION, InventoryAction
 from models.inventory import Inventory
+from services.audit_service import AuditService
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import (
     DatabaseException,
     NotFoundException,
-    UIException,
     ValidationException,
 )
 from utils.system.event_system import event_system
@@ -40,24 +40,17 @@ class InventoryService:
                 f"multiplier must be 1.0 (add) or -1.0 (subtract), got {multiplier}"
             )
         for item in items:
-            # Handle dict or object
-            if isinstance(item, dict):
-                p_id = item.get("product_id")
-                qty = item.get("quantity")
-            else:
-                p_id = getattr(item, "product_id", None)
-                qty = getattr(item, "quantity", None)
-
-            if p_id is None or qty is None:
+            normalized_item = InventoryService._normalize_batch_item(item)
+            if normalized_item is None:
                 logger.warning(f"Skipping invalid item in batch update: {item}")
                 continue
 
+            p_id, qty = normalized_item
+
             try:
-                change = abs(float(qty)) * multiplier
-                if emit_events:
-                    InventoryService.update_quantity(p_id, change)
-                else:
-                    InventoryService.update_quantity(p_id, change, emit_events=False)
+                InventoryService._apply_batch_item_update(
+                    p_id, qty, multiplier, emit_events
+                )
             except ValidationException:
                 raise
             except Exception as e:
@@ -65,6 +58,29 @@ class InventoryService:
                 raise ValidationException(
                     f"Inventory update failed for product {p_id}: {str(e)}"
                 )
+
+    @staticmethod
+    def _normalize_batch_item(item: Any) -> Optional[tuple[Any, Any]]:
+        if isinstance(item, dict):
+            product_id = item.get("product_id")
+            quantity = item.get("quantity")
+        else:
+            product_id = getattr(item, "product_id", None)
+            quantity = getattr(item, "quantity", None)
+
+        if product_id is None or quantity is None:
+            return None
+        return product_id, quantity
+
+    @staticmethod
+    def _apply_batch_item_update(
+        product_id: Any, quantity: Any, multiplier: float, emit_events: bool
+    ) -> None:
+        change = abs(float(quantity)) * multiplier
+        if emit_events:
+            InventoryService.update_quantity(product_id, change)
+            return
+        InventoryService.update_quantity(product_id, change, emit_events=False)
 
     @staticmethod
     @db_operation(show_dialog=True)
@@ -158,7 +174,7 @@ class InventoryService:
     @staticmethod
     @lru_cache(maxsize=1)
     @db_operation(show_dialog=True)
-    @handle_exceptions(DatabaseException, UIException, show_dialog=True)
+    @handle_exceptions(DatabaseException, show_dialog=True)
     def get_all_inventory() -> List[Dict[str, Any]]:
         """Get all inventory items with product and category details."""
         query = """
@@ -216,6 +232,17 @@ class InventoryService:
             DatabaseManager.execute_query(
                 "INSERT INTO inventory_adjustments (product_id, quantity_change, reason, date) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
                 (product_id, quantity_change, "manual_set"),
+            )
+            AuditService.log_operation(
+                "set_inventory",
+                "inventory",
+                product_id,
+                {
+                    "new_quantity": new_quantity,
+                    "old_quantity": old_quantity,
+                    "quantity_change": quantity_change,
+                    "reason": "manual_set",
+                },
             )
 
         InventoryService.clear_cache()
@@ -282,6 +309,15 @@ class InventoryService:
             DatabaseManager.execute_query(
                 "INSERT INTO inventory_adjustments (product_id, quantity_change, reason, date) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
                 (product_id, quantity_change, reason),
+            )
+            AuditService.log_operation(
+                "adjust_inventory",
+                "inventory",
+                product_id,
+                {
+                    "quantity_change": quantity_change,
+                    "reason": reason,
+                },
             )
 
         InventoryService.clear_cache()

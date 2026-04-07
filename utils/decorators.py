@@ -47,6 +47,19 @@ def show_error_dialog(title: str, message: str, parent: Any = None) -> None:
     QMessageBox.critical(parent, title, message)
 
 
+def _get_dialog_parent(args: tuple[Any, ...]) -> Any:
+    """Return a QWidget parent only for UI-bound calls."""
+    try:
+        from PySide6.QtWidgets import QWidget
+    except ImportError:
+        return None
+
+    if args and isinstance(args[0], QWidget):
+        return args[0]
+
+    return None
+
+
 def handle_exceptions(
     *exception_types: Type[Exception], show_dialog: bool = False
 ) -> Callable[[Callable[P, T]], Callable[P, T]]:
@@ -66,17 +79,8 @@ def handle_exceptions(
             except exception_types as e:
                 error_message = f"Error in {func.__name__}: {str(e)}"
                 log_exception(e, func.__name__, error_message)
-                if show_dialog:
-                    # Assuming the first argument might be self or cls in a class method
-                    # Deferred import for QWidget checking
-                    try:
-                        from PySide6.QtWidgets import QWidget
-
-                        parent = (
-                            args[0] if args and isinstance(args[0], QWidget) else None
-                        )
-                    except ImportError:
-                        parent = None
+                parent = _get_dialog_parent(args)
+                if show_dialog and parent is not None:
                     show_error_dialog("Operation Failed", str(e), parent)
                 raise
 
@@ -111,15 +115,8 @@ def validate_input(
                 return func(*args, **kwargs)
             except ValidationException as e:
                 log_exception(e, func.__name__, "Validation error")
-                if show_dialog:
-                    try:
-                        from PySide6.QtWidgets import QWidget
-
-                        parent = (
-                            args[0] if args and isinstance(args[0], QWidget) else None
-                        )
-                    except ImportError:
-                        parent = None
+                parent = _get_dialog_parent(args)
+                if show_dialog and parent is not None:
                     show_error_dialog("Validation Error", str(e), parent)
                 raise
 

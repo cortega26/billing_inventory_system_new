@@ -8,8 +8,14 @@ from services.analytics.metrics import (
     DepartmentSalesMetric,
     InventoryAgingMetric,
     LowStockMetric,
+    ProductProfitMetric,
+    ProfitMarginDistributionMetric,
+    ProfitTrendMetric,
     SalesDailyMetric,
+    SalesSummaryMetric,
     TopProductsMetric,
+    WeeklyProfitTrendMetric,
+    WeekdaySalesMetric,
 )
 
 # --- Fixtures ---
@@ -39,7 +45,9 @@ def analytics_db_path(tmp_path):
         CREATE TABLE sales (
             id INTEGER PRIMARY KEY, 
             date TEXT, 
-            total_amount INTEGER
+            total_amount INTEGER,
+            total_profit INTEGER,
+            customer_id INTEGER
         );
         CREATE TABLE sale_items (
             id INTEGER PRIMARY KEY, 
@@ -71,12 +79,12 @@ def analytics_db_path(tmp_path):
     # Sales
     # Sale 1: Yesterday - 2 Laptops
     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
-    cursor.execute("INSERT INTO sales VALUES (1, ?, 2000)", (yesterday,))
+    cursor.execute("INSERT INTO sales VALUES (1, ?, 2000, 1000, 1)", (yesterday,))
     cursor.execute("INSERT INTO sale_items VALUES (1, 1, 1, 2, 1000)")
 
     # Sale 2: Today - 1 Laptop, 5 T-Shirts
     today = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    cursor.execute("INSERT INTO sales VALUES (2, ?, 1100)", (today,))
+    cursor.execute("INSERT INTO sales VALUES (2, ?, 1100, 590, 2)", (today,))
     cursor.execute("INSERT INTO sale_items VALUES (2, 2, 1, 1, 1000)")
     cursor.execute("INSERT INTO sale_items VALUES (3, 2, 2, 5, 20)")
 
@@ -131,6 +139,20 @@ def test_top_products(engine):
     assert top_product["total_quantity"] == 5
 
 
+def test_weekday_sales(engine):
+    start = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
+    end = datetime.now().strftime("%Y-%m-%d")
+
+    metric = WeekdaySalesMetric()
+    result = engine.execute_metric(metric, start_date=start, end_date=end)
+
+    assert len(result.data) == 2
+    assert all("weekday" in row for row in result.data)
+    assert all("total_sales" in row for row in result.data)
+    assert sum(row["sale_count"] for row in result.data) == 2
+    assert sum(row["total_sales"] for row in result.data) == 3100
+
+
 def test_low_stock(engine):
     metric = LowStockMetric()
     result = engine.execute_metric(metric, threshold=10)
@@ -173,3 +195,69 @@ def test_department_sales(engine):
 
     assert data_map["Electronics"] == 3000
     assert data_map["Clothing"] == 100
+
+
+def test_profit_trend(engine):
+    start = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
+    end = datetime.now().strftime("%Y-%m-%d")
+
+    metric = ProfitTrendMetric()
+    result = engine.execute_metric(metric, start_date=start, end_date=end)
+
+    assert len(result.data) == 2
+    assert all("daily_revenue" in row for row in result.data)
+    assert all("daily_profit" in row for row in result.data)
+    assert sum(row["daily_revenue"] for row in result.data) == 3100
+    assert sum(row["daily_profit"] for row in result.data) == 1590
+
+
+def test_weekly_profit_trend(engine):
+    start = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
+    end = datetime.now().strftime("%Y-%m-%d")
+
+    metric = WeeklyProfitTrendMetric()
+    result = engine.execute_metric(metric, start_date=start, end_date=end)
+
+    assert len(result.data) >= 1
+    assert all("week" in row for row in result.data)
+    assert all("weekly_profit" in row for row in result.data)
+    assert sum(row["weekly_profit"] for row in result.data) == 1590
+
+
+def test_product_profit(engine):
+    start = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
+    end = datetime.now().strftime("%Y-%m-%d")
+
+    metric = ProductProfitMetric()
+    result = engine.execute_metric(metric, start_date=start, end_date=end, limit=5)
+
+    assert len(result.data) == 2
+    top_product = result.data[0]
+    assert top_product["name"] == "Laptop"
+    assert top_product["total_profit"] == 1500
+    assert top_product["sales_volume"] == 3
+
+
+def test_profit_margin_distribution(engine):
+    start = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
+    end = datetime.now().strftime("%Y-%m-%d")
+
+    metric = ProfitMarginDistributionMetric()
+    result = engine.execute_metric(metric, start_date=start, end_date=end)
+
+    margin_map = {row["margin_range"]: row["product_count"] for row in result.data}
+    assert margin_map["40%+"] == 2
+
+
+def test_sales_summary(engine):
+    start = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
+    end = datetime.now().strftime("%Y-%m-%d")
+
+    metric = SalesSummaryMetric()
+    result = engine.execute_metric(metric, start_date=start, end_date=end)
+
+    assert len(result.data) == 1
+    summary = result.data[0]
+    assert summary["total_sales"] == 2
+    assert summary["total_revenue"] == 3100
+    assert summary["total_profit"] == 1590

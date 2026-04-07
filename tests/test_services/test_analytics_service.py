@@ -2,6 +2,18 @@ from datetime import date, timedelta
 
 import pytest
 
+from services.analytics.contracts import MetricResult
+from services.analytics.metrics import (
+    DepartmentSalesMetric,
+    ProductProfitMetric,
+    ProfitMarginDistributionMetric,
+    ProfitTrendMetric,
+    SalesDailyMetric,
+    SalesSummaryMetric,
+    TopProductsMetric,
+    WeeklyProfitTrendMetric,
+    WeekdaySalesMetric,
+)
 from services.analytics_service import AnalyticsService
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
@@ -41,6 +53,344 @@ def product_service(db_manager):
 @pytest.fixture
 def inventory_service(db_manager):
     return InventoryService()
+
+
+def test_get_sales_trend_uses_metric_engine_and_preserves_output_shape(mocker):
+    AnalyticsService.clear_cache()
+    execute_metric = mocker.patch(
+        "services.analytics_service.AnalyticsEngine.execute_metric",
+        return_value=MetricResult(
+            data=[
+                {"date": "2026-04-01", "total_sales": 1200, "sale_count": 3},
+                {"date": "2026-04-02", "total_sales": 2400, "sale_count": 5},
+            ],
+            meta={"metric": "sales_daily"},
+        ),
+    )
+
+    result = AnalyticsService.get_sales_trend("2026-04-01", "2026-04-02")
+
+    assert result == [
+        {"date": "2026-04-01", "daily_sales": 1200, "sale_count": 3},
+        {"date": "2026-04-02", "daily_sales": 2400, "sale_count": 5},
+    ]
+    metric = execute_metric.call_args.args[0]
+    assert isinstance(metric, SalesDailyMetric)
+
+
+def test_get_sales_by_weekday_uses_metric_engine_and_preserves_output_shape(mocker):
+    AnalyticsService.clear_cache()
+    execute_metric = mocker.patch(
+        "services.analytics_service.AnalyticsEngine.execute_metric",
+        return_value=MetricResult(
+            data=[
+                {"weekday": "Monday", "total_sales": 1200, "sale_count": 3},
+                {"weekday": "Tuesday", "total_sales": 800, "sale_count": 2},
+            ],
+            meta={"metric": "sales_weekday"},
+        ),
+    )
+
+    result = AnalyticsService.get_sales_by_weekday("2026-04-01", "2026-04-07")
+
+    assert result == [
+        {"weekday": "Monday", "total_sales": 1200, "sale_count": 3},
+        {"weekday": "Tuesday", "total_sales": 800, "sale_count": 2},
+    ]
+    metric = execute_metric.call_args.args[0]
+    assert isinstance(metric, WeekdaySalesMetric)
+    assert execute_metric.call_args.kwargs == {
+        "start_date": "2026-04-01",
+        "end_date": "2026-04-07",
+    }
+
+
+def test_get_top_selling_products_uses_metric_engine_and_preserves_output_shape(mocker):
+    AnalyticsService.clear_cache()
+    execute_metric = mocker.patch(
+        "services.analytics_service.AnalyticsEngine.execute_metric",
+        return_value=MetricResult(
+            data=[
+                {
+                    "product_id": 7,
+                    "name": "Arroz",
+                    "total_quantity": 4.5,
+                    "total_revenue": 5400,
+                    "sale_count": 2,
+                }
+            ],
+            meta={"metric": "top_products"},
+        ),
+    )
+
+    result = AnalyticsService.get_top_selling_products(
+        "2026-04-01", "2026-04-02", 5
+    )
+
+    assert result == [
+        {
+            "id": 7,
+            "product_id": 7,
+            "name": "Arroz",
+            "total_quantity": 4.5,
+            "total_revenue": 5400,
+            "sale_count": 2,
+        }
+    ]
+    metric = execute_metric.call_args.args[0]
+    assert isinstance(metric, TopProductsMetric)
+    assert execute_metric.call_args.kwargs == {
+        "start_date": "2026-04-01",
+        "end_date": "2026-04-02",
+        "limit": 5,
+    }
+
+
+def test_get_category_performance_uses_metric_engine_and_preserves_output_shape(
+    mocker,
+):
+    AnalyticsService.clear_cache()
+    execute_metric = mocker.patch(
+        "services.analytics_service.AnalyticsEngine.execute_metric",
+        return_value=MetricResult(
+            data=[
+                {
+                    "category": "Abarrotes",
+                    "total_sales": 15000,
+                    "units_sold": 12.5,
+                    "sale_count": 4,
+                }
+            ],
+            meta={"metric": "department_sales"},
+        ),
+    )
+
+    result = AnalyticsService.get_category_performance(
+        "2026-04-01", "2026-04-02"
+    )
+
+    assert result == [
+        {
+            "category": "Abarrotes",
+            "total_sales": 15000,
+            "number_of_products_sold": 12.5,
+            "sale_count": 4,
+        }
+    ]
+    metric = execute_metric.call_args.args[0]
+    assert isinstance(metric, DepartmentSalesMetric)
+    assert execute_metric.call_args.kwargs == {
+        "start_date": "2026-04-01",
+        "end_date": "2026-04-02",
+    }
+
+
+def test_get_profit_trend_uses_metric_engine_and_preserves_output_shape(mocker):
+    AnalyticsService.clear_cache()
+    execute_metric = mocker.patch(
+        "services.analytics_service.AnalyticsEngine.execute_metric",
+        return_value=MetricResult(
+            data=[
+                {
+                    "date": "2026-04-01",
+                    "daily_revenue": 1200,
+                    "daily_profit": 300,
+                    "sale_count": 3,
+                },
+                {
+                    "date": "2026-04-02",
+                    "daily_revenue": 2400,
+                    "daily_profit": 700,
+                    "sale_count": 5,
+                },
+            ],
+            meta={"metric": "profit_trend"},
+        ),
+    )
+
+    result = AnalyticsService.get_profit_trend("2026-04-01", "2026-04-02")
+
+    assert result == [
+        {
+            "date": "2026-04-01",
+            "daily_revenue": 1200,
+            "daily_profit": 300,
+            "sale_count": 3,
+        },
+        {
+            "date": "2026-04-02",
+            "daily_revenue": 2400,
+            "daily_profit": 700,
+            "sale_count": 5,
+        },
+    ]
+    metric = execute_metric.call_args.args[0]
+    assert isinstance(metric, ProfitTrendMetric)
+    assert execute_metric.call_args.kwargs == {
+        "start_date": "2026-04-01",
+        "end_date": "2026-04-02",
+    }
+
+
+def test_get_weekly_profit_trend_uses_metric_engine_and_preserves_output_shape(mocker):
+    AnalyticsService.clear_cache()
+    execute_metric = mocker.patch(
+        "services.analytics_service.AnalyticsEngine.execute_metric",
+        return_value=MetricResult(
+            data=[
+                {
+                    "week": "2026-13",
+                    "week_start": "2026-04-01",
+                    "weekly_profit": 1590,
+                }
+            ],
+            meta={"metric": "weekly_profit_trend"},
+        ),
+    )
+
+    result = AnalyticsService.get_weekly_profit_trend("2026-04-01", "2026-04-07")
+
+    assert result == [
+        {"week": "2026-13", "week_start": "2026-04-01", "weekly_profit": 1590}
+    ]
+    metric = execute_metric.call_args.args[0]
+    assert isinstance(metric, WeeklyProfitTrendMetric)
+
+
+def test_get_profit_by_product_uses_metric_engine_and_preserves_output_shape(mocker):
+    AnalyticsService.clear_cache()
+    execute_metric = mocker.patch(
+        "services.analytics_service.AnalyticsEngine.execute_metric",
+        return_value=MetricResult(
+            data=[
+                {
+                    "product_id": 7,
+                    "name": "Arroz",
+                    "total_revenue": 5400,
+                    "total_cost": 3600,
+                    "total_profit": 1800,
+                    "sales_volume": 4.5,
+                    "sale_count": 2,
+                }
+            ],
+            meta={"metric": "product_profit"},
+        ),
+    )
+
+    result = AnalyticsService.get_profit_by_product("2026-04-01", "2026-04-02", 5)
+
+    assert result == [
+        {
+            "id": 7,
+            "product_id": 7,
+            "name": "Arroz",
+            "total_revenue": 5400,
+            "total_cost": 3600,
+            "total_profit": 1800,
+            "sale_count": 2,
+        }
+    ]
+    metric = execute_metric.call_args.args[0]
+    assert isinstance(metric, ProductProfitMetric)
+
+
+def test_get_profit_and_volume_by_product_uses_metric_engine_and_preserves_output_shape(
+    mocker,
+):
+    AnalyticsService.clear_cache()
+    execute_metric = mocker.patch(
+        "services.analytics_service.AnalyticsEngine.execute_metric",
+        return_value=MetricResult(
+            data=[
+                {
+                    "product_id": 7,
+                    "name": "Arroz",
+                    "total_revenue": 5400,
+                    "total_cost": 3600,
+                    "total_profit": 1800,
+                    "sales_volume": 4.5,
+                    "sale_count": 2,
+                }
+            ],
+            meta={"metric": "product_profit"},
+        ),
+    )
+
+    result = AnalyticsService.get_profit_and_volume_by_product(
+        "2026-04-01", "2026-04-02", 5
+    )
+
+    assert result == [
+        {"id": 7, "name": "Arroz", "total_profit": 1800, "sales_volume": 4.5}
+    ]
+    metric = execute_metric.call_args.args[0]
+    assert isinstance(metric, ProductProfitMetric)
+
+
+def test_get_profit_margin_distribution_uses_metric_engine_and_preserves_output_shape(
+    mocker,
+):
+    AnalyticsService.clear_cache()
+    execute_metric = mocker.patch(
+        "services.analytics_service.AnalyticsEngine.execute_metric",
+        return_value=MetricResult(
+            data=[
+                {
+                    "margin_range": "30-40%",
+                    "product_count": 1,
+                    "average_margin": 35.0,
+                    "total_sales": 100,
+                }
+            ],
+            meta={"metric": "profit_margin_distribution"},
+        ),
+    )
+
+    result = AnalyticsService.get_profit_margin_distribution(
+        "2026-04-01", "2026-04-02"
+    )
+
+    assert result == [
+        {
+            "margin_range": "30-40%",
+            "product_count": 1,
+            "average_margin": 35.0,
+            "total_sales": 100,
+        }
+    ]
+    metric = execute_metric.call_args.args[0]
+    assert isinstance(metric, ProfitMarginDistributionMetric)
+
+
+def test_get_sales_summary_uses_metric_engine_and_preserves_output_shape(mocker):
+    AnalyticsService.clear_cache()
+    execute_metric = mocker.patch(
+        "services.analytics_service.AnalyticsEngine.execute_metric",
+        return_value=MetricResult(
+            data=[
+                {
+                    "total_sales": 2,
+                    "total_revenue": 3100,
+                    "total_profit": 1590,
+                    "average_sale_value": 1550,
+                    "unique_customers": 2,
+                }
+            ],
+            meta={"metric": "sales_summary"},
+        ),
+    )
+
+    result = AnalyticsService.get_sales_summary("2026-04-01", "2026-04-02")
+
+    assert result == {
+        "total_sales": 2,
+        "total_revenue": 3100,
+        "total_profit": 1590,
+        "average_sale_value": 1550,
+        "unique_customers": 2,
+    }
+    metric = execute_metric.call_args.args[0]
+    assert isinstance(metric, SalesSummaryMetric)
 
 
 @pytest.fixture
@@ -89,55 +439,51 @@ def sample_data(product_service, inventory_service, mocker, mock_db):
 
 
 class TestAnalyticsService(BaseTest):
-    def test_get_sales_by_weekday(self, analytics_service, mock_db):
-        # Setup mock data
-        self.setup_mock_db_response(
-            mock_db,
-            fetch_all_return=[
-                {"day_of_week": 1, "total_amount": 1500.0, "sale_count": 5}
-            ],
+    def test_get_sales_by_weekday(self, analytics_service, mocker):
+        today = date.today().isoformat()
+        mocker.patch(
+            "services.analytics_service.AnalyticsEngine.execute_metric",
+            return_value=MetricResult(
+                data=[{"weekday": "Monday", "total_sales": 1500, "sale_count": 5}],
+                meta={},
+            ),
         )
 
-        # Test
-        today = date.today().isoformat()
         sales_by_weekday = analytics_service.get_sales_by_weekday(today, today)
 
-        # Verify
         assert len(sales_by_weekday) > 0
-        assert isinstance(sales_by_weekday[0]["total_amount"], float)
+        assert isinstance(sales_by_weekday[0]["total_sales"], int)
         assert isinstance(sales_by_weekday[0]["sale_count"], int)
 
     # def test_get_sales_by_hour(self, analytics_service, sample_data):
     #     # Method does not exist
     #     pass
 
-    def test_get_top_selling_products(self, analytics_service, mock_db):
-        """Test getting top selling products."""
+    def test_get_top_selling_products(self, analytics_service, mocker):
         today = date.today().isoformat()
+        mocker.patch(
+            "services.analytics_service.AnalyticsEngine.execute_metric",
+            return_value=MetricResult(
+                data=[
+                    {
+                        "product_id": 1,
+                        "name": "Test Product 1",
+                        "total_quantity": 5,
+                        "total_revenue": 7500,
+                        "sale_count": 3,
+                    }
+                ],
+                meta={},
+            ),
+        )
 
-        # Setup mock data
-        mock_data = [
-            {
-                "product_id": 1,
-                "product_name": "Test Product 1",
-                "quantity_sold": 5,
-                "total_amount": 7500.0,
-                "created_at": today,
-                "updated_at": today,
-            }
-        ]
-
-        self.setup_mock_db_response(mock_db, fetch_all_return=mock_data)
-
-        # Execute test
         top_products = analytics_service.get_top_selling_products(today, today)
 
-        # Verify results
         assert len(top_products) == 1
         result = top_products[0]
-        assert result["quantity_sold"] == 5
-        assert result["product_name"] == "Test Product 1"
-        assert result["total_amount"] == 7500.0
+        assert result["total_quantity"] == 5
+        assert result["name"] == "Test Product 1"
+        assert result["total_revenue"] == 7500
 
     def test_get_inventory_turnover(self, analytics_service, mock_db):
         """Test inventory turnover calculation."""
@@ -152,16 +498,28 @@ class TestAnalyticsService(BaseTest):
     #    # Method does not exist (has get_profit_margin_distribution)
     #    pass
 
-    def test_get_sales_trends(self, analytics_service, mock_db):
+    def test_get_sales_trends(self, analytics_service, mocker):
         end_date = date.today()
         start_date = end_date - timedelta(days=30)
 
-        # Setup mock return for get_sales_trend
-        mock_trend = [
-            {"date": start_date.isoformat(), "daily_sales": 1000, "sale_count": 5},
-            {"date": end_date.isoformat(), "daily_sales": 2000, "sale_count": 8},
-        ]
-        self.setup_mock_db_response(mock_db, fetch_all_return=mock_trend)
+        mocker.patch(
+            "services.analytics_service.AnalyticsEngine.execute_metric",
+            return_value=MetricResult(
+                data=[
+                    {
+                        "date": start_date.isoformat(),
+                        "total_sales": 1000,
+                        "sale_count": 5,
+                    },
+                    {
+                        "date": end_date.isoformat(),
+                        "total_sales": 2000,
+                        "sale_count": 8,
+                    },
+                ],
+                meta={},
+            ),
+        )
 
         # Call singular method
         trends = analytics_service.get_sales_trend(
@@ -173,33 +531,31 @@ class TestAnalyticsService(BaseTest):
         assert "daily_sales" in trends[0]
         assert "sale_count" in trends[0]
 
-    def test_get_category_performance(self, analytics_service, mock_db):
-        """Test getting category performance metrics."""
+    def test_get_category_performance(self, analytics_service, mocker):
         today = date.today().isoformat()
 
-        # Setup mock data
-        mock_data = [
-            {
-                "category_id": 1,
-                "category_name": "Test Category",
-                "sale_count": 10,
-                "total_amount": 15000.0,
-                "created_at": today,
-                "updated_at": today,
-            }
-        ]
+        mocker.patch(
+            "services.analytics_service.AnalyticsEngine.execute_metric",
+            return_value=MetricResult(
+                data=[
+                    {
+                        "category": "Test Category",
+                        "total_sales": 15000,
+                        "units_sold": 10,
+                        "sale_count": 4,
+                    }
+                ],
+                meta={},
+            ),
+        )
 
-        self.setup_mock_db_response(mock_db, fetch_all_return=mock_data)
-
-        # Execute test
         performance = analytics_service.get_category_performance(today, today)
 
-        # Verify results
         assert len(performance) == 1
         result = performance[0]
-        assert result["category_name"] == "Test Category"
-        assert result["sale_count"] == 10
-        assert result["total_amount"] == 15000.0
+        assert result["category"] == "Test Category"
+        assert result["sale_count"] == 4
+        assert result["total_sales"] == 15000
 
     # def test_get_customer_segments(self, analytics_service, sample_data):
     #     pass

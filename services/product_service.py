@@ -3,72 +3,41 @@ from typing import Any, Dict, List, Optional
 
 from database.database_manager import DatabaseManager
 from models.product import Product
+from services.audit_service import AuditService
+from services.product_service_support import (
+    build_product_update_statement,
+    normalize_create_product_data,
+    validate_barcode_field,
+    validate_category_field,
+    validate_description_field,
+    validate_money_field,
+    validate_name_field,
+)
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import (
     DatabaseException,
     NotFoundException,
-    UIException,
     ValidationException,
 )
 from utils.system.event_system import event_system
 from utils.system.logger import logger
-from utils.validation.validators import (
-    validate_integer,
-    validate_money,
-    validate_string,
-)
+from utils.validation.validators import validate_integer, validate_string
 
 
 class ProductService:
     @db_operation(show_dialog=True)
-    @handle_exceptions(
-        ValidationException, DatabaseException, UIException, show_dialog=True
-    )
+    @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def create_product(self, product_data: Dict[str, Any]) -> Optional[int]:
-        validated_data = self._validate_product_data(product_data, is_create=True)
-
-        if "barcode" not in validated_data:
-            validated_data["barcode"] = None
-        if "category_id" not in validated_data:
-            validated_data["category_id"] = None
-        if "description" not in validated_data:
-            validated_data["description"] = None
+        validated_data = normalize_create_product_data(
+            self._validate_product_data(product_data, is_create=True)
+        )
 
         try:
             with DatabaseManager.transaction():
-                query = """
-                INSERT INTO products (
-                    name, description, category_id, cost_price, sell_price, barcode
-                ) VALUES (
-                    :name, :description, :category_id, :cost_price, :sell_price, :barcode
-                )
-                """
-                cursor = DatabaseManager.execute_query(query, validated_data)
-                product_id = cursor.lastrowid
+                product_id = self._insert_product_with_inventory(validated_data)
+                self._log_product_creation(product_id, validated_data)
 
-                if not product_id:
-                    raise DatabaseException(
-                        "Failed to create product: No product ID returned"
-                    )
-
-                # Initialize inventory with 0 quantity
-                inventory_query = """
-                INSERT INTO inventory (product_id, quantity)
-                VALUES (?, 0.000)
-                """
-                DatabaseManager.execute_query(inventory_query, (product_id,))
-
-            # Clear caches and emit events after successful commit
-            self.clear_cache()
-            logger.info(
-                "Product created with inventory initialized",
-                extra={"product_id": product_id, "name": validated_data["name"]},
-            )
-            try:
-                event_system.product_added.emit(product_id)
-                event_system.inventory_changed.emit(product_id)
-            except Exception as e:
-                logger.warning(f"Failed to emit events for product creation: {e}")
+            self._finalize_product_creation(product_id, validated_data["name"])
 
             return product_id
 
@@ -82,7 +51,7 @@ class ProductService:
             raise DatabaseException(f"Failed to create product: {str(e)}")
 
     @db_operation(show_dialog=True)
-    @handle_exceptions(NotFoundException, DatabaseException, show_dialog=True)
+    @handle_exceptions(DatabaseException, show_dialog=True)
     def get_product(self, product_id: int) -> Optional[Product]:
         """
         Get a product by ID.
@@ -91,10 +60,9 @@ class ProductService:
             product_id: The product ID.
 
         Returns:
-            Optional[Product]: The product if found.
+            Optional[Product]: The product if found, otherwise None.
 
         Raises:
-            NotFoundException: If product not found.
             DatabaseException: If database operation fails.
         """
         product_id = validate_integer(product_id, min_value=1)
@@ -108,25 +76,36 @@ class ProductService:
         if row:
             logger.info("Product retrieved", extra={"product_id": product_id})
             return Product.from_db_row(row)
-        else:
-            logger.warning("Product not found", extra={"product_id": product_id})
-            raise NotFoundException(f"Product with ID {product_id} not found")
 
-    @lru_cache(maxsize=1)
+        logger.warning("Product not found", extra={"product_id": product_id})
+        return None
+
+    def _require_product(self, product_id: int) -> Product:
+        product = self.get_product(product_id)
+        if product is not None:
+            return product
+
+        raise NotFoundException(f"Product with ID {product_id} not found")
+
+    @lru_cache(maxsize=4)
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_all_products(self) -> List[Product]:
-        """Get all products with fresh data."""
+    def get_all_products(self, active_only: bool = True) -> List[Product]:
+        """Get products, optionally including archived records."""
         query = """
-        SELECT DISTINCT p.*, c.name as category_name 
+        SELECT DISTINCT p.*, c.name as category_name
         FROM products p
         LEFT JOIN categories c ON p.category_id = c.id
+        WHERE (? = 0 OR p.is_active = 1)
         ORDER BY p.id
         """
         try:
-            rows = DatabaseManager.fetch_all(query)
+            rows = DatabaseManager.fetch_all(query, (1 if active_only else 0,))
             products = [Product.from_db_row(row) for row in rows]
-            logger.info(f"Retrieved {len(products)} products")
+            logger.info(
+                "Products retrieved",
+                extra={"count": len(products), "active_only": active_only},
+            )
             return products
         except Exception as e:
             logger.error(f"Error retrieving products: {str(e)}")
@@ -150,20 +129,8 @@ class ProductService:
             DatabaseException: If database operation fails.
         """
         product_id = validate_integer(product_id, min_value=1)
-
-        # Fetch current product to ensure it exists
-        current_product = self.get_product(product_id)
-        if not current_product:
-            raise NotFoundException(f"No product found with ID: {product_id}")
-
-        # Validate barcode if provided
-        if (
-            "barcode" in update_data
-            and update_data["barcode"] != current_product.barcode
-        ):
-            self._validate_barcode_unique(update_data["barcode"])
-
-        # Validate and prepare update data
+        current_product = self._require_product(product_id)
+        self._validate_changed_barcode(current_product, update_data)
         validated_data = self._validate_product_data(update_data, is_create=False)
 
         if not validated_data:
@@ -172,22 +139,20 @@ class ProductService:
             )
             return
 
-        # Prepare SQL query
-        set_clause = ", ".join(f"{key} = :{key}" for key in validated_data.keys())
-        query = f"UPDATE products SET {set_clause} WHERE id = :product_id"
-        validated_data["product_id"] = product_id
+        query, params, updated_fields = build_product_update_statement(
+            product_id, validated_data
+        )
 
         try:
-            DatabaseManager.execute_query(query, validated_data)
-            logger.info(
-                "Product updated",
-                extra={
-                    "product_id": product_id,
-                    "updated_fields": list(validated_data.keys()),
-                },
-            )
-            self.clear_cache()
-            event_system.product_updated.emit(product_id)
+            with DatabaseManager.transaction():
+                DatabaseManager.execute_query(query, params)
+                AuditService.log_operation(
+                    "update_product",
+                    "product",
+                    product_id,
+                    {"updated_fields": updated_fields},
+                )
+            self._finalize_product_update(product_id, updated_fields)
         except Exception as e:
             logger.error(
                 "Failed to update product",
@@ -196,63 +161,84 @@ class ProductService:
             raise DatabaseException(f"Failed to update product: {str(e)}")
 
     @db_operation(show_dialog=True)
-    @handle_exceptions(
-        ValidationException, DatabaseException, UIException, show_dialog=True
-    )
+    @handle_exceptions(DatabaseException, show_dialog=True)
     def delete_product(self, product_id: int) -> None:
-        """Delete a product only when it has no ledger history."""
+        """Archive a product instead of hard-deleting ledger references."""
         product_id = validate_integer(product_id, min_value=1)
 
         try:
-            history_row = DatabaseManager.fetch_one(
-                """
-                SELECT
-                    EXISTS(SELECT 1 FROM sale_items WHERE product_id = ?) AS has_sales,
-                    EXISTS(SELECT 1 FROM purchase_items WHERE product_id = ?) AS has_purchases
-                """,
-                (product_id, product_id),
-            )
-            has_history = bool(
-                history_row
-                and (history_row["has_sales"] or history_row["has_purchases"])
-            )
-            if has_history:
-                raise ValidationException(
-                    "Cannot delete product with sales or purchase history"
-                )
-
             with DatabaseManager.transaction():
-                DatabaseManager.execute_query(
-                    "DELETE FROM inventory WHERE product_id = ?", (product_id,)
+                cursor = DatabaseManager.execute_query(
+                    """
+                    UPDATE products
+                    SET is_active = 0,
+                        deleted_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                    """,
+                    (product_id,),
                 )
-
-                query = "DELETE FROM products WHERE id = ?"
-                cursor = DatabaseManager.execute_query(query, (product_id,))
-
                 if cursor.rowcount == 0:
                     raise NotFoundException(f"Product with ID {product_id} not found")
+                AuditService.log_operation(
+                    "delete_product",
+                    "product",
+                    product_id,
+                    {"mode": "archive"},
+                )
 
-            # Clear product cache
             self.clear_cache()
-
-            # Emit events after successful transaction
             event_system.product_deleted.emit(product_id)
-            event_system.inventory_changed.emit(product_id)
-
-            logger.info(f"Product deleted successfully: ID {product_id}")
+            logger.info("Product archived", extra={"product_id": product_id})
 
         except Exception as e:
             logger.error(
-                "Failed to delete product",
+                "Failed to archive product",
                 extra={"error": str(e), "product_id": product_id},
             )
-            if isinstance(e, (ValidationException, NotFoundException)):
+            if isinstance(e, NotFoundException):
                 raise
-            raise DatabaseException(f"Failed to delete product: {str(e)}")
+            raise DatabaseException(f"Failed to archive product: {str(e)}")
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def search_products(self, search_term: str) -> List[Product]:
+    def restore_product(self, product_id: int) -> None:
+        """Restore an archived product."""
+        product_id = validate_integer(product_id, min_value=1)
+        try:
+            with DatabaseManager.transaction():
+                cursor = DatabaseManager.execute_query(
+                    """
+                    UPDATE products
+                    SET is_active = 1,
+                        deleted_at = NULL
+                    WHERE id = ?
+                    """,
+                    (product_id,),
+                )
+                if cursor.rowcount == 0:
+                    raise NotFoundException(f"Product with ID {product_id} not found")
+                AuditService.log_operation(
+                    "restore_product",
+                    "product",
+                    product_id,
+                    None,
+                )
+
+            self.clear_cache()
+            event_system.product_updated.emit(product_id)
+            logger.info("Product restored", extra={"product_id": product_id})
+        except Exception as e:
+            logger.error(
+                "Failed to restore product",
+                extra={"error": str(e), "product_id": product_id},
+            )
+            if isinstance(e, NotFoundException):
+                raise
+            raise DatabaseException(f"Failed to restore product: {str(e)}")
+
+    @db_operation(show_dialog=True)
+    @handle_exceptions(DatabaseException, show_dialog=True)
+    def search_products(self, search_term: str, active_only: bool = True) -> List[Product]:
         """
         Search products by name, description, or barcode.
 
@@ -267,16 +253,22 @@ class ProductService:
         """
         search_term = validate_string(search_term, max_length=100)
         query = """
-        SELECT p.*, c.name as category_name 
+        SELECT p.*, c.name as category_name
         FROM products p
         LEFT JOIN categories c ON p.category_id = c.id
-        WHERE LOWER(p.name) LIKE LOWER(:search_pattern) 
-           OR LOWER(COALESCE(p.description, '')) LIKE LOWER(:search_pattern)
-           OR LOWER(COALESCE(p.barcode, '')) LIKE LOWER(:search_pattern)
+        WHERE (
+            LOWER(p.name) LIKE LOWER(:search_pattern)
+            OR LOWER(COALESCE(p.description, '')) LIKE LOWER(:search_pattern)
+            OR LOWER(COALESCE(p.barcode, '')) LIKE LOWER(:search_pattern)
+        )
+        AND (:active_only = 0 OR p.is_active = 1)
         ORDER BY p.name
         """
         search_pattern = f"%{search_term}%"
-        rows = DatabaseManager.fetch_all(query, {"search_pattern": search_pattern})
+        rows = DatabaseManager.fetch_all(
+            query,
+            {"search_pattern": search_pattern, "active_only": 1 if active_only else 0},
+        )
         products = [Product.from_db_row(row) for row in rows]
         logger.info(
             "Products searched",
@@ -286,17 +278,20 @@ class ProductService:
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_product_by_barcode(self, barcode: str) -> Optional[Product]:
+    def get_product_by_barcode(
+        self, barcode: str, active_only: bool = True
+    ) -> Optional[Product]:
         """Get a product by barcode."""
         logger.debug(f"Getting product by barcode: {barcode}")
         query = """
-            SELECT p.*, c.name as category_name 
+            SELECT p.*, c.name as category_name
             FROM products p
             LEFT JOIN categories c ON p.category_id = c.id
             WHERE p.barcode = ?
+              AND (? = 0 OR p.is_active = 1)
         """
         try:
-            row = DatabaseManager.fetch_one(query, (barcode,))
+            row = DatabaseManager.fetch_one(query, (barcode, 1 if active_only else 0))
             if row:
                 logger.debug(f"Found product row: {row}")
                 product = Product.from_db_row(row)
@@ -324,10 +319,7 @@ class ProductService:
             DatabaseException: If database operation fails.
         """
         try:
-            product = self.get_product(product_id)
-            if product is None:
-                logger.warning(f"Product not found for ID: {product_id}")
-                raise NotFoundException(f"Product with ID {product_id} not found")
+            product = self._require_product(product_id)
 
             if product.cost_price is None or product.sell_price is None:
                 logger.info(
@@ -359,6 +351,74 @@ class ProductService:
         self.get_all_products.cache_clear()
         logger.debug("Product cache cleared")
 
+    @staticmethod
+    def _insert_product_with_inventory(validated_data: Dict[str, Any]) -> int:
+        query = """
+        INSERT INTO products (
+            name, description, category_id, cost_price, sell_price, barcode
+        ) VALUES (
+            :name, :description, :category_id, :cost_price, :sell_price, :barcode
+        )
+        """
+        cursor = DatabaseManager.execute_query(query, validated_data)
+        product_id = cursor.lastrowid
+        if not product_id:
+            raise DatabaseException("Failed to create product: No product ID returned")
+
+        DatabaseManager.execute_query(
+            """
+            INSERT INTO inventory (product_id, quantity)
+            VALUES (?, 0.000)
+            """,
+            (product_id,),
+        )
+        return product_id
+
+    @staticmethod
+    def _log_product_creation(product_id: int, validated_data: Dict[str, Any]) -> None:
+        AuditService.log_operation(
+            "create_product",
+            "product",
+            product_id,
+            {
+                "name": validated_data["name"],
+                "category_id": validated_data.get("category_id"),
+                "sell_price": validated_data.get("sell_price"),
+                "cost_price": validated_data.get("cost_price"),
+            },
+        )
+
+    def _finalize_product_creation(self, product_id: int, product_name: str) -> None:
+        self.clear_cache()
+        logger.info(
+            "Product created with inventory initialized",
+            extra={"product_id": product_id, "name": product_name},
+        )
+        try:
+            event_system.product_added.emit(product_id)
+            event_system.inventory_changed.emit(product_id)
+        except Exception as e:
+            logger.warning(f"Failed to emit events for product creation: {e}")
+
+    def _validate_changed_barcode(
+        self, current_product: Product, update_data: Dict[str, Any]
+    ) -> None:
+        if "barcode" not in update_data:
+            return
+        if update_data["barcode"] == current_product.barcode:
+            return
+        self._validate_barcode_unique(update_data["barcode"])
+
+    def _finalize_product_update(
+        self, product_id: int, updated_fields: List[str]
+    ) -> None:
+        logger.info(
+            "Product updated",
+            extra={"product_id": product_id, "updated_fields": updated_fields},
+        )
+        self.clear_cache()
+        event_system.product_updated.emit(product_id)
+
     def _validate_product_data(
         self, data: Dict[str, Any], is_create: bool
     ) -> Dict[str, Any]:
@@ -375,46 +435,13 @@ class ProductService:
         Raises:
             ValidationException: If validation fails.
         """
-        validated = {}
-        if "name" in data or is_create:
-            validated["name"] = validate_string(
-                data.get("name", ""), min_length=1, max_length=100
-            )
-
-        if "description" in data:
-            validated["description"] = validate_string(
-                data.get("description", ""), min_length=0, max_length=500
-            )
-
-        if "category_id" in data:
-            category_id = data.get("category_id")
-            validated["category_id"] = (
-                validate_integer(category_id, min_value=1)
-                if category_id is not None
-                else None
-            )
-
-        if "cost_price" in data:
-            cost_price = data.get("cost_price")
-            if cost_price is not None:
-                validated["cost_price"] = validate_money(cost_price, "Cost Price")
-
-        if "sell_price" in data:
-            sell_price = data.get("sell_price")
-            if sell_price is not None:
-                validated["sell_price"] = validate_money(sell_price, "Sell Price")
-
-        if "barcode" in data:
-            barcode = data.get("barcode")
-            if barcode is not None:
-                self._validate_barcode_format(barcode)
-                validated["barcode"] = barcode
-
-        if is_create and "name" not in validated:
-            raise ValidationException(
-                "Product name is required when creating a product"
-            )
-
+        validated: Dict[str, Any] = {}
+        validate_name_field(data, validated, is_create)
+        validate_description_field(data, validated)
+        validate_category_field(data, validated)
+        validate_money_field(data, validated, "cost_price", "Cost Price")
+        validate_money_field(data, validated, "sell_price", "Sell Price")
+        validate_barcode_field(data, validated, self._validate_barcode_format)
         return validated
 
     @staticmethod

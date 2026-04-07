@@ -3,6 +3,18 @@ from functools import lru_cache
 from typing import Any, Dict, List, Tuple
 
 from database.database_manager import DatabaseManager
+from services.analytics.engine import AnalyticsEngine
+from services.analytics.metrics import (
+    DepartmentSalesMetric,
+    ProductProfitMetric,
+    ProfitMarginDistributionMetric,
+    ProfitTrendMetric,
+    SalesDailyMetric,
+    SalesSummaryMetric,
+    TopProductsMetric,
+    WeeklyProfitTrendMetric,
+    WeekdaySalesMetric,
+)
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import DatabaseException, ValidationException
 from utils.system.logger import logger
@@ -18,25 +30,19 @@ class AnalyticsService:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
-        query = """
-            SELECT 
-                CASE CAST(strftime('%w', date) AS INTEGER)
-                    WHEN 0 THEN 'Sunday'
-                    WHEN 1 THEN 'Monday'
-                    WHEN 2 THEN 'Tuesday'
-                    WHEN 3 THEN 'Wednesday'
-                    WHEN 4 THEN 'Thursday'
-                    WHEN 5 THEN 'Friday'
-                    WHEN 6 THEN 'Saturday'
-                END AS weekday,
-                SUM(total_amount) as total_sales,
-                COUNT(*) as sale_count
-            FROM sales
-            WHERE date BETWEEN ? AND ?
-            GROUP BY weekday
-            ORDER BY CAST(strftime('%w', date) AS INTEGER)
-        """
-        result = DatabaseManager.fetch_all(query, (start_date, end_date))
+        metric_result = AnalyticsEngine().execute_metric(
+            WeekdaySalesMetric(),
+            start_date=start_date,
+            end_date=end_date,
+        )
+        result = [
+            {
+                "weekday": row["weekday"],
+                "total_sales": row["total_sales"],
+                "sale_count": row["sale_count"],
+            }
+            for row in metric_result.data
+        ]
         logger.info(
             "Sales by weekday retrieved",
             extra={"start_date": start_date, "end_date": end_date},
@@ -54,20 +60,23 @@ class AnalyticsService:
         end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
         limit = validate_integer(limit, min_value=1, max_value=1000)
-        query = """
-            SELECT p.id, p.name,
-                   ROUND(SUM(si.quantity), 3) as total_quantity,
-                   CAST(SUM(ROUND(si.quantity * si.price)) AS INTEGER) as total_revenue,
-                   COUNT(DISTINCT s.id) as sale_count
-            FROM products p
-            JOIN sale_items si ON p.id = si.product_id
-            JOIN sales s ON si.sale_id = s.id
-            WHERE s.date BETWEEN ? AND ?
-            GROUP BY p.id
-            ORDER BY total_quantity DESC
-            LIMIT ?
-        """
-        result = DatabaseManager.fetch_all(query, (start_date, end_date, limit))
+        metric_result = AnalyticsEngine().execute_metric(
+            TopProductsMetric(),
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
+        )
+        result = [
+            {
+                "id": row["product_id"],
+                "product_id": row["product_id"],
+                "name": row["name"],
+                "total_quantity": row["total_quantity"],
+                "total_revenue": row["total_revenue"],
+                "sale_count": row["sale_count"],
+            }
+            for row in metric_result.data
+        ]
         logger.info(
             "Top selling products retrieved",
             extra={"start_date": start_date, "end_date": end_date, "limit": limit},
@@ -89,17 +98,19 @@ class AnalyticsService:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
-        query = """
-            SELECT
-                strftime('%Y-%m-%d', date) as date,
-                SUM(total_amount) as daily_sales,
-                COUNT(*) as sale_count
-            FROM sales
-            WHERE date BETWEEN ? AND ?
-            GROUP BY strftime('%Y-%m-%d', date)
-            ORDER BY strftime('%Y-%m-%d', date)
-        """
-        result = DatabaseManager.fetch_all(query, (start_date, end_date))
+        metric_result = AnalyticsEngine().execute_metric(
+            SalesDailyMetric(),
+            start_date=start_date,
+            end_date=end_date,
+        )
+        result = [
+            {
+                "date": row["date"],
+                "daily_sales": row["total_sales"],
+                "sale_count": row["sale_count"],
+            }
+            for row in metric_result.data
+        ]
         logger.info(
             "Sales trend retrieved",
             extra={"start_date": start_date, "end_date": end_date},
@@ -114,17 +125,19 @@ class AnalyticsService:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
-        query = """
-            SELECT
-                strftime('%Y-%W', date) as week,
-                MIN(date) as week_start,
-                SUM(total_profit) as weekly_profit
-            FROM sales
-            WHERE date BETWEEN ? AND ?
-            GROUP BY week
-            ORDER BY week
-        """
-        result = DatabaseManager.fetch_all(query, (start_date, end_date))
+        metric_result = AnalyticsEngine().execute_metric(
+            WeeklyProfitTrendMetric(),
+            start_date=start_date,
+            end_date=end_date,
+        )
+        result = [
+            {
+                "week": row["week"],
+                "week_start": row["week_start"],
+                "weekly_profit": row["weekly_profit"],
+            }
+            for row in metric_result.data
+        ]
         logger.info(
             "Weekly profit trend retrieved",
             extra={"start_date": start_date, "end_date": end_date},
@@ -142,21 +155,21 @@ class AnalyticsService:
         end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
         limit = validate_integer(limit, min_value=1, max_value=100)
-        query = """
-            SELECT
-                p.id,
-                p.name,
-                CAST(SUM(ROUND(si.quantity * (si.price - p.cost_price))) AS INTEGER) as total_profit,
-                ROUND(SUM(si.quantity), 3) as sales_volume
-            FROM products p
-            JOIN sale_items si ON p.id = si.product_id
-            JOIN sales s ON si.sale_id = s.id
-            WHERE s.date BETWEEN ? AND ?
-            GROUP BY p.id
-            ORDER BY total_profit DESC
-            LIMIT ?
-        """
-        result = DatabaseManager.fetch_all(query, (start_date, end_date, limit))
+        metric_result = AnalyticsEngine().execute_metric(
+            ProductProfitMetric(),
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
+        )
+        result = [
+            {
+                "id": row["product_id"],
+                "name": row["name"],
+                "total_profit": row["total_profit"],
+                "sales_volume": row["sales_volume"],
+            }
+            for row in metric_result.data
+        ]
         logger.info(f"Retrieved profit and volume by product: {len(result)} products")
         return result
 
@@ -170,21 +183,20 @@ class AnalyticsService:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
-        query = """
-            SELECT
-                c.name as category,
-                CAST(SUM(ROUND(si.quantity * si.price)) AS INTEGER) as total_sales,
-                ROUND(SUM(si.quantity), 3) as number_of_products_sold,
-                COUNT(DISTINCT s.id) as sale_count
-            FROM categories c
-            JOIN products p ON c.id = p.category_id
-            JOIN sale_items si ON p.id = si.product_id
-            JOIN sales s ON si.sale_id = s.id
-            WHERE s.date BETWEEN ? AND ?
-            GROUP BY c.id
-            ORDER BY total_sales DESC
-        """
-        result = DatabaseManager.fetch_all(query, (start_date, end_date))
+        metric_result = AnalyticsEngine().execute_metric(
+            DepartmentSalesMetric(),
+            start_date=start_date,
+            end_date=end_date,
+        )
+        result = [
+            {
+                "category": row["category"],
+                "total_sales": row["total_sales"],
+                "number_of_products_sold": row["units_sold"],
+                "sale_count": row["sale_count"],
+            }
+            for row in metric_result.data
+        ]
         logger.info(
             "Category performance retrieved",
             extra={"start_date": start_date, "end_date": end_date},
@@ -202,21 +214,24 @@ class AnalyticsService:
         end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
         limit = validate_integer(limit, min_value=1, max_value=1000)
-        query = """
-            SELECT p.id, p.name,
-                   CAST(SUM(ROUND(si.quantity * si.price)) AS INTEGER) as total_revenue,
-                   CAST(SUM(ROUND(si.quantity * p.cost_price)) AS INTEGER) as total_cost,
-                   CAST(SUM(ROUND(si.quantity * (si.price - p.cost_price))) AS INTEGER) as total_profit,
-                   COUNT(DISTINCT s.id) as sale_count
-            FROM products p
-            JOIN sale_items si ON p.id = si.product_id
-            JOIN sales s ON si.sale_id = s.id
-            WHERE s.date BETWEEN ? AND ?
-            GROUP BY p.id
-            ORDER BY total_profit DESC
-            LIMIT ?
-        """
-        result = DatabaseManager.fetch_all(query, (start_date, end_date, limit))
+        metric_result = AnalyticsEngine().execute_metric(
+            ProductProfitMetric(),
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
+        )
+        result = [
+            {
+                "id": row["product_id"],
+                "product_id": row["product_id"],
+                "name": row["name"],
+                "total_revenue": row["total_revenue"],
+                "total_cost": row["total_cost"],
+                "total_profit": row["total_profit"],
+                "sale_count": row["sale_count"],
+            }
+            for row in metric_result.data
+        ]
         logger.info(f"Retrieved profit by product: {len(result)} products")
         return result
 
@@ -228,18 +243,20 @@ class AnalyticsService:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
-        query = """
-            SELECT
-                strftime('%Y-%m-%d', date) as date,
-                SUM(total_amount) as daily_revenue,
-                SUM(total_profit) as daily_profit,
-                COUNT(*) as sale_count
-            FROM sales
-            WHERE date BETWEEN ? AND ?
-            GROUP BY strftime('%Y-%m-%d', date)
-            ORDER BY strftime('%Y-%m-%d', date)
-        """
-        result = DatabaseManager.fetch_all(query, (start_date, end_date))
+        metric_result = AnalyticsEngine().execute_metric(
+            ProfitTrendMetric(),
+            start_date=start_date,
+            end_date=end_date,
+        )
+        result = [
+            {
+                "date": row["date"],
+                "daily_revenue": row["daily_revenue"],
+                "daily_profit": row["daily_profit"],
+                "sale_count": row["sale_count"],
+            }
+            for row in metric_result.data
+        ]
         logger.info(f"Retrieved profit trend: {len(result)} days")
         return result
 
@@ -253,47 +270,20 @@ class AnalyticsService:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
-        query = """
-            SELECT 
-                CASE 
-                    WHEN profit_margin < 0 THEN 'Loss'
-                    WHEN profit_margin BETWEEN 0 AND 10 THEN '0-10%'
-                    WHEN profit_margin BETWEEN 10 AND 20 THEN '10-20%'
-                    WHEN profit_margin BETWEEN 20 AND 30 THEN '20-30%'
-                    WHEN profit_margin BETWEEN 30 AND 40 THEN '30-40%'
-                    ELSE '40%+'
-                END as margin_range,
-                COUNT(*) as product_count,
-                ROUND(AVG(profit_margin), 2) as average_margin,
-                SUM(total_sales) as total_sales
-            FROM (
-                SELECT
-                    p.id,
-                    CASE
-                        WHEN CAST(SUM(ROUND(si.quantity * si.price)) AS INTEGER) > 0
-                        THEN (CAST(SUM(ROUND(si.quantity * (si.price - p.cost_price))) AS FLOAT) /
-                              CAST(SUM(ROUND(si.quantity * si.price)) AS INTEGER)) * 100
-                        ELSE 0
-                    END as profit_margin,
-                    CAST(SUM(ROUND(si.quantity * si.price)) AS INTEGER) as total_sales
-                FROM products p
-                JOIN sale_items si ON p.id = si.product_id
-                JOIN sales s ON si.sale_id = s.id
-                WHERE s.date BETWEEN ? AND ?
-                GROUP BY p.id
-            ) as product_margins
-            GROUP BY margin_range
-            ORDER BY 
-                CASE margin_range
-                    WHEN 'Loss' THEN 1
-                    WHEN '0-10%' THEN 2
-                    WHEN '10-20%' THEN 3
-                    WHEN '20-30%' THEN 4
-                    WHEN '30-40%' THEN 5
-                    ELSE 6
-                END
-        """
-        result = DatabaseManager.fetch_all(query, (start_date, end_date))
+        metric_result = AnalyticsEngine().execute_metric(
+            ProfitMarginDistributionMetric(),
+            start_date=start_date,
+            end_date=end_date,
+        )
+        result = [
+            {
+                "margin_range": row["margin_range"],
+                "product_count": row["product_count"],
+                "average_margin": row["average_margin"],
+                "total_sales": row["total_sales"],
+            }
+            for row in metric_result.data
+        ]
         logger.info(f"Retrieved profit margin distribution: {len(result)} ranges")
         return result
 
@@ -304,18 +294,12 @@ class AnalyticsService:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
-        query = """
-            SELECT 
-                COUNT(*) as total_sales,
-                COALESCE(SUM(total_amount), 0) as total_revenue,
-                COALESCE(SUM(total_profit), 0) as total_profit,
-                COALESCE(ROUND(AVG(total_amount)), 0) as average_sale_value,
-                COUNT(DISTINCT customer_id) as unique_customers
-            FROM sales
-            WHERE date BETWEEN ? AND ?
-        """
-        result = DatabaseManager.fetch_one(query, (start_date, end_date))
-        if result is None:
+        metric_result = AnalyticsEngine().execute_metric(
+            SalesSummaryMetric(),
+            start_date=start_date,
+            end_date=end_date,
+        )
+        if not metric_result.data:
             logger.warning(f"No sales data found for period {start_date} to {end_date}")
             return {
                 "total_sales": 0,
@@ -324,8 +308,15 @@ class AnalyticsService:
                 "average_sale_value": 0,
                 "unique_customers": 0,
             }
+        result = metric_result.data[0]
         logger.info(f"Retrieved sales summary from {start_date} to {end_date}")
-        return dict(result)
+        return {
+            "total_sales": result["total_sales"],
+            "total_revenue": result["total_revenue"],
+            "total_profit": result["total_profit"],
+            "average_sale_value": result["average_sale_value"],
+            "unique_customers": result["unique_customers"],
+        }
 
     @staticmethod
     def clear_cache():

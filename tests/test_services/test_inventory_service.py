@@ -1,6 +1,9 @@
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from services.inventory_service import InventoryService
+from utils.exceptions import ValidationException
 
 
 class TestInventoryServiceUpdates:
@@ -43,3 +46,25 @@ class TestInventoryServiceUpdates:
         items = [{"invalid": "data"}]
         # Should not raise
         InventoryService.apply_batch_updates(items)
+
+    @patch("services.inventory_service.InventoryService.update_quantity")
+    def test_apply_batch_updates_with_emit_events_false(self, mock_update):
+        InventoryService.apply_batch_updates(
+            [{"product_id": 3, "quantity": 4.0}], emit_events=False
+        )
+
+        mock_update.assert_called_once_with(3, 4.0, emit_events=False)
+
+    def test_apply_batch_updates_invalid_multiplier_raises_validation(self):
+        with pytest.raises(ValidationException, match="multiplier must be 1.0"):
+            InventoryService.apply_batch_updates([], multiplier=0.0)
+
+    def test_normalize_batch_item_supports_dict_and_object(self):
+        item = MagicMock()
+        item.product_id = 9
+        item.quantity = 1.25
+
+        assert InventoryService._normalize_batch_item(
+            {"product_id": 5, "quantity": 2.5}
+        ) == (5, 2.5)
+        assert InventoryService._normalize_batch_item(item) == (9, 1.25)

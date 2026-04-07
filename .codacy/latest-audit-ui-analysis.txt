@@ -1,0 +1,24 @@
+                   
+                   
+┌─────────────────┐
+│ 2 Code Findings │
+└─────────────────┘
+                                           
+  [36m[22m[24m  .github/workflows/ci.yml[0m
+    ❯❱ codacy.tools-configs.yaml.github-actions.security.third-party-action-not-pinned-to-commit-sha.third-party-
+       action-not-pinned-to-commit-sha                                                                           
+          An action sourced from a third-party repository on GitHub is not pinned to a full length commit SHA.
+          Pinning an action to a full length commit SHA is currently the only way to use an action as an      
+          immutable release. Pinning to a particular SHA helps mitigate the risk of a bad actor adding a      
+          backdoor to the action's repository, as they would need to generate a SHA-1 collision for a valid   
+          Git object payload.                                                                                 
+                                                                                                              
+           43┆ uses: GabrielBB/xvfb-action@v1
+                                    
+  [36m[22m[24m  file_extractor.py[0m
+    ❯❱ codacy.tools-configs.python.lang.security.insecure-hash-algorithms-md5.insecure-hash-algorithm-md5
+          Detected MD5 hash algorithm which is considered insecure. MD5 is not collision resistant and is
+          therefore not suitable as a cryptographic signature. Use SHA256 or SHA3 instead.               
+                                                                                                         
+          177┆ file_hash = hashlib.md5(file_content.encode()).hexdigest()
+

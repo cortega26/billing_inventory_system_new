@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 from database.database_manager import DatabaseManager
 from models.enums import MAX_SALE_ITEMS, QUANTITY_PRECISION
 from models.sale import Sale, SaleItem
+from services.audit_service import AuditService
 from services.analytics_service import AnalyticsService
 from services.customer_service import CustomerService
 from services.inventory_service import InventoryService
@@ -97,6 +98,20 @@ class SaleService:
                 InventoryService.apply_batch_updates(
                     items, multiplier=-1.0, emit_events=False
                 )
+                AuditService.log_operation(
+                    "create_sale",
+                    "sale",
+                    sale_id,
+                    {
+                        "customer_id": customer_id,
+                        "date": sale_date_str,
+                        "item_count": len(items),
+                        "product_ids": self._get_product_ids(items),
+                        "total_amount": total_amount,
+                        "total_profit": total_profit,
+                        "receipt_id": receipt_id,
+                    },
+                )
 
             self._finalize_sale_mutation(sale_id, items, event_system.sale_added)
 
@@ -109,7 +124,7 @@ class SaleService:
             raise DatabaseException(f"Failed to create sale: {str(e)}")
 
     @db_operation(show_dialog=True)
-    @handle_exceptions(NotFoundException, DatabaseException, show_dialog=True)
+    @handle_exceptions(DatabaseException, show_dialog=True)
     def get_sale(self, sale_id: int) -> Optional[Sale]:
         sale_id = validate_integer(sale_id, min_value=1)
         query = """
@@ -124,9 +139,16 @@ class SaleService:
             sale.items = self.get_sale_items(sale_id)
             logger.info("Sale retrieved", extra={"sale_id": sale_id})
             return sale
-        else:
-            logger.warning("Sale not found", extra={"sale_id": sale_id})
-            raise NotFoundException(f"Sale with ID {sale_id} not found")
+
+        logger.warning("Sale not found", extra={"sale_id": sale_id})
+        return None
+
+    def _require_sale(self, sale_id: int) -> Sale:
+        sale = self.get_sale(sale_id)
+        if sale is not None:
+            return sale
+
+        raise NotFoundException(f"Sale with ID {sale_id} not found")
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
@@ -236,12 +258,22 @@ class SaleService:
     @handle_exceptions(DatabaseException, show_dialog=True)
     def delete_sale(self, sale_id: int) -> None:
         sale_id = validate_integer(sale_id, min_value=1)
-        items = self.get_sale_items(sale_id)
+        sale = self._require_sale(sale_id)
+        items = sale.items
 
         try:
             with DatabaseManager.transaction():
                 InventoryService.apply_batch_updates(
                     items, multiplier=1.0, emit_events=False
+                )
+                AuditService.log_operation(
+                    "delete_sale",
+                    "sale",
+                    sale_id,
+                    {
+                        "item_count": len(items),
+                        "product_ids": self._get_product_ids(items),
+                    },
                 )
                 DatabaseManager.execute_query(
                     "DELETE FROM sale_items WHERE sale_id = ?", (sale_id,)
@@ -267,11 +299,11 @@ class SaleService:
         Raises ValidationException if the sale is already cancelled.
         """
         sale_id = validate_integer(sale_id, min_value=1)
-        sale = self.get_sale(sale_id)
+        sale = self._require_sale(sale_id)
         if sale.status == "cancelled":
             raise ValidationException(f"Sale {sale_id} is already cancelled")
 
-        items = self.get_sale_items(sale_id)
+        items = sale.items
 
         try:
             with DatabaseManager.transaction():
@@ -280,6 +312,15 @@ class SaleService:
                 )
                 DatabaseManager.execute_query(
                     "UPDATE sales SET status = 'cancelled' WHERE id = ?", (sale_id,)
+                )
+                AuditService.log_operation(
+                    "cancel_sale",
+                    "sale",
+                    sale_id,
+                    {
+                        "item_count": len(items),
+                        "product_ids": self._get_product_ids(items),
+                    },
                 )
             logger.info("Sale cancelled", extra={"sale_id": sale_id})
             self._finalize_sale_mutation(sale_id, items, event_system.sale_updated)
@@ -299,11 +340,10 @@ class SaleService:
         date = validate_date(date)
         self._validate_sale_items(items)
 
-        sale = self.get_sale(sale_id)
-        if not sale:
-            raise ValidationException(f"Sale with ID {sale_id} not found.")
+        sale = self._require_sale(sale_id)
 
         old_items = self.get_sale_items(sale_id)
+        self._validate_inventory_for_sale_update(old_items, items)
 
         # item["profit"] was computed server-side by _validate_sale_items above
         total_amount = sum(
@@ -323,6 +363,20 @@ class SaleService:
             InventoryService.apply_batch_updates(
                 items, multiplier=-1.0, emit_events=False
             )
+            AuditService.log_operation(
+                "update_sale",
+                "sale",
+                sale_id,
+                {
+                    "customer_id": customer_id,
+                    "date": date,
+                    "old_item_count": len(old_items),
+                    "new_item_count": len(items),
+                    "product_ids": self._get_product_ids([*old_items, *items]),
+                    "total_amount": total_amount,
+                    "total_profit": total_profit,
+                },
+            )
 
         logger.info(
             "Sale updated", extra={"sale_id": sale_id, "customer_id": customer_id}
@@ -330,6 +384,41 @@ class SaleService:
         self._finalize_sale_mutation(
             sale_id, [*old_items, *items], event_system.sale_updated
         )
+
+    def _validate_inventory_for_sale_update(
+        self, old_items: List[Any], new_items: List[Dict[str, Any]]
+    ) -> None:
+        """Pre-validate stock for sale updates before opening a transaction.
+
+        During an update we first restore old items and then apply new ones. This
+        check simulates that result to provide a fast, clear validation error.
+        """
+        old_quantities: Dict[int, float] = {}
+        for item in old_items:
+            product_id = int(getattr(item, "product_id", 0))
+            quantity = float(getattr(item, "quantity", 0.0))
+            old_quantities[product_id] = old_quantities.get(product_id, 0.0) + quantity
+
+        new_quantities: Dict[int, float] = {}
+        for item in new_items:
+            product_id = int(item["product_id"])
+            quantity = float(item["quantity"])
+            new_quantities[product_id] = new_quantities.get(product_id, 0.0) + quantity
+
+        for product_id, required_quantity in new_quantities.items():
+            inventory = self.inventory_service.get_inventory(product_id)
+            current_quantity = float(inventory.quantity) if inventory else 0.0
+            restored_quantity = current_quantity + old_quantities.get(product_id, 0.0)
+            available_after_update = round(
+                restored_quantity - required_quantity, QUANTITY_PRECISION
+            )
+
+            if available_after_update < 0:
+                raise ValidationException(
+                    "Insufficient inventory to update sale for product "
+                    f"{product_id}. Available after restore: {restored_quantity}, "
+                    f"required: {required_quantity}."
+                )
 
     @staticmethod
     @db_operation(show_dialog=True)
@@ -386,9 +475,7 @@ class SaleService:
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def generate_receipt(self, sale_id: int) -> str:
         sale_id = validate_integer(sale_id, min_value=1)
-        sale = self.get_sale(sale_id)
-        if not sale:
-            raise ValidationException(f"Sale with ID {sale_id} not found.")
+        sale = self._require_sale(sale_id)
 
         if not sale.receipt_id:
             receipt_id = self.generate_receipt_id(sale.date)
@@ -407,7 +494,9 @@ class SaleService:
         sale_id = validate_integer(sale_id, min_value=1)
         receipt_id = validate_string(receipt_id, max_length=20)
         query = "UPDATE sales SET receipt_id = ? WHERE id = ?"
-        DatabaseManager.execute_query(query, (receipt_id, sale_id))
+        cursor = DatabaseManager.execute_query(query, (receipt_id, sale_id))
+        if cursor.rowcount == 0:
+            raise NotFoundException(f"Sale with ID {sale_id} not found")
 
     @db_operation(show_dialog=True)
     def update_sale_receipt(self, sale_id: int, receipt_id: str) -> None:
@@ -419,9 +508,7 @@ class SaleService:
         sale_id = validate_integer(sale_id, min_value=1)
         filepath = validate_string(filepath, max_length=255)
 
-        sale = self.get_sale(sale_id)
-        if not sale:
-            raise ValidationException(f"Sale with ID {sale_id} not found.")
+        sale = self._require_sale(sale_id)
 
         items = self.get_sale_items(sale_id)
 

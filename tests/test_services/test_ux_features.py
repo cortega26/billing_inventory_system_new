@@ -120,18 +120,9 @@ if __name__ == "__main__":
 
 class TestUXFeatures:
     @pytest.fixture(autouse=True)
-    def setup(self):
-        DatabaseManager.initialize()
-        # Clean up
-        DatabaseManager.execute_query("DELETE FROM sale_items")
-        DatabaseManager.execute_query("DELETE FROM sales")
-        DatabaseManager.execute_query("DELETE FROM inventory")
-        DatabaseManager.execute_query("DELETE FROM products")
-        DatabaseManager.execute_query("DELETE FROM customers")
-
+    def setup(self, db_manager):
         self.inventory_service = InventoryService()
         self.sale_service = SaleService()
-        self.product_service = ProductService()
         self.product_service = ProductService()
         self.customer_service = CustomerService()
         self.category_service = CategoryService()

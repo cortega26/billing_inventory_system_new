@@ -1,7 +1,20 @@
 import pytest
 
+from database.database_manager import DatabaseManager
+from services.audit_service import AuditService
 from services.customer_service import CustomerService
-from utils.exceptions import DatabaseException, ValidationException
+from utils.exceptions import DatabaseException, NotFoundException, ValidationException
+from utils.system.event_system import event_system
+
+
+def capture_signal(signal):
+    payloads = []
+
+    def handler(payload=None):
+        payloads.append(payload)
+
+    signal.connect(handler)
+    return payloads, handler
 
 
 @pytest.fixture
@@ -12,144 +25,119 @@ def customer_service(db_manager):
 @pytest.fixture
 def sample_customer_data():
     return {
-        "identifier_9": "923456789",  # 9-digit identifier
+        "identifier_9": "923456789",
         "name": "Test Customer",
-        "identifier_3or4": "123",  # 3-digit identifier
+        "identifier_3or4": "123",
     }
 
 
 @pytest.mark.customer
 class TestCustomerService:
-    """Customer service tests."""
-
-    def test_create_customer(self, customer_service, sample_customer_data, mocker):
-        # Mock database operations
-        mock_execute = mocker.patch(
-            "database.database_manager.DatabaseManager.execute_query"
-        )
-        mock_execute.return_value.lastrowid = 1
-
-        mock_fetch = mocker.patch("database.database_manager.DatabaseManager.fetch_one")
-        mock_fetch.return_value = {
-            "id": 1,
-            "name": sample_customer_data["name"],
-            "identifier_9": sample_customer_data["identifier_9"],
-            "identifier_3or4": sample_customer_data["identifier_3or4"],
-        }
-
+    def test_create_customer(self, customer_service, sample_customer_data):
         customer_id = customer_service.create_customer(
             identifier_9=sample_customer_data["identifier_9"],
             name=sample_customer_data["name"],
             identifier_3or4=sample_customer_data["identifier_3or4"],
         )
-        assert customer_id == 1
 
-        # Verify customer was created
         customer = customer_service.get_customer(customer_id)
+        assert customer is not None
         assert customer.identifier_9 == sample_customer_data["identifier_9"]
         assert customer.name == sample_customer_data["name"]
+        assert customer.is_active is True
+        assert len(
+            AuditService.get_entries(
+                entity_type="customer",
+                entity_id=customer_id,
+                operation="create_customer",
+            )
+        ) == 1
+
+    def test_get_customer_missing_returns_none(self, customer_service):
+        assert customer_service.get_customer(999999) is None
 
     def test_create_customer_invalid_identifier(self, customer_service):
         with pytest.raises(ValidationException):
             customer_service.create_customer(
-                identifier_9="12345", name="Test Customer"  # Invalid length
-            )
-
-    def test_create_customer_duplicate_identifier(
-        self, customer_service, sample_customer_data, mocker
-    ):
-        # Mock first customer creation success
-        mock_execute_success = mocker.patch(
-            "database.database_manager.DatabaseManager.execute_query"
-        )
-        mock_execute_success.return_value.lastrowid = 1
-
-        # Create first customer
-        customer_service.create_customer(
-            identifier_9=sample_customer_data["identifier_9"],
-            name=sample_customer_data["name"],
-        )
-
-        # Mock database error for duplicate
-        mocker.patch(
-            "database.database_manager.DatabaseManager.execute_query",
-            side_effect=DatabaseException("Duplicate identifier"),
-        )
-
-        # Try to create duplicate
-        with pytest.raises(DatabaseException):
-            customer_service.create_customer(
-                identifier_9=sample_customer_data["identifier_9"],
-                name="Another Customer",
+                identifier_9="12345",
+                name="Test Customer",
             )
 
     def test_update_customer(self, customer_service, sample_customer_data):
-        # First create a customer
         customer_id = customer_service.create_customer(
             identifier_9=sample_customer_data["identifier_9"],
             name=sample_customer_data["name"],
         )
 
-        # Update the customer
         new_name = "Updated Customer Name"
         customer_service.update_customer(customer_id, name=new_name)
 
-        # Verify update
         customer = customer_service.get_customer(customer_id)
         assert customer.name == new_name
 
-    def test_delete_customer(self, customer_service, sample_customer_data, mocker):
-        # Mock customer creation
-        mock_customer = mocker.Mock()
-        mock_customer.id = 1
-        mocker.patch.object(customer_service, "get_customer", side_effect=[None])
-
-        # Mock database execution
-        mock_execute = mocker.patch(
-            "database.database_manager.DatabaseManager.execute_query"
+    def test_delete_customer_archives_and_hides_from_default_listing(
+        self, customer_service, sample_customer_data
+    ):
+        customer_id = customer_service.create_customer(
+            identifier_9=sample_customer_data["identifier_9"],
+            name=sample_customer_data["name"],
+            identifier_3or4=sample_customer_data["identifier_3or4"],
         )
-        mock_execute.return_value.rowcount = 1
 
-        # Execute test
-        customer_service.delete_customer(1)
+        customer_service.delete_customer(customer_id)
 
-        # Verify
-        mock_execute.assert_called()
-        # get_customer returns None if not found, does NOT raise
-        assert customer_service.get_customer(1) is None
+        archived_customer = customer_service.get_customer(customer_id)
+        assert archived_customer is not None
+        assert archived_customer.is_active is False
+        assert archived_customer.deleted_at is not None
+        assert customer_service.get_all_customers() == []
+        assert len(customer_service.get_all_customers(active_only=False)) == 1
+        assert len(
+            AuditService.get_entries(
+                entity_type="customer",
+                entity_id=customer_id,
+                operation="delete_customer",
+            )
+        ) == 1
 
-    def test_search_customers(self, customer_service, sample_customer_data, mocker):
-        # Mock database results
-        mock_rows = [
-            {
-                "id": 1,
-                "name": "John Doe",
-                "identifier_9": "911222333",
-                "identifier_3or4": "123",
-            },
-            {
-                "id": 2,
-                "name": "Jane Doe",
-                "identifier_9": "944555666",
-                "identifier_3or4": "456",
-            },
+    def test_restore_customer_reactivates_visibility(
+        self, customer_service, sample_customer_data
+    ):
+        customer_id = customer_service.create_customer(
+            identifier_9=sample_customer_data["identifier_9"],
+            name=sample_customer_data["name"],
+        )
+        customer_service.delete_customer(customer_id)
+
+        customer_service.restore_customer(customer_id)
+
+        restored_customer = customer_service.get_customer(customer_id)
+        assert restored_customer is not None
+        assert restored_customer.is_active is True
+        assert restored_customer.deleted_at is None
+        assert [customer.id for customer in customer_service.get_all_customers()] == [
+            customer_id
         ]
+        assert len(
+            AuditService.get_entries(
+                entity_type="customer",
+                entity_id=customer_id,
+                operation="restore_customer",
+            )
+        ) == 1
 
-        # Mock database fetch
-        mock_fetch = mocker.patch("database.database_manager.DatabaseManager.fetch_all")
-        mock_fetch.return_value = mock_rows
+    def test_search_customers_excludes_archived_by_default(
+        self, customer_service, sample_customer_data
+    ):
+        customer_id = customer_service.create_customer(
+            identifier_9=sample_customer_data["identifier_9"],
+            name=sample_customer_data["name"],
+        )
+        customer_service.delete_customer(customer_id)
 
-        # Test search by name
-        results = customer_service.search_customers("Doe")
-        assert len(results) == 2
-        assert results[0].name == "John Doe"
-        assert results[1].name == "Jane Doe"
-
-        # Test search by identifier
-        mock_fetch.return_value = [mock_rows[0]]
-        results = customer_service.search_customers("911")
-        assert len(results) == 1
-        assert results[0].identifier_9 == "911222333"
+        assert customer_service.search_customers("Test") == []
+        results = customer_service.search_customers("Test", active_only=False)
+        assert [customer.id for customer in results] == [customer_id]
 
     def test_get_customer_purchase_history(
         self, customer_service, sample_customer_data
@@ -159,13 +147,10 @@ class TestCustomerService:
             name=sample_customer_data["name"],
         )
 
-        # Get purchase history (should be empty for new customer)
         history = customer_service.get_customer_purchase_history(customer_id)
         assert len(history) == 0
 
     def test_validate_identifiers(self, customer_service):
-        """Test identifier validation."""
-        # Valid identifiers
         assert (
             customer_service.validate_identifier("923456789", "identifier_9")
             == "923456789"
@@ -173,19 +158,92 @@ class TestCustomerService:
         assert customer_service.validate_identifier("123", "identifier_3or4") == "123"
         assert customer_service.validate_identifier("1234", "identifier_3or4") == "1234"
 
-        # Invalid identifiers
         with pytest.raises(ValidationException):
-            customer_service.validate_identifier(
-                "12345678", "identifier_9"
-            )  # Too short
+            customer_service.validate_identifier("12345678", "identifier_9")
         with pytest.raises(ValidationException):
-            customer_service.validate_identifier("12", "identifier_3or4")  # Too short
+            customer_service.validate_identifier("12", "identifier_3or4")
 
-    def test_delete_customer_mock(self, mocker):
-        # Using pytest-mock instead of unittest.mock
-        mock_execute = mocker.patch(
-            "database.database_manager.DatabaseManager.execute_query"
+    def test_delete_customer_marks_row_in_database(self, customer_service):
+        customer_id = customer_service.create_customer("923456780", "Archive Target")
+
+        customer_service.delete_customer(customer_id)
+
+        row = DatabaseManager.fetch_one(
+            "SELECT is_active, deleted_at FROM customers WHERE id = ?",
+            (customer_id,),
         )
-        mock_execute.return_value.rowcount = 1  # Simulate successful deletion
-        CustomerService().delete_customer(1)
-        mock_execute.assert_called()
+        assert row["is_active"] == 0
+        assert row["deleted_at"] is not None
+
+    def test_restore_customer_missing_id_raises(self, customer_service):
+        with pytest.raises(NotFoundException):
+            customer_service.restore_customer(999)
+
+    def test_update_customer_missing_id_raises_not_found(self, customer_service):
+        with pytest.raises(NotFoundException):
+            customer_service.update_customer(999999, name="No Existe")
+
+    def test_create_customer_emits_customer_added_once(
+        self, customer_service, sample_customer_data
+    ):
+        payloads, handler = capture_signal(event_system.customer_added)
+
+        try:
+            customer_id = customer_service.create_customer(
+                identifier_9=sample_customer_data["identifier_9"],
+                name=sample_customer_data["name"],
+                identifier_3or4=sample_customer_data["identifier_3or4"],
+            )
+
+            assert payloads == [customer_id]
+        finally:
+            event_system.customer_added.disconnect(handler)
+
+    def test_update_customer_emits_customer_updated_once(
+        self, customer_service, sample_customer_data
+    ):
+        customer_id = customer_service.create_customer(
+            identifier_9=sample_customer_data["identifier_9"],
+            name=sample_customer_data["name"],
+        )
+        payloads, handler = capture_signal(event_system.customer_updated)
+
+        try:
+            customer_service.update_customer(customer_id, name="Cliente Actualizado")
+
+            assert payloads == [customer_id]
+        finally:
+            event_system.customer_updated.disconnect(handler)
+
+    def test_delete_customer_emits_customer_deleted_once(
+        self, customer_service, sample_customer_data
+    ):
+        customer_id = customer_service.create_customer(
+            identifier_9=sample_customer_data["identifier_9"],
+            name=sample_customer_data["name"],
+        )
+        payloads, handler = capture_signal(event_system.customer_deleted)
+
+        try:
+            customer_service.delete_customer(customer_id)
+
+            assert payloads == [customer_id]
+        finally:
+            event_system.customer_deleted.disconnect(handler)
+
+    def test_restore_customer_emits_customer_updated_once(
+        self, customer_service, sample_customer_data
+    ):
+        customer_id = customer_service.create_customer(
+            identifier_9=sample_customer_data["identifier_9"],
+            name=sample_customer_data["name"],
+        )
+        customer_service.delete_customer(customer_id)
+        payloads, handler = capture_signal(event_system.customer_updated)
+
+        try:
+            customer_service.restore_customer(customer_id)
+
+            assert payloads == [customer_id]
+        finally:
+            event_system.customer_updated.disconnect(handler)

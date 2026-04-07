@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QComboBox,
+    QCheckBox,
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
@@ -170,8 +171,11 @@ class ProductView(QWidget):
         self.search_input.returnPressed.connect(self.search_products)
         search_button = QPushButton("Buscar")
         search_button.clicked.connect(self.search_products)
+        self.show_archived_checkbox = QCheckBox("Mostrar archivados")
+        self.show_archived_checkbox.toggled.connect(self.load_products)
         search_layout.addWidget(self.search_input)
         search_layout.addWidget(search_button)
+        search_layout.addWidget(self.show_archived_checkbox)
         layout.addLayout(search_layout)
 
         # Category filter
@@ -191,6 +195,7 @@ class ProductView(QWidget):
                 "Nombre",
                 "Descripción",
                 "Categoría",
+                "Estado",
                 "Precio Costo",
                 "Precio Venta",
                 "Margen Ganancia",
@@ -256,7 +261,9 @@ class ProductView(QWidget):
         try:
             self.current_category_id = self.category_filter.itemData(index)
             # Get fresh data and apply new filter
-            fresh_products = self.product_service.get_all_products()
+            fresh_products = self.product_service.get_all_products(
+                active_only=not self.show_archived_checkbox.isChecked()
+            )
             self.filter_products(products=fresh_products)
         except Exception as e:
             logger.error(f"Error changing category: {str(e)}")
@@ -283,7 +290,9 @@ class ProductView(QWidget):
         logger.debug("Loading products list")
         try:
             QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-            fresh_products = self.product_service.get_all_products()
+            fresh_products = self.product_service.get_all_products(
+                active_only=not self.show_archived_checkbox.isChecked()
+            )
             logger.debug(f"Loaded {len(fresh_products)} products")
             # Use filter_products to maintain current filters
             self.filter_products(products=fresh_products)
@@ -322,9 +331,11 @@ class ProductView(QWidget):
                         3,
                         QTableWidgetItem(product.category_name or "Sin Categoría"),
                     )
+                    status_text = "Activo" if product.is_active else "Archivado"
+                    self.product_table.setItem(row, 4, QTableWidgetItem(status_text))
                     self.product_table.setItem(
                         row,
-                        4,
+                        5,
                         PriceTableWidgetItem(
                             float(product.cost_price) if product.cost_price else 0,
                             format_price,
@@ -332,7 +343,7 @@ class ProductView(QWidget):
                     )
                     self.product_table.setItem(
                         row,
-                        5,
+                        6,
                         PriceTableWidgetItem(
                             float(product.sell_price) if product.sell_price else 0,
                             format_price,
@@ -340,7 +351,7 @@ class ProductView(QWidget):
                     )
                     self.product_table.setItem(
                         row,
-                        6,
+                        7,
                         PercentageTableWidgetItem(
                             float(product.calculate_profit_margin())
                         ),
@@ -350,22 +361,30 @@ class ProductView(QWidget):
                     actions_widget = QWidget()
                     actions_layout = QHBoxLayout(actions_widget)
                     actions_layout.setContentsMargins(0, 0, 0, 0)
+                    actions_layout.setSpacing(6)
+                    actions_layout.setAlignment(Qt.AlignCenter)
 
                     edit_button = QPushButton("Editar")
                     edit_button.setFixedWidth(80)
+                    edit_button.setFixedHeight(24)
+                    edit_button.setStyleSheet("padding: 2px 8px;")
                     edit_button.clicked.connect(
                         lambda _, p=product: self.edit_product(p)
                     )
 
-                    delete_button = QPushButton("Eliminar")
+                    delete_label = "Eliminar" if product.is_active else "Restaurar"
+                    delete_button = QPushButton(delete_label)
                     delete_button.setFixedWidth(80)
+                    delete_button.setFixedHeight(24)
+                    delete_button.setStyleSheet("padding: 2px 8px;")
                     delete_button.clicked.connect(
                         lambda _, p=product: self.delete_product(p)
                     )
 
                     actions_layout.addWidget(edit_button)
                     actions_layout.addWidget(delete_button)
-                    self.product_table.setCellWidget(row, 7, actions_widget)
+                    self.product_table.setCellWidget(row, 8, actions_widget)
+                    self.product_table.setRowHeight(row, 36)
                 except Exception as e:
                     logger.error(f"Error updating row {row}: {str(e)}")
                     continue
@@ -373,7 +392,7 @@ class ProductView(QWidget):
             # Adjust table display
             self.product_table.resizeColumnsToContents()
             self.product_table.horizontalHeader().setSectionResizeMode(
-                7, QHeaderView.ResizeMode.Stretch
+                8, QHeaderView.ResizeMode.Stretch
             )
 
             logger.info("Product table updated successfully")
@@ -399,11 +418,12 @@ class ProductView(QWidget):
 
                 if product_id is not None:
                     # Get fresh data but maintain filters
-                    fresh_products = self.product_service.get_all_products()
+                    fresh_products = self.product_service.get_all_products(
+                        active_only=not self.show_archived_checkbox.isChecked()
+                    )
                     self.filter_products(products=fresh_products)
 
                     show_info_message("Éxito", "Producto agregado exitosamente.")
-                    event_system.product_added.emit(product_id)
                     self.product_updated.emit()
                     logger.info(f"Product added successfully: ID {product_id}")
                 else:
@@ -436,11 +456,12 @@ class ProductView(QWidget):
                     self.product_service.update_product(product.id, product_data)
 
                     # Get fresh data but maintain current filter
-                    fresh_products = self.product_service.get_all_products()
+                    fresh_products = self.product_service.get_all_products(
+                        active_only=not self.show_archived_checkbox.isChecked()
+                    )
                     self.filter_products(products=fresh_products)
 
                     show_info_message("Éxito", "Producto actualizado exitosamente.")
-                    event_system.product_updated.emit(product.id)
                     self.product_updated.emit()
                     logger.info(f"Product updated successfully: ID {product.id}")
                 except Exception as e:
@@ -457,10 +478,13 @@ class ProductView(QWidget):
     )
     def delete_product(self, product: Product):
         try:
+            is_active = product.is_active
+            title_text = "Archivar Producto" if is_active else "Restaurar Producto"
+            action_text = "archivar" if is_active else "restaurar"
             reply = QMessageBox.question(
                 self,
-                "Eliminar Producto",
-                f"¿Está seguro que desea eliminar el producto {product.name}?",
+                title_text,
+                f"¿Está seguro que desea {action_text} el producto {product.name}?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
             )
@@ -468,20 +492,27 @@ class ProductView(QWidget):
             if reply == QMessageBox.StandardButton.Yes:
                 QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
                 try:
-                    self.product_service.delete_product(product.id)
+                    if is_active:
+                        self.product_service.delete_product(product.id)
+                        show_info_message("Éxito", "Producto archivado exitosamente.")
+                    else:
+                        self.product_service.restore_product(product.id)
+                        show_info_message("Éxito", "Producto restaurado exitosamente.")
 
                     # Get fresh data but maintain filters
-                    fresh_products = self.product_service.get_all_products()
+                    fresh_products = self.product_service.get_all_products(
+                        active_only=not self.show_archived_checkbox.isChecked()
+                    )
                     self.filter_products(products=fresh_products)
-
-                    show_info_message("Éxito", "Producto eliminado exitosamente.")
-                    event_system.product_deleted.emit(product.id)
                     self.product_updated.emit()
-                    logger.info(f"Product deleted successfully: ID {product.id}")
+                    logger.info(
+                        "Product status updated",
+                        extra={"product_id": product.id, "is_active": not is_active},
+                    )
                 finally:
                     QApplication.restoreOverrideCursor()
         except Exception as e:
-            logger.error(f"Error deleting product: {str(e)}")
+            logger.error(f"Error updating product status: {str(e)}")
             raise
 
     @ui_operation(show_dialog=True)
@@ -494,7 +525,9 @@ class ProductView(QWidget):
             search_term = self.search_input.text().strip()
             search_term = validate_string(search_term, max_length=100)
             # Get fresh data and apply new search
-            fresh_products = self.product_service.get_all_products()
+            fresh_products = self.product_service.get_all_products(
+                active_only=not self.show_archived_checkbox.isChecked()
+            )
             self.filter_products(products=fresh_products, search_term=search_term)
         finally:
             QApplication.restoreOverrideCursor()
@@ -516,7 +549,12 @@ class ProductView(QWidget):
 
             # Only fetch all products if no products were provided
             if products is None:
-                products = self.product_service.get_all_products() or []
+                products = (
+                    self.product_service.get_all_products(
+                        active_only=not self.show_archived_checkbox.isChecked()
+                    )
+                    or []
+                )
 
             search_term = search_term.lower()
 
@@ -544,7 +582,9 @@ class ProductView(QWidget):
         """Refresh the product view while maintaining current filters."""
         try:
             QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-            fresh_products = self.product_service.get_all_products()
+            fresh_products = self.product_service.get_all_products(
+                active_only=not self.show_archived_checkbox.isChecked()
+            )
             self.filter_products(products=fresh_products)
         except Exception as e:
             logger.error(f"Error in refresh: {str(e)}")
@@ -577,45 +617,28 @@ class ProductView(QWidget):
             if row < 0:  # No valid row selected
                 return
 
+            product_id = int(self.product_table.item(row, 0).text())
+            product = self.product_service.get_product(product_id)
+            if product is None:
+                raise NotFoundException(f"Product with ID {product_id} not found.")
+
             menu = QMenu()
             edit_action = menu.addAction("Editar")
-            delete_action = menu.addAction("Eliminar")
+            delete_action = menu.addAction(
+                "Eliminar" if product.is_active else "Restaurar"
+            )
             refresh_action = menu.addAction("Actualizar")
 
             action = menu.exec(self.product_table.mapToGlobal(position))
-            if action:
-                product_id = int(self.product_table.item(row, 0).text())
-                try:
-                    product = self.product_service.get_product(product_id)
-                    if product is None:
-                        raise NotFoundException(
-                            f"Product with ID {product_id} not found."
-                        )
-
-                    if action == edit_action:
-                        self.edit_product(product)
-                    elif action == delete_action:
-                        if product:
-                            self.delete_product(product)
-                    elif action == refresh_action:
-                        self.filter_products()
-                except Exception as e:
-                    logger.error(f"Error in context menu action: {str(e)}")
-                    show_error_message("Error", str(e))
+            if action == edit_action:
+                self.edit_product(product)
+            elif action == delete_action:
+                self.delete_product(product)
+            elif action == refresh_action:
+                self.filter_products()
         except Exception as e:
             logger.error(f"Error showing context menu: {str(e)}")
             show_error_message("Error", "Error al mostrar el menú contextual")
-            if action:
-                if action == edit_action:
-                    self.edit_product(product)
-                elif action == delete_action and product:
-                    self.delete_product(product)
-                elif action == refresh_action:
-                    self.filter_products()
-                else:
-                    show_error_message(
-                        "Error", f"No se encontró producto con ID {product_id}"
-                    )
 
     @ui_operation(show_dialog=True)
     def export_products(self):

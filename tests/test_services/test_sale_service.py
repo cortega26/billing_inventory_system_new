@@ -7,9 +7,7 @@ from services.customer_service import CustomerService
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
 from services.sale_service import SaleService
-from utils.exceptions import (
-    ValidationException,
-)
+from utils.exceptions import NotFoundException, ValidationException
 
 
 @pytest.fixture
@@ -85,6 +83,9 @@ def sample_sale_data(sample_product, sample_customer):
 
 
 class TestSaleService:
+    def test_get_sale_missing_returns_none(self, sale_service):
+        assert sale_service.get_sale(999999) is None
+
     def test_create_sale(
         self, sale_service, sample_sale_data, inventory_service, sample_product
     ):
@@ -237,7 +238,7 @@ class TestSaleService:
         customer_service.delete_customer(sample_customer.id)
 
         sale = sale_service.get_sale(sale_id)
-        assert sale.customer_id is None
+        assert sale.customer_id == sample_customer.id
         assert len(sale.items) == 1
 
     def test_update_historical_sale_is_allowed(
@@ -300,6 +301,42 @@ class TestSaleService:
         assert sale.items[0].quantity == 2.0
         assert inventory.quantity == 8.0
 
+    def test_update_sale_insufficient_inventory_fails_before_mutation(
+        self,
+        sale_service,
+        sample_sale_data,
+        inventory_service,
+        sample_product,
+        monkeypatch,
+    ):
+        inventory_service.update_quantity(sample_product.id, 10.0)
+        sale_id = sale_service.create_sale(**sample_sale_data)
+
+        def _should_not_update_sale(*args, **kwargs):
+            raise AssertionError("_update_sale should not run on pre-check failure")
+
+        monkeypatch.setattr(
+            SaleService,
+            "_update_sale",
+            staticmethod(_should_not_update_sale),
+        )
+
+        with pytest.raises(ValidationException, match="Insufficient inventory"):
+            sale_service.update_sale(
+                sale_id,
+                sample_sale_data["customer_id"],
+                sample_sale_data["date"],
+                [
+                    {
+                        "product_id": sample_product.id,
+                        "quantity": 11,
+                        "sell_price": sample_product.sell_price,
+                        "profit": 11
+                        * (sample_product.sell_price - sample_product.cost_price),
+                    }
+                ],
+            )
+
 
 class TestCancelSale:
     def test_cancel_sale_sets_status_cancelled(
@@ -339,10 +376,23 @@ class TestCancelSale:
             sale_service.cancel_sale(sale_id)
 
     def test_cancel_nonexistent_sale_raises(self, sale_service):
-        from utils.exceptions import NotFoundException
-
         with pytest.raises(NotFoundException):
             sale_service.cancel_sale(99999)
+
+    def test_delete_nonexistent_sale_raises_not_found(self, sale_service):
+        with pytest.raises(NotFoundException):
+            sale_service.delete_sale(99999)
+
+    def test_update_nonexistent_sale_raises_not_found(
+        self, sale_service, sample_sale_data
+    ):
+        with pytest.raises(NotFoundException):
+            sale_service.update_sale(
+                99999,
+                sample_sale_data["customer_id"],
+                sample_sale_data["date"],
+                sample_sale_data["items"],
+            )
 
     def test_cancel_sale_preserves_record(
         self, sale_service, sample_sale_data, inventory_service, sample_product

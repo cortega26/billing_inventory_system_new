@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from database.database_manager import DatabaseManager
 from models.customer import Customer
+from services.audit_service import AuditService
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import DatabaseException, NotFoundException, ValidationException
 from utils.sanitizers import sanitize_html, sanitize_sql
@@ -57,11 +58,22 @@ class CustomerService:
         query = "INSERT INTO customers (identifier_9, name) VALUES (?, ?)"
         params = (identifier_9, name)
         try:
-            cursor = DatabaseManager.execute_query(query, params)
-            customer_id = cursor.lastrowid
+            with DatabaseManager.transaction():
+                cursor = DatabaseManager.execute_query(query, params)
+                customer_id = cursor.lastrowid
 
-            if customer_id is not None and identifier_3or4:
-                self.update_identifier_3or4(customer_id, identifier_3or4)
+                if customer_id is not None:
+                    self._set_identifier_3or4(customer_id, identifier_3or4)
+                    AuditService.log_operation(
+                        "create_customer",
+                        "customer",
+                        customer_id,
+                        {
+                            "identifier_9": identifier_9,
+                            "has_name": name is not None,
+                            "identifier_3or4": identifier_3or4,
+                        },
+                    )
 
             self.clear_cache()
             logger.info(
@@ -117,15 +129,16 @@ class CustomerService:
         customer_id = validate_integer(customer_id, min_value=1)
         if identifier_3or4 is not None:
             identifier_3or4 = validate_identifier_3or4(sanitize_html(identifier_3or4))
-
-        delete_query = "DELETE FROM customer_identifiers WHERE customer_id = ?"
-        insert_query = "INSERT INTO customer_identifiers (customer_id, identifier_3or4) VALUES (?, ?)"
+        self._require_customer(customer_id)
 
         try:
-            DatabaseManager.execute_query(delete_query, (customer_id,))
-            if identifier_3or4:
-                DatabaseManager.execute_query(
-                    insert_query, (customer_id, identifier_3or4)
+            with DatabaseManager.transaction():
+                self._set_identifier_3or4(customer_id, identifier_3or4)
+                AuditService.log_operation(
+                    "update_customer_identifier",
+                    "customer",
+                    customer_id,
+                    {"identifier_3or4": identifier_3or4},
                 )
             logger.info(
                 "Customer 3or4 identifier updated",
@@ -136,12 +149,23 @@ class CustomerService:
                 "Failed to update customer 3or4 identifier",
                 extra={"error": str(e), "customer_id": customer_id},
             )
+            if isinstance(e, (NotFoundException, ValidationException)):
+                raise
             raise DatabaseException(
                 f"Failed to update customer 3or4 identifier: {str(e)}"
             )
 
         self.clear_cache()
         event_system.customer_updated.emit(customer_id)
+
+    @staticmethod
+    def _set_identifier_3or4(customer_id: int, identifier_3or4: Optional[str]) -> None:
+        delete_query = "DELETE FROM customer_identifiers WHERE customer_id = ?"
+        insert_query = "INSERT INTO customer_identifiers (customer_id, identifier_3or4) VALUES (?, ?)"
+
+        DatabaseManager.execute_query(delete_query, (customer_id,))
+        if identifier_3or4:
+            DatabaseManager.execute_query(insert_query, (customer_id, identifier_3or4))
 
     @db_operation(show_dialog=True)
     def get_customer(self, customer_id: int) -> Optional[Customer]:
@@ -152,10 +176,9 @@ class CustomerService:
             customer_id (int): The customer ID.
 
         Returns:
-            Optional[Customer]: The customer if found.
+            Optional[Customer]: The customer if found, otherwise None.
 
         Raises:
-            NotFoundException: If customer not found.
             DatabaseException: If database operation fails.
         """
         customer_id = validate_integer(customer_id, min_value=1)
@@ -172,43 +195,32 @@ class CustomerService:
         logger.debug("Customer retrieved", extra={"customer_id": customer_id})
         return Customer.from_db_row(row)
 
+    def _require_customer(self, customer_id: int) -> Customer:
+        customer = self.get_customer(customer_id)
+        if customer is not None:
+            return customer
+
+        raise NotFoundException(f"Customer with ID {customer_id} not found")
+
     @lru_cache(maxsize=100)
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_all_customers(self) -> List[Customer]:
-        """
-        Get all customers.
-
-        Returns:
-            List[Customer]: List of all customers.
-
-        Raises:
-            DatabaseException: If database operation fails.
-        """
+    def get_all_customers(self, active_only: bool = True) -> List[Customer]:
+        """Get all customers, optionally including archived records."""
         query = """
         SELECT c.*, ci.identifier_3or4
         FROM customers c
         LEFT JOIN customer_identifiers ci ON c.id = ci.customer_id
+        WHERE (? = 0 OR c.is_active = 1)
         ORDER BY c.identifier_9
         """
         try:
-            # *** new log statement ***
-            logger.debug(f"[get_all_customers] Executing SQL: {query}")
-
-            rows = DatabaseManager.fetch_all(query)
-
-            # *** new log statement ***
-            logger.debug(
-                f"[get_all_customers] Fetched {len(rows)} rows from DB. Example row: {rows[0] if rows else 'no rows'}"
-            )
-
+            rows = DatabaseManager.fetch_all(query, (1 if active_only else 0,))
             customers = [Customer.from_db_row(row) for row in rows]
-
-            # *** new log statement ***
-            for i, cust in enumerate(customers[:5]):  # just log first 5 for brevity
-                logger.debug(f"[get_all_customers] Customer #{i} => ID={cust.id}...")
-
-            logger.info("All customers retrieved", extra={"count": len(customers)})
+            logger.info(
+                "Customers retrieved",
+                extra={"count": len(customers), "active_only": active_only},
+            )
             return customers
         except Exception as e:
             logger.error(f"Error fetching all customers: {str(e)}")
@@ -222,6 +234,7 @@ class CustomerService:
 
         try:
             customer_id = validate_integer(customer_id, min_value=1)
+            self._require_customer(customer_id)
             customer_updates = {}
 
             # Debug log the validation steps
@@ -241,99 +254,142 @@ class CustomerService:
                 identifier_9 = validate_identifier_9(kwargs["identifier_9"])
                 customer_updates["identifier_9"] = identifier_9
 
-            # Log the SQL query before execution
-            if customer_updates:
-                update_fields = []
-                params = []
-                for key, value in customer_updates.items():
-                    update_fields.append(f"{key} = ?")
-                    params.append(value)
-
-                query = """
-                    UPDATE customers 
-                    SET {} 
-                    WHERE id = ?
-                """.format(", ".join(update_fields))
-                params.append(customer_id)
-
-                # Debug log the actual SQL and parameters
-                logger.debug(f"[update_customer] Executing SQL: {query}")
-                logger.debug(f"[update_customer] With parameters: {params}")
-
-                DatabaseManager.execute_query(query, tuple(params))
-
-            # Handle identifier_3or4 separately
-            if "identifier_3or4" in kwargs:
+            updated_fields = list(customer_updates.keys())
+            identifier_3or4 = None
+            has_identifier_update = "identifier_3or4" in kwargs
+            if has_identifier_update:
                 logger.debug(
                     f"[update_customer] Handling identifier_3or4: {kwargs['identifier_3or4']}"
                 )
                 identifier_3or4 = kwargs["identifier_3or4"]
                 if identifier_3or4:
                     identifier_3or4 = validate_identifier_3or4(identifier_3or4)
-                self.update_identifier_3or4(customer_id, identifier_3or4)
+
+            with DatabaseManager.transaction():
+                if customer_updates:
+                    update_fields = []
+                    params = []
+                    for key, value in customer_updates.items():
+                        update_fields.append(f"{key} = ?")
+                        params.append(value)
+
+                    query = """
+                        UPDATE customers 
+                        SET {} 
+                        WHERE id = ?
+                    """.format(", ".join(update_fields))
+                    params.append(customer_id)
+
+                    logger.debug(f"[update_customer] Executing SQL: {query}")
+                    logger.debug(f"[update_customer] With parameters: {params}")
+
+                    DatabaseManager.execute_query(query, tuple(params))
+
+                if has_identifier_update:
+                    self._set_identifier_3or4(customer_id, identifier_3or4)
+                    updated_fields.append("identifier_3or4")
+
+                if updated_fields:
+                    AuditService.log_operation(
+                        "update_customer",
+                        "customer",
+                        customer_id,
+                        {"updated_fields": updated_fields},
+                    )
 
             logger.debug("[update_customer] Update completed successfully")
             self.clear_cache()
+            event_system.customer_updated.emit(customer_id)
 
         except Exception as e:
             logger.error(f"[update_customer] Error: {str(e)}", extra={"exc_info": True})
+            if isinstance(e, (NotFoundException, ValidationException)):
+                raise
             raise DatabaseException(f"Failed to update customer: {str(e)}")
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
     def delete_customer(self, customer_id: int) -> None:
-        """
-        Delete a customer.
-
-        Args:
-            customer_id (int): The customer ID.
-
-        Raises:
-            DatabaseException: If database operation fails.
-            NotFoundException: If customer not found.
-        """
+        """Archive a customer instead of deleting historical data."""
         customer_id = validate_integer(customer_id, min_value=1)
-        query = "DELETE FROM customers WHERE id = ?"
+        query = """
+        UPDATE customers
+        SET is_active = 0,
+            deleted_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+        """
         try:
-            cursor = DatabaseManager.execute_query(query, (customer_id,))
-            if cursor.rowcount == 0:
-                raise NotFoundException(f"Customer with ID {customer_id} not found")
-            DatabaseManager.execute_query(
-                "DELETE FROM customer_identifiers WHERE customer_id = ?", (customer_id,)
-            )
-            logger.info("Customer deleted", extra={"customer_id": customer_id})
+            with DatabaseManager.transaction():
+                cursor = DatabaseManager.execute_query(query, (customer_id,))
+                if cursor.rowcount == 0:
+                    raise NotFoundException(f"Customer with ID {customer_id} not found")
+                AuditService.log_operation(
+                    "delete_customer",
+                    "customer",
+                    customer_id,
+                    {"mode": "archive"},
+                )
+            logger.info("Customer archived", extra={"customer_id": customer_id})
             self.clear_cache()
             event_system.customer_deleted.emit(customer_id)
         except Exception as e:
             logger.error(
-                "Failed to delete customer",
+                "Failed to archive customer",
                 extra={"error": str(e), "customer_id": customer_id},
             )
-            raise DatabaseException(f"Failed to delete customer: {str(e)}")
+            if isinstance(e, NotFoundException):
+                raise
+            raise DatabaseException(f"Failed to archive customer: {str(e)}")
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_customer_by_identifier_9(self, identifier_9: str) -> Optional[Customer]:
+    def restore_customer(self, customer_id: int) -> None:
+        """Restore an archived customer."""
+        customer_id = validate_integer(customer_id, min_value=1)
+        query = """
+        UPDATE customers
+        SET is_active = 1,
+            deleted_at = NULL
+        WHERE id = ?
         """
-        Get a customer by their 9-digit identifier.
+        try:
+            with DatabaseManager.transaction():
+                cursor = DatabaseManager.execute_query(query, (customer_id,))
+                if cursor.rowcount == 0:
+                    raise NotFoundException(f"Customer with ID {customer_id} not found")
+                AuditService.log_operation(
+                    "restore_customer",
+                    "customer",
+                    customer_id,
+                    None,
+                )
+            logger.info("Customer restored", extra={"customer_id": customer_id})
+            self.clear_cache()
+            event_system.customer_updated.emit(customer_id)
+        except Exception as e:
+            logger.error(
+                "Failed to restore customer",
+                extra={"error": str(e), "customer_id": customer_id},
+            )
+            if isinstance(e, NotFoundException):
+                raise
+            raise DatabaseException(f"Failed to restore customer: {str(e)}")
 
-        Args:
-            identifier_9 (str): The 9-digit identifier.
-
-        Returns:
-            Optional[Customer]: The customer if found.
-
-        Raises:
-            DatabaseException: If database operation fails.
-        """
+    @db_operation(show_dialog=True)
+    @handle_exceptions(DatabaseException, show_dialog=True)
+    def get_customer_by_identifier_9(
+        self, identifier_9: str, active_only: bool = True
+    ) -> Optional[Customer]:
+        """Get a customer by their 9-digit identifier."""
         identifier_9 = validate_identifier_9(identifier_9)
         query = """
         SELECT c.*, ci.identifier_3or4
         FROM customers c
         LEFT JOIN customer_identifiers ci ON c.id = ci.customer_id
         WHERE c.identifier_9 = ?
+          AND (? = 0 OR c.is_active = 1)
         """
-        row = DatabaseManager.fetch_one(query, (identifier_9,))
+        row = DatabaseManager.fetch_one(query, (identifier_9, 1 if active_only else 0))
         if row:
             logger.info(
                 "Customer retrieved by identifier_9",
@@ -349,7 +405,9 @@ class CustomerService:
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_customers_by_identifier_3or4(self, identifier_3or4: str) -> List[Customer]:
+    def get_customers_by_identifier_3or4(
+        self, identifier_3or4: str, active_only: bool = True
+    ) -> List[Customer]:
         """
         Get customers by their 3 or 4-digit identifier.
         Returns a list of unique customers based on identifier_9.
@@ -369,10 +427,13 @@ class CustomerService:
         FROM customers c
         JOIN customer_identifiers ci ON c.id = ci.customer_id
         WHERE ci.identifier_3or4 = ?
+          AND (? = 0 OR c.is_active = 1)
         ORDER BY c.identifier_9
         """
         try:
-            rows = DatabaseManager.fetch_all(query, (identifier_3or4,))
+            rows = DatabaseManager.fetch_all(
+                query, (identifier_3or4, 1 if active_only else 0)
+            )
             customers = [Customer.from_db_row(row) for row in rows]
 
             # Remove duplicates based on identifier_9
@@ -436,7 +497,9 @@ class CustomerService:
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def search_customers(self, search_term: str) -> List[Customer]:
+    def search_customers(
+        self, search_term: str, active_only: bool = True
+    ) -> List[Customer]:
         """
         Search customers by name or identifier.
 
@@ -454,16 +517,21 @@ class CustomerService:
         SELECT DISTINCT c.*, ci.identifier_3or4
         FROM customers c
         LEFT JOIN customer_identifiers ci ON c.id = ci.customer_id
-        WHERE c.identifier_9 LIKE ? 
-           OR ci.identifier_3or4 LIKE ?
-           OR (c.name IS NOT NULL AND LOWER(c.name) LIKE LOWER(?))
+        WHERE (
+            c.identifier_9 LIKE ?
+            OR ci.identifier_3or4 LIKE ?
+            OR (c.name IS NOT NULL AND LOWER(c.name) LIKE LOWER(?))
+        )
+        AND (? = 0 OR c.is_active = 1)
         """
         # For name search, only match from start
         name_pattern = f"{sanitize_sql(search_term)}%"
         # For identifiers, match anywhere
         id_pattern = f"%{sanitize_sql(search_term)}%"
 
-        rows = DatabaseManager.fetch_all(query, (id_pattern, id_pattern, name_pattern))
+        rows = DatabaseManager.fetch_all(
+            query, (id_pattern, id_pattern, name_pattern, 1 if active_only else 0)
+        )
         customers = [Customer.from_db_row(row) for row in rows]
         logger.info(
             "Customers searched",

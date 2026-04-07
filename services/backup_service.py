@@ -1,4 +1,5 @@
 import sqlite3
+import shutil
 import threading
 import time
 from datetime import datetime
@@ -7,6 +8,7 @@ from typing import Optional
 
 from config import DATABASE_PATH, config
 from database.database_manager import DatabaseManager
+from utils.system.event_system import event_system
 from utils.system.logger import logger
 
 
@@ -51,6 +53,23 @@ class BackupService:
                 return None
 
             backup_dir = self.get_backup_dir()
+
+            # Try to free space before creating a new backup file.
+            self.cleanup_old_backups()
+
+            if not self._has_minimum_free_space(backup_dir):
+                logger.error(
+                    "Skipping backup: not enough free disk space in backup directory"
+                )
+                event_system.emit_event(
+                    "backup_skipped",
+                    {
+                        "reason": "low_disk_space",
+                        "backup_dir": str(backup_dir),
+                    },
+                )
+                return None
+
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             backup_filename = f"backup_{timestamp}_{db_path.name}"
             backup_path = backup_dir / backup_filename
@@ -68,9 +87,6 @@ class BackupService:
                 logger.info(
                     f"Backup created successfully (sqlite3 backup): {backup_path}"
                 )
-
-                # Also cleanup old backups after creating a new one
-                self.cleanup_old_backups()
 
                 return str(backup_path)
             finally:
@@ -155,6 +171,25 @@ class BackupService:
             return time_since_last >= interval_seconds
         except Exception:
             return True
+
+    def _has_minimum_free_space(self, backup_dir: Path) -> bool:
+        """Return True when free disk space in backup directory is above threshold."""
+        min_free_mb = config.get("backup_min_free_mb", 1024)
+        try:
+            min_free_bytes = int(min_free_mb) * 1024 * 1024
+        except (TypeError, ValueError):
+            logger.warning(
+                f"Invalid backup_min_free_mb config value '{min_free_mb}'. Using default 1024 MB."
+            )
+            min_free_bytes = 1024 * 1024 * 1024
+
+        free_bytes = shutil.disk_usage(backup_dir).free
+        if free_bytes < min_free_bytes:
+            logger.error(
+                f"Low disk space for backup. free={free_bytes} bytes required={min_free_bytes} bytes"
+            )
+            return False
+        return True
 
 
 backup_service = BackupService()

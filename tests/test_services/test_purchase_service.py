@@ -1,14 +1,25 @@
 from datetime import date
+import inspect
 
 import pytest
 
 from database.database_manager import DatabaseManager
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
+from services.purchase_query_service import PurchaseQueryService
 from services.purchase_service import PurchaseService
-from utils.exceptions import (
-    ValidationException,
-)
+from utils.system.event_system import event_system
+from utils.exceptions import NotFoundException, ValidationException
+
+
+def capture_signal(signal):
+    payloads = []
+
+    def handler(payload=None):
+        payloads.append(payload)
+
+    signal.connect(handler)
+    return payloads, handler
 
 
 @pytest.fixture
@@ -70,6 +81,9 @@ def sample_purchase_data(sample_product):
 
 
 class TestPurchaseService:
+    def test_get_purchase_missing_returns_none(self, purchase_service):
+        assert purchase_service.get_purchase(999999) is None
+
     def test_create_purchase(
         self, purchase_service, sample_purchase_data, inventory_service, sample_product
     ):
@@ -176,3 +190,108 @@ class TestPurchaseService:
         assert len(purchase.items) == 1
         assert purchase.items[0].quantity == 10.0
         assert inventory.quantity == 10.0
+
+    def test_delete_purchase_missing_id_raises_not_found(self, purchase_service):
+        with pytest.raises(NotFoundException):
+            purchase_service.delete_purchase(999999)
+
+    def test_update_purchase_missing_id_raises_not_found(
+        self, purchase_service, sample_purchase_data
+    ):
+        with pytest.raises(NotFoundException):
+            purchase_service.update_purchase(
+                999999,
+                sample_purchase_data["supplier"],
+                sample_purchase_data["date"],
+                sample_purchase_data["items"],
+            )
+
+    def test_create_purchase_emits_purchase_and_inventory_events_once(
+        self, purchase_service, sample_purchase_data, sample_product
+    ):
+        purchase_payloads, purchase_handler = capture_signal(event_system.purchase_added)
+        inventory_payloads, inventory_handler = capture_signal(
+            event_system.inventory_changed
+        )
+
+        try:
+            purchase_id = purchase_service.create_purchase(**sample_purchase_data)
+
+            assert purchase_payloads == [purchase_id]
+            assert inventory_payloads == [sample_product.id]
+        finally:
+            event_system.purchase_added.disconnect(purchase_handler)
+            event_system.inventory_changed.disconnect(inventory_handler)
+
+    def test_update_purchase_emits_purchase_updated_and_inventory_events_once(
+        self, purchase_service, sample_purchase_data, sample_product
+    ):
+        purchase_id = purchase_service.create_purchase(**sample_purchase_data)
+        purchase_payloads, purchase_handler = capture_signal(
+            event_system.purchase_updated
+        )
+        inventory_payloads, inventory_handler = capture_signal(
+            event_system.inventory_changed
+        )
+
+        try:
+            purchase_service.update_purchase(
+                purchase_id,
+                sample_purchase_data["supplier"],
+                sample_purchase_data["date"],
+                [
+                    {
+                        "product_id": sample_product.id,
+                        "quantity": 5,
+                        "cost_price": 850,
+                    }
+                ],
+            )
+
+            assert purchase_payloads == [purchase_id]
+            assert inventory_payloads == [sample_product.id]
+        finally:
+            event_system.purchase_updated.disconnect(purchase_handler)
+            event_system.inventory_changed.disconnect(inventory_handler)
+
+    def test_delete_purchase_emits_purchase_deleted_and_inventory_events_once(
+        self, purchase_service, sample_purchase_data, sample_product
+    ):
+        purchase_id = purchase_service.create_purchase(**sample_purchase_data)
+        purchase_payloads, purchase_handler = capture_signal(
+            event_system.purchase_deleted
+        )
+        inventory_payloads, inventory_handler = capture_signal(
+            event_system.inventory_changed
+        )
+
+        try:
+            purchase_service.delete_purchase(purchase_id)
+
+            assert purchase_payloads == [purchase_id]
+            assert inventory_payloads == [sample_product.id]
+        finally:
+            event_system.purchase_deleted.disconnect(purchase_handler)
+            event_system.inventory_changed.disconnect(inventory_handler)
+
+    def test_purchase_service_declares_get_product_ids_once(self):
+        source = inspect.getsource(PurchaseService)
+        assert source.count("def _get_product_ids") == 1
+
+    def test_purchase_query_service_reads_history_with_items(
+        self, purchase_service, sample_purchase_data, sample_product
+    ):
+        purchase_id = purchase_service.create_purchase(**sample_purchase_data)
+
+        history = PurchaseQueryService.get_purchase_history(
+            sample_purchase_data["date"], sample_purchase_data["date"]
+        )
+
+        assert [purchase.id for purchase in history] == [purchase_id]
+        assert history[0].items[0].product_id == sample_product.id
+
+    def test_validate_purchase_items_rejects_excess_precision(self):
+        with pytest.raises(ValidationException, match="decimal places"):
+            PurchaseService._validate_purchase_items(
+                [{"product_id": 1, "quantity": 1.2345, "cost_price": 900}]
+            )

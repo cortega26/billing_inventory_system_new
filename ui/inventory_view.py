@@ -4,6 +4,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -26,7 +27,6 @@ from services.product_service import ProductService
 from utils.decorators import handle_exceptions, ui_operation
 from utils.exceptions import DatabaseException, UIException, ValidationException
 from utils.helpers import create_table, show_error_message, show_info_message
-from utils.system.event_system import event_system
 from utils.ui.table_items import NumericTableWidgetItem
 
 
@@ -254,12 +254,17 @@ class InventoryView(QWidget):
             actions_widget = QWidget()
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(0, 0, 0, 0)
+            actions_layout.setSpacing(6)
+            actions_layout.setAlignment(Qt.AlignCenter)
 
             edit_btn = QPushButton("Editar")
+            edit_btn.setFixedWidth(80)
+            edit_btn.setStyleSheet("padding: 2px 8px;")
             edit_btn.clicked.connect(lambda _, i=item: self.edit_inventory(i))
             actions_layout.addWidget(edit_btn)
 
             self.inventory_table.setCellWidget(row, 5, actions_widget)
+            self.inventory_table.setRowHeight(row, 36)
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(
@@ -270,14 +275,12 @@ class InventoryView(QWidget):
         if dialog.exec():
             data = dialog.get_data()
             if data["adjustment"] != 0:
-                self.inventory_service.adjust_stock(
+                self.inventory_service.update_quantity(
                     product_id=item["product_id"],
                     quantity_change=data["adjustment"],
-                    reason=data["reason"] or "Ajuste manual",
                 )
                 self.load_inventory()
                 show_info_message("Éxito", "Inventario actualizado correctamente")
-                event_system.inventory_updated.emit()
 
     def handle_barcode_scan(self):
         barcode = self.barcode_input.text().strip()
@@ -357,7 +360,3 @@ class InventoryView(QWidget):
             )
             if item:
                 self.edit_inventory(item)
-
-
-# Use for QApplication reference in static methods if needed or imports
-from PySide6.QtWidgets import QApplication

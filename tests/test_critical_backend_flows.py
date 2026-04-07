@@ -1,5 +1,6 @@
 import pytest
 
+from services.audit_service import AuditService
 from models.enums import (
     MAX_PRICE_CLP,
 )
@@ -72,6 +73,9 @@ class TestCriticalBackendFlows:
         inventory = self.inventory_service.get_inventory(self.prod_id)
         assert inventory.quantity == 100.0
 
+        operations = [entry["operation"] for entry in AuditService.get_entries()]
+        assert operations == ["create_product", "create_customer", "create_purchase", "create_sale", "delete_sale"]
+
     def test_inventory_constraints_negative_stock(self):
         """Verify that selling more than available stock raises an error."""
         # Initial stock 0
@@ -95,6 +99,7 @@ class TestCriticalBackendFlows:
         assert "Inventory cannot be negative" in str(
             excinfo.value
         ) or "constraint failed" in str(excinfo.value)
+        assert AuditService.get_entries(entity_type="sale", operation="create_sale") == []
 
     def test_precision_enforcement(self):
         """Verify that strictly more than QUANTITY_PRECISION decimal places raises error."""
@@ -154,3 +159,18 @@ class TestCriticalBackendFlows:
         inventory = self.inventory_service.get_inventory(self.prod_id)
         assert sale.items[0].quantity == 2.0
         assert inventory.quantity == 98.0
+
+        audit_entries = AuditService.get_entries(
+            entity_type="sale", entity_id=sale_id, operation="update_sale"
+        )
+        assert len(audit_entries) == 1
+
+    def test_inventory_adjustment_writes_audit_log(self):
+        self.inventory_service.adjust_inventory(self.prod_id, 5.0, "conteo")
+
+        audit_entries = AuditService.get_entries(
+            entity_type="inventory",
+            entity_id=self.prod_id,
+            operation="adjust_inventory",
+        )
+        assert len(audit_entries) == 1

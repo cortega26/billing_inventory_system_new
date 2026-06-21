@@ -1,13 +1,19 @@
 from typing import Any, Callable, Dict, Optional, Sequence
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLabel, QHBoxLayout, QPushButton, QTableWidget, QTableWidgetItem, QWidget
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QWidget,
+)
 
 from models.customer import Customer
 from models.sale import Sale
 from utils.helpers import format_price
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
-
 
 RemoveSaleItemHandler = Callable[[int], None]
 SaleActionHandler = Callable[[Optional[Sale]], None]

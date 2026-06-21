@@ -124,7 +124,10 @@ class DashboardView(QWidget):
 
         layout.addLayout(self.charts_layout)
 
-        # Bottom row: Low Stock Alerts
+        # Bottom row: Low Stock Alerts and Backup Status
+        bottom_layout = QHBoxLayout()
+
+        # Left side: Low Stock Alerts
         low_stock_layout = QVBoxLayout()
         low_stock_label = QLabel("Alerta Stock Bajo (< 10 unidades)")
         low_stock_label.setStyleSheet("font-weight: bold; font-size: 14px;")
@@ -136,13 +139,56 @@ class DashboardView(QWidget):
         )
         self.low_stock_table.setMinimumHeight(150)
         low_stock_layout.addWidget(self.low_stock_table)
+        bottom_layout.addLayout(low_stock_layout, 2)
 
-        layout.addLayout(low_stock_layout)
+        # Right side: Backup Status
+        backup_layout = QVBoxLayout()
+        backup_title = QLabel("Copia de Seguridad (Backup)")
+        backup_title.setStyleSheet("font-weight: bold; font-size: 14px;")
+        backup_layout.addWidget(backup_title)
+
+        self.backup_card = QFrame()
+        self.backup_card.setFrameShape(QFrame.Shape.Box)
+        self.backup_card.setProperty("class", "card")
+        self.backup_card.setMinimumHeight(150)
+
+        backup_card_layout = QVBoxLayout(self.backup_card)
+        backup_card_layout.setSpacing(6)
+
+        self.backup_status_indicator = QLabel()
+        self.backup_status_indicator.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.backup_status_indicator.setStyleSheet(
+            "font-weight: bold; font-size: 14px; padding: 6px; border-radius: 4px;"
+        )
+
+        self.last_success_label = QLabel("Último exitoso: -")
+        self.last_success_label.setStyleSheet("font-size: 12px;")
+        self.last_skipped_label = QLabel("Último omitido/fallido: -")
+        self.last_skipped_label.setStyleSheet("font-size: 12px;")
+        self.skipped_reason_label = QLabel("Causa: -")
+        self.skipped_reason_label.setStyleSheet("font-size: 12px; color: #E57373;")
+        self.skipped_reason_label.setWordWrap(True)
+
+        backup_card_layout.addWidget(self.backup_status_indicator)
+        backup_card_layout.addWidget(self.last_success_label)
+        backup_card_layout.addWidget(self.last_skipped_label)
+        backup_card_layout.addWidget(self.skipped_reason_label)
+        backup_card_layout.addStretch()
+
+        backup_layout.addWidget(self.backup_card)
+        bottom_layout.addLayout(backup_layout, 1)
+
+        layout.addLayout(bottom_layout)
 
         self.setLayout(layout)
 
-        # Initial load of low stock
+        # Initial load of data
         self.update_low_stock()
+        self.update_backup_status()
+
+        # Connect to backup events to update in real-time
+        event_system.backup_skipped.connect(self.update_backup_status)
+        event_system.backup_completed.connect(self.update_backup_status)
 
     def update_dashboard(self):
         try:
@@ -171,6 +217,9 @@ class DashboardView(QWidget):
 
             # Update low stock
             self.update_low_stock()
+
+            # Update backup status
+            self.update_backup_status()
 
             logger.info("Dashboard updated successfully")
         except Exception as e:
@@ -220,6 +269,57 @@ class DashboardView(QWidget):
         today = datetime.now().strftime("%Y-%m-%d")
         todays_sales = self.sale_service.get_total_sales(today, today)
         return f"${todays_sales:,.0f}".replace(",", ".")
+
+    @ui_operation()
+    def update_backup_status(self, *args):
+        from config import config
+
+        last_success = config.get("last_backup_success", "")
+        last_skipped = config.get("last_backup_skipped_time", "")
+        skipped_reason = config.get("last_backup_skipped_reason", "")
+
+        def format_date_str(date_str):
+            if not date_str:
+                return "Nunca"
+            try:
+                dt = datetime.fromisoformat(date_str)
+                return dt.strftime("%d/%m/%Y %H:%M:%S")
+            except Exception:
+                return date_str
+
+        self.last_success_label.setText(
+            f"Último exitoso: {format_date_str(last_success)}"
+        )
+        self.last_skipped_label.setText(
+            f"Último omitido/fallido: {format_date_str(last_skipped)}"
+        )
+        self.skipped_reason_label.setText(
+            f"Causa: {skipped_reason if skipped_reason else '-'}"
+        )
+
+        is_at_risk = False
+        if last_skipped:
+            if not last_success:
+                is_at_risk = True
+            else:
+                try:
+                    dt_success = datetime.fromisoformat(last_success)
+                    dt_skipped = datetime.fromisoformat(last_skipped)
+                    if dt_skipped > dt_success:
+                        is_at_risk = True
+                except Exception:
+                    pass
+
+        if is_at_risk:
+            self.backup_status_indicator.setText("⚠️ RIESGO: Backup Omitido/Fallido")
+            self.backup_status_indicator.setStyleSheet(
+                "background-color: #3E2723; color: #E57373; font-weight: bold; font-size: 13px; padding: 6px; border-radius: 4px; border: 1px solid #E57373;"
+            )
+        else:
+            self.backup_status_indicator.setText("✅ Sistema Protegido")
+            self.backup_status_indicator.setStyleSheet(
+                "background-color: #1B5E20; color: #81C784; font-weight: bold; font-size: 13px; padding: 6px; border-radius: 4px; border: 1px solid #81C784;"
+            )
 
     @ui_operation()
     def update_low_stock(self):

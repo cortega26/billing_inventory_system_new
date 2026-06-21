@@ -90,6 +90,7 @@ class EventSystem(QObject):
         object
     )  # Emits True if export was successful, False otherwise
     backup_skipped = Signal(dict)  # Emits metadata when automatic backup is skipped
+    backup_completed = Signal(object)  # Emits backup path or metadata on success
 
     def __init__(self):
         super().__init__()
@@ -115,6 +116,7 @@ class EventSystem(QObject):
             "data_import_completed": self.data_import_completed,
             "data_export_completed": self.data_export_completed,
             "backup_skipped": self.backup_skipped,
+            "backup_completed": self.backup_completed,
         }
 
     def emit_event(self, event_name: str, *args: Any) -> None:

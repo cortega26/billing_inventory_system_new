@@ -5,13 +5,13 @@ from services.analytics.metrics import (
     InventoryAgingMetric,
     LowStockMetric,
     ProductProfitMetric,
-    ProfitTrendMetric,
     ProfitMarginDistributionMetric,
+    ProfitTrendMetric,
     SalesDailyMetric,
     SalesSummaryMetric,
     TopProductsMetric,
-    WeeklyProfitTrendMetric,
     WeekdaySalesMetric,
+    WeeklyProfitTrendMetric,
 )
 
 __all__ = [

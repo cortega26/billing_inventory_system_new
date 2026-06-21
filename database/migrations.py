@@ -4,7 +4,6 @@ from database.database_manager import DatabaseManager
 from utils.exceptions import DatabaseException
 from utils.system.logger import logger
 
-
 SCHEMA_ALTERATIONS = [
     # [M-1] Sales status (cancel without deleting)
     "ALTER TABLE sales ADD COLUMN status TEXT NOT NULL DEFAULT 'confirmed'",

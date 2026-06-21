@@ -2,8 +2,7 @@ import pytest
 
 pytest.importorskip("PySide6", reason="PySide6 not installed")
 
-from PySide6.QtWidgets import QMessageBox
-from PySide6.QtWidgets import QPushButton
+from PySide6.QtWidgets import QMessageBox, QPushButton
 
 from services.product_service import ProductService
 from ui.product_view import ProductView

@@ -3,7 +3,7 @@ import pytest
 from database.database_manager import DatabaseManager
 from services.audit_service import AuditService
 from services.customer_service import CustomerService
-from utils.exceptions import DatabaseException, NotFoundException, ValidationException
+from utils.exceptions import NotFoundException, ValidationException
 from utils.system.event_system import event_system
 
 

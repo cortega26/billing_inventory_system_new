@@ -12,7 +12,6 @@ from utils.decorators import handle_exceptions
 from utils.exceptions import AppException, DatabaseException
 from utils.system.logger import logger
 
-
 STARTUP_GUARD_TABLES = (
     "customers",
     "customer_identifiers",
@@ -178,6 +177,16 @@ if __name__ == "__main__":
 
     try:
         Application.initialize()
+
+        # Intercept with PIN authentication dialog
+        from PySide6.QtWidgets import QDialog
+
+        from ui.login_dialog import LoginDialog
+
+        login = LoginDialog()
+        if login.exec() != QDialog.DialogCode.Accepted:
+            logger.info("Application closed due to failed authentication")
+            sys.exit(0)
 
         # Run the main window setup and execution
         window = MainWindow()

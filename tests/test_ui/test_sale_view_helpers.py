@@ -2,8 +2,6 @@ from types import SimpleNamespace
 
 import pytest
 
-from types import SimpleNamespace
-
 from ui.sale_view import build_customer_display, build_shortcuts_help_text
 from ui.sale_view_support import (
     build_quick_scan_item_data,

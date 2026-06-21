@@ -6,7 +6,6 @@ from utils.exceptions import ValidationException
 from utils.math.financial_calculator import FinancialCalculator
 from utils.system.logger import logger
 
-
 CustomerChooser = Callable[[List[Customer]], Optional[Customer]]
 
 

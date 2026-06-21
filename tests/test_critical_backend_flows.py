@@ -1,9 +1,9 @@
 import pytest
 
-from services.audit_service import AuditService
 from models.enums import (
     MAX_PRICE_CLP,
 )
+from services.audit_service import AuditService
 from services.category_service import CategoryService
 from services.customer_service import CustomerService
 from services.inventory_service import InventoryService

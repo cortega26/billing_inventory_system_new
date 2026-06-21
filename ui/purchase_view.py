@@ -37,7 +37,6 @@ from utils.helpers import (
     show_error_message,
     show_info_message,
 )
-from utils.system.event_system import event_system
 from utils.system.logger import logger
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
 from utils.validation.validators import validate_float, validate_string

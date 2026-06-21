@@ -105,11 +105,11 @@ def mock_database(mocker):
     mock_db.rollback_transaction = mocker.Mock()
 
     # Patch DatabaseManager where it is imported in services
-    mocker.patch("services.product_service.DatabaseManager", mock_db)
-    mocker.patch("services.inventory_service.DatabaseManager", mock_db)
-    mocker.patch("services.sale_service.DatabaseManager", mock_db)
-    mocker.patch("services.purchase_service.DatabaseManager", mock_db)
-    mocker.patch("services.analytics_service.DatabaseManager", mock_db)
+    mocker.patch("services.product_service.DatabaseManager", mock_db, create=True)
+    mocker.patch("services.inventory_service.DatabaseManager", mock_db, create=True)
+    mocker.patch("services.sale_service.DatabaseManager", mock_db, create=True)
+    mocker.patch("services.purchase_service.DatabaseManager", mock_db, create=True)
+    mocker.patch("services.analytics_service.DatabaseManager", mock_db, create=True)
 
     return mock_db
 

@@ -69,3 +69,6 @@ nonexistent.json
 
 #Ignore vscode AI rules
 .github/instructions/codacy.instructions.md
+
+# CodeGraph files
+.codegraph/

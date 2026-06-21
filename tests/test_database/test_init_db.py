@@ -4,7 +4,6 @@ from pathlib import Path
 from database import init_db
 from database.database_manager import DatabaseManager
 
-
 LEGACY_SCHEMA = """
 CREATE TABLE categories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

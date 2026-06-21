@@ -30,6 +30,7 @@ from models.customer import Customer
 from models.product import Product
 from models.sale import Sale
 from services.customer_service import CustomerService
+from services.inventory_service import InventoryService
 from services.product_service import ProductService
 from services.sale_service import SaleService
 from ui.sale_view_support import (
@@ -58,7 +59,7 @@ from utils.helpers import (
 from utils.math.financial_calculator import FinancialCalculator
 from utils.system.logger import logger
 from utils.ui.sound import SoundEffect
-from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
+from utils.ui.table_items import NumericTableWidgetItem
 from utils.validation.validators import validate_date
 
 
@@ -345,6 +346,22 @@ class SaleItemDialog(QDialog):
         # Product name label
         self.product_name_label = QLabel()
         layout.addRow("Producto:", self.product_name_label)
+
+        # Check stock for low stock warning
+        try:
+            inventory_service = InventoryService()
+            inventory = inventory_service.get_inventory(self.product.id)
+            current_stock = inventory.quantity if inventory else 0.0
+            if current_stock < 10:
+                self.stock_warning_label = QLabel(
+                    f"⚠️ ¡Stock bajo! Disponible: {current_stock}"
+                )
+                self.stock_warning_label.setStyleSheet(
+                    "color: #E57373; font-weight: bold;"
+                )
+                layout.addRow("", self.stock_warning_label)
+        except Exception as e:
+            logger.error(f"Error checking stock in dialog: {e}")
 
         # Quantity input - Allow 3 decimal places
         self.quantity_input = QDoubleSpinBox()
@@ -705,6 +722,20 @@ class SaleView(QWidget):
 
                 # Show product dialog or auto-add
                 if self.quick_scan_checkbox.isChecked():
+                    # Check stock for warning
+                    try:
+                        inventory_service = InventoryService()
+                        inventory = inventory_service.get_inventory(product.id)
+                        current_stock = inventory.quantity if inventory else 0.0
+                        if current_stock < 10:
+                            QMessageBox.warning(
+                                self,
+                                "Alerta de Stock Bajo",
+                                f"¡Advertencia! El producto '{product.name}' tiene stock bajo. Disponible: {current_stock} unidades",
+                            )
+                    except Exception as e:
+                        logger.error(f"Error checking stock in quick scan: {e}")
+
                     self.add_sale_item(build_quick_scan_item_data(product))
                 else:
                     # Normal Scan: Show dialog
@@ -849,7 +880,9 @@ class SaleView(QWidget):
         """Update the sale items table display."""
         self.sale_items_table.setRowCount(len(self.sale_items))
         for row, item in enumerate(self.sale_items):
-            render_sale_item_row(self.sale_items_table, row, item, self.remove_sale_item)
+            render_sale_item_row(
+                self.sale_items_table, row, item, self.remove_sale_item
+            )
         update_sale_total_label(self.total_amount_label, self.sale_items)
 
     def search_products(self):

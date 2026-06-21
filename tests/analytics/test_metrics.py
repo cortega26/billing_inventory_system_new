@@ -14,8 +14,8 @@ from services.analytics.metrics import (
     SalesDailyMetric,
     SalesSummaryMetric,
     TopProductsMetric,
-    WeeklyProfitTrendMetric,
     WeekdaySalesMetric,
+    WeeklyProfitTrendMetric,
 )
 
 # --- Fixtures ---

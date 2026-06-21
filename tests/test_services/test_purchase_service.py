@@ -1,5 +1,5 @@
-from datetime import date
 import inspect
+from datetime import date
 
 import pytest
 
@@ -8,8 +8,8 @@ from services.inventory_service import InventoryService
 from services.product_service import ProductService
 from services.purchase_query_service import PurchaseQueryService
 from services.purchase_service import PurchaseService
-from utils.system.event_system import event_system
 from utils.exceptions import NotFoundException, ValidationException
+from utils.system.event_system import event_system
 
 
 def capture_signal(signal):

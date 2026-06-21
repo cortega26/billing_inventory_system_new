@@ -8,8 +8,8 @@ from models.enums import (
 )
 from models.purchase import Purchase
 from services.audit_service import AuditService
-from services.analytics_service import AnalyticsService
 from services.inventory_service import InventoryService
+from services.mutation_coordinator import MutationCoordinator
 from services.purchase_query_service import PurchaseQueryService
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import DatabaseException, NotFoundException, ValidationException
@@ -73,8 +73,11 @@ class PurchaseService:
                 "total_amount": total_amount,
             },
         )
-        PurchaseService._finalize_purchase_mutation(
-            purchase_id, items, event_system.purchase_added
+        MutationCoordinator.finalize_mutation(
+            entity_id=purchase_id,
+            items=items,
+            signal=event_system.purchase_added,
+            service_cache_clear_fn=PurchaseService.clear_cache,
         )
         return purchase_id
 
@@ -127,8 +130,11 @@ class PurchaseService:
                 "DELETE FROM purchases WHERE id = ?", (purchase_id,)
             )
         logger.info("Purchase deleted", extra={"purchase_id": purchase_id})
-        PurchaseService._finalize_purchase_mutation(
-            purchase_id, items, event_system.purchase_deleted
+        MutationCoordinator.finalize_mutation(
+            entity_id=purchase_id,
+            items=items,
+            signal=event_system.purchase_deleted,
+            service_cache_clear_fn=PurchaseService.clear_cache,
         )
 
     @staticmethod
@@ -188,8 +194,11 @@ class PurchaseService:
                 "total_amount": total_amount,
             },
         )
-        PurchaseService._finalize_purchase_mutation(
-            purchase_id, [*old_items, *items], event_system.purchase_updated
+        MutationCoordinator.finalize_mutation(
+            entity_id=purchase_id,
+            items=[*old_items, *items],
+            signal=event_system.purchase_updated,
+            service_cache_clear_fn=PurchaseService.clear_cache,
         )
 
     @staticmethod
@@ -226,17 +235,6 @@ class PurchaseService:
         except (ValueError, TypeError) as e:
             raise ValidationException(f"Invalid item data: {str(e)}")
 
-    @staticmethod
-    def _finalize_purchase_mutation(
-        purchase_id: int, items: List[Any], signal: Any
-    ) -> None:
-        """Refresh caches and emit post-commit events for purchase mutations."""
-        InventoryService.clear_cache()
-        AnalyticsService.clear_cache()
-        for product_id in PurchaseService._get_product_ids(items):
-            event_system.inventory_changed.emit(product_id)
-        PurchaseService.clear_cache()
-        signal.emit(purchase_id)
 
     @staticmethod
     def _get_product_ids(items: List[Any]) -> List[int]:

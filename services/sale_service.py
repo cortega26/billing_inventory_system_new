@@ -6,9 +6,9 @@ from database.database_manager import DatabaseManager
 from models.enums import MAX_SALE_ITEMS, QUANTITY_PRECISION
 from models.sale import Sale, SaleItem
 from services.audit_service import AuditService
-from services.analytics_service import AnalyticsService
 from services.customer_service import CustomerService
 from services.inventory_service import InventoryService
+from services.mutation_coordinator import MutationCoordinator
 from services.product_service import ProductService
 from services.receipt_service import ReceiptService
 from utils.decorators import db_operation, handle_exceptions
@@ -113,7 +113,12 @@ class SaleService:
                     },
                 )
 
-            self._finalize_sale_mutation(sale_id, items, event_system.sale_added)
+            MutationCoordinator.finalize_mutation(
+                entity_id=sale_id,
+                items=items,
+                signal=event_system.sale_added,
+                service_cache_clear_fn=self.clear_cache,
+            )
 
             return sale_id
 
@@ -282,7 +287,12 @@ class SaleService:
                     "DELETE FROM sales WHERE id = ?", (sale_id,)
                 )
             logger.info("Sale deleted", extra={"sale_id": sale_id})
-            self._finalize_sale_mutation(sale_id, items, event_system.sale_deleted)
+            MutationCoordinator.finalize_mutation(
+                entity_id=sale_id,
+                items=items,
+                signal=event_system.sale_deleted,
+                service_cache_clear_fn=self.clear_cache,
+            )
         except Exception as e:
             logger.error(
                 "Failed to delete sale", extra={"error": str(e), "sale_id": sale_id}
@@ -323,7 +333,12 @@ class SaleService:
                     },
                 )
             logger.info("Sale cancelled", extra={"sale_id": sale_id})
-            self._finalize_sale_mutation(sale_id, items, event_system.sale_updated)
+            MutationCoordinator.finalize_mutation(
+                entity_id=sale_id,
+                items=items,
+                signal=event_system.sale_updated,
+                service_cache_clear_fn=self.clear_cache,
+            )
         except Exception as e:
             logger.error(
                 "Failed to cancel sale", extra={"error": str(e), "sale_id": sale_id}
@@ -335,90 +350,8 @@ class SaleService:
     def update_sale(
         self, sale_id: int, customer_id: int, date: str, items: List[Dict[str, Any]]
     ) -> None:
-        sale_id = validate_integer(sale_id, min_value=1)
-        customer_id = validate_integer(customer_id, min_value=1)
-        date = validate_date(date)
-        self._validate_sale_items(items)
-
-        sale = self._require_sale(sale_id)
-
-        old_items = self.get_sale_items(sale_id)
-        self._validate_inventory_for_sale_update(old_items, items)
-
-        # item["profit"] was computed server-side by _validate_sale_items above
-        total_amount = sum(
-            FinancialCalculator.calculate_item_total(
-                item["quantity"], item["sell_price"]
-            )
-            for item in items
-        )
-        total_profit = sum(item["profit"] for item in items)
-
-        with DatabaseManager.transaction():
-            InventoryService.apply_batch_updates(
-                old_items, multiplier=1.0, emit_events=False
-            )
-            self._update_sale(sale_id, customer_id, date, total_amount, total_profit)
-            self._update_sale_items(sale_id, items)
-            InventoryService.apply_batch_updates(
-                items, multiplier=-1.0, emit_events=False
-            )
-            AuditService.log_operation(
-                "update_sale",
-                "sale",
-                sale_id,
-                {
-                    "customer_id": customer_id,
-                    "date": date,
-                    "old_item_count": len(old_items),
-                    "new_item_count": len(items),
-                    "product_ids": self._get_product_ids([*old_items, *items]),
-                    "total_amount": total_amount,
-                    "total_profit": total_profit,
-                },
-            )
-
-        logger.info(
-            "Sale updated", extra={"sale_id": sale_id, "customer_id": customer_id}
-        )
-        self._finalize_sale_mutation(
-            sale_id, [*old_items, *items], event_system.sale_updated
-        )
-
-    def _validate_inventory_for_sale_update(
-        self, old_items: List[Any], new_items: List[Dict[str, Any]]
-    ) -> None:
-        """Pre-validate stock for sale updates before opening a transaction.
-
-        During an update we first restore old items and then apply new ones. This
-        check simulates that result to provide a fast, clear validation error.
-        """
-        old_quantities: Dict[int, float] = {}
-        for item in old_items:
-            product_id = int(getattr(item, "product_id", 0))
-            quantity = float(getattr(item, "quantity", 0.0))
-            old_quantities[product_id] = old_quantities.get(product_id, 0.0) + quantity
-
-        new_quantities: Dict[int, float] = {}
-        for item in new_items:
-            product_id = int(item["product_id"])
-            quantity = float(item["quantity"])
-            new_quantities[product_id] = new_quantities.get(product_id, 0.0) + quantity
-
-        for product_id, required_quantity in new_quantities.items():
-            inventory = self.inventory_service.get_inventory(product_id)
-            current_quantity = float(inventory.quantity) if inventory else 0.0
-            restored_quantity = current_quantity + old_quantities.get(product_id, 0.0)
-            available_after_update = round(
-                restored_quantity - required_quantity, QUANTITY_PRECISION
-            )
-
-            if available_after_update < 0:
-                raise ValidationException(
-                    "Insufficient inventory to update sale for product "
-                    f"{product_id}. Available after restore: {restored_quantity}, "
-                    f"required: {required_quantity}."
-                )
+        from services.update_sale_workflow import UpdateSaleWorkflow
+        UpdateSaleWorkflow(self).execute(sale_id, customer_id, date, items)
 
     @staticmethod
     @db_operation(show_dialog=True)
@@ -524,16 +457,6 @@ class SaleService:
         SaleService.get_all_sales.cache_clear()
         logger.debug("Sale cache cleared")
 
-    def _finalize_sale_mutation(
-        self, sale_id: int, items: List[Any], signal: Any
-    ) -> None:
-        """Refresh caches and emit post-commit events for sale mutations."""
-        InventoryService.clear_cache()
-        AnalyticsService.clear_cache()
-        for product_id in self._get_product_ids(items):
-            event_system.inventory_changed.emit(product_id)
-        self.clear_cache()
-        signal.emit(sale_id)
 
     @staticmethod
     def _build_receipt_id(sale_date_str: str) -> str:

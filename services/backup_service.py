@@ -1,5 +1,5 @@
-import sqlite3
 import shutil
+import sqlite3
 import threading
 import time
 from datetime import datetime
@@ -68,6 +68,9 @@ class BackupService:
                         "backup_dir": str(backup_dir),
                     },
                 )
+                config.set("last_backup_skipped_time", datetime.now().isoformat())
+                config.set("last_backup_skipped_reason", "low_disk_space")
+                config.save()
                 return None
 
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -88,12 +91,19 @@ class BackupService:
                     f"Backup created successfully (sqlite3 backup): {backup_path}"
                 )
 
+                config.set("last_backup_success", datetime.now().isoformat())
+                config.save()
+                event_system.emit_event("backup_completed", str(backup_path))
+
                 return str(backup_path)
             finally:
                 dest_conn.close()
 
         except Exception as e:
             logger.error(f"Failed to create backup: {e}")
+            config.set("last_backup_skipped_time", datetime.now().isoformat())
+            config.set("last_backup_skipped_reason", str(e))
+            config.save()
             if "backup_path" in locals() and backup_path.exists():
                 try:
                     backup_path.unlink()

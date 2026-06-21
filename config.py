@@ -143,6 +143,10 @@ class Config:
             "backup_interval": 24,
             "backup_dir": "backups",
             "backup_retention_days": 7,
+            "pin_hash": "",
+            "last_backup_success": "",
+            "last_backup_skipped_time": "",
+            "last_backup_skipped_reason": "",
         }
 
     @classmethod
@@ -177,6 +181,10 @@ class Config:
             "backup_interval": (int, (1, 168)),  # 1 hour to 1 week
             "backup_dir": (str, None),
             "backup_retention_days": (int, (1, 365)),
+            "pin_hash": (str, None),
+            "last_backup_success": (str, None),
+            "last_backup_skipped_time": (str, None),
+            "last_backup_skipped_reason": (str, None),
         }
 
         for key, (expected_type, valid_values) in required_keys.items():

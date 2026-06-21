@@ -2,7 +2,6 @@ from datetime import datetime, timedelta
 from functools import lru_cache
 from typing import Any, Dict, List, Tuple
 
-from database.database_manager import DatabaseManager
 from services.analytics.engine import AnalyticsEngine
 from services.analytics.metrics import (
     DepartmentSalesMetric,
@@ -12,8 +11,8 @@ from services.analytics.metrics import (
     SalesDailyMetric,
     SalesSummaryMetric,
     TopProductsMetric,
-    WeeklyProfitTrendMetric,
     WeekdaySalesMetric,
+    WeeklyProfitTrendMetric,
 )
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import DatabaseException, ValidationException

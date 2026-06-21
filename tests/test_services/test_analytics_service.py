@@ -11,8 +11,8 @@ from services.analytics.metrics import (
     SalesDailyMetric,
     SalesSummaryMetric,
     TopProductsMetric,
-    WeeklyProfitTrendMetric,
     WeekdaySalesMetric,
+    WeeklyProfitTrendMetric,
 )
 from services.analytics_service import AnalyticsService
 from services.inventory_service import InventoryService

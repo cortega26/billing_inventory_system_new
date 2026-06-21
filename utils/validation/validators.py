@@ -56,9 +56,8 @@ def is_in_range(min_value: float, max_value: float) -> Callable[[Any], bool]:
 
 def matches_pattern(pattern: str) -> Callable[[str], bool]:
     compiled_pattern = re.compile(pattern)
-    return (
-        lambda value: is_instance_of(str)(value)
-        and compiled_pattern.match(value) is not None
+    return lambda value: (
+        is_instance_of(str)(value) and compiled_pattern.match(value) is not None
     )
 
 

@@ -1,30 +1,53 @@
-from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+
+import sqlalchemy as sa
+from pydantic import model_validator
+from sqlmodel import Field, Relationship, SQLModel
 
 from utils.exceptions import ValidationException
 from utils.system.logger import logger
 from utils.validation.validators import validate_money, validate_money_multiplication
 
 
-@dataclass
-class PurchaseItem:
-    id: int
-    purchase_id: int
-    product_id: int
+class PurchaseItem(SQLModel, table=True):
+    """Purchase item entity with SQLModel implementation."""
+
+    __tablename__ = "purchase_items"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    purchase_id: int = Field(
+        sa_column=sa.Column(
+            sa.Integer,
+            sa.ForeignKey("purchases.id", ondelete="CASCADE"),
+            nullable=False,
+        )
+    )
+    product_id: int = Field(
+        sa_column=sa.Column(
+            sa.Integer,
+            sa.ForeignKey("products.id", ondelete="RESTRICT"),
+            nullable=False,
+        )
+    )
     quantity: float  # Allows up to 3 decimal places
     price: int  # Chilean Pesos - always integer
 
-    def __post_init__(self):
+    # Relationship to parent Purchase
+    purchase: Optional["Purchase"] = Relationship(back_populates="items")
+
+    @model_validator(mode="after")
+    def post_init_validation(self) -> "PurchaseItem":
         self.validate_quantity(self.quantity)
         self.validate_price(self.price)
+        return self
 
     @classmethod
     def from_db_row(cls, row: Dict[str, Any]) -> "PurchaseItem":
         return cls(
-            id=row["id"],
-            purchase_id=row["purchase_id"],
-            product_id=row["product_id"],
+            id=int(row["id"]),
+            purchase_id=int(row["purchase_id"]),
+            product_id=int(row["product_id"]),
             quantity=float(row["quantity"]),
             price=int(row["price"]),
         )
@@ -67,27 +90,60 @@ class PurchaseItem:
         }
 
 
-@dataclass
-class Purchase:
-    id: int
-    supplier: str
-    date: datetime
-    items: List[PurchaseItem] = field(default_factory=list)
-    _total_amount: int = field(init=False, default=0)  # Chilean Pesos - always integer
+class Purchase(SQLModel, table=True):
+    """Purchase entity with SQLModel implementation."""
 
-    def __post_init__(self):
+    __tablename__ = "purchases"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    supplier: str
+    date: Optional[datetime] = Field(
+        default_factory=datetime.now,
+        sa_column=sa.Column(sa.DateTime, nullable=True, server_default=sa.func.now()),
+    )
+    total_amount: int = Field(
+        default=0,
+        sa_column=sa.Column(sa.Integer, nullable=False, server_default=sa.text("0")),
+    )
+    created_at: Optional[datetime] = Field(
+        default_factory=datetime.now,
+        sa_column=sa.Column(sa.DateTime, nullable=True, server_default=sa.func.now()),
+    )
+
+    # Relationship to PurchaseItems
+    items: List[PurchaseItem] = Relationship(back_populates="purchase")
+
+    @model_validator(mode="after")
+    def post_init_validation(self) -> "Purchase":
         self.validate_supplier(self.supplier)
         self.validate_date(self.date)
         self.recalculate_total()
+        return self
 
     @classmethod
     def from_db_row(cls, row: Dict[str, Any]) -> "Purchase":
-        return cls(
-            id=row["id"],
-            supplier=row["supplier"],
-            # date=datetime.fromisoformat(row["date"]),
-            date=datetime.strptime(row["date"], "%Y-%m-%d"),
-        )
+        try:
+            # Parse date string
+            try:
+                date_val = datetime.strptime(row["date"], "%Y-%m-%d")
+            except ValueError:
+                date_val = datetime.fromisoformat(row["date"])
+
+            return cls(
+                id=int(row["id"]),
+                supplier=str(row["supplier"]),
+                date=date_val,
+                total_amount=int(row.get("total_amount", 0)),
+                created_at=(
+                    datetime.fromisoformat(row["created_at"])
+                    if "created_at" in row and row["created_at"]
+                    else datetime.now()
+                ),
+            )
+        except (ValueError, TypeError) as e:
+            logger.error(f"Error creating Purchase from row: {row}")
+            logger.error(f"Error details: {str(e)}")
+            raise
 
     @staticmethod
     def validate_supplier(supplier: str) -> None:
@@ -112,7 +168,7 @@ class Purchase:
         Add a purchase item and update total.
         """
         self.items.append(item)
-        self._total_amount += item.total_price()
+        self.total_amount += item.total_price()
 
     def remove_item(self, item_id: int) -> None:
         """
@@ -121,7 +177,7 @@ class Purchase:
         item = next((item for item in self.items if item.id == item_id), None)
         if item:
             self.items.remove(item)
-            self._total_amount -= item.total_price()
+            self.total_amount -= item.total_price()
         else:
             raise ValidationException(
                 f"Item with id {item_id} not found in the purchase"
@@ -132,17 +188,10 @@ class Purchase:
         try:
             total = sum(item.total_price() for item in self.items)
             # No upper cap — purchase totals can exceed any single unit price
-            self._total_amount = validate_money(total, "Total amount", max_value=None)
+            self.total_amount = validate_money(total, "Total amount", max_value=None)
         except Exception as e:
             logger.error(f"Error calculating total: {str(e)}")
             raise ValidationException("Error calculating total amount")
-
-    @property
-    def total_amount(self) -> int:
-        """
-        Get the total amount as integer (Chilean Pesos).
-        """
-        return self._total_amount
 
     def update_supplier(self, new_supplier: str) -> None:
         """
@@ -165,7 +214,7 @@ class Purchase:
         return {
             "id": self.id,
             "supplier": self.supplier,
-            "date": self.date.isoformat(),
+            "date": self.date.strftime("%Y-%m-%d"),
             "total_amount": self.total_amount,
             "items": [item.to_dict() for item in self.items],
         }
@@ -176,7 +225,7 @@ class Purchase:
         """
         return (
             f"Purchase(id={self.id}, supplier='{self.supplier}', "
-            f"date='{self.date.isoformat()}', "
+            f"date='{self.date.strftime('%Y-%m-%d')}', "
             f"total_amount={self.total_amount})"
         )
 
@@ -198,7 +247,7 @@ class Purchase:
         Verify that all totals are correctly calculated.
         """
         expected_total = sum(item.total_price() for item in self.items)
-        return self._total_amount == expected_total
+        return self.total_amount == expected_total
 
     def add_items(self, items: List[PurchaseItem]) -> None:
         """

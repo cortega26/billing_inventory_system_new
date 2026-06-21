@@ -21,7 +21,7 @@ class UpdateSaleWorkflow:
     ) -> None:
         """
         Execute the update sale workflow.
-        
+
         Args:
             sale_id: The ID of the sale to update.
             customer_id: The ID of the customer for the sale.
@@ -57,18 +57,20 @@ class UpdateSaleWorkflow:
             InventoryService.apply_batch_updates(
                 old_items, multiplier=1.0, emit_events=False
             )
-            
+
             # Update sale record
-            self.sale_service._update_sale(sale_id, customer_id, date, total_amount, total_profit)
-            
+            self.sale_service._update_sale(
+                sale_id, customer_id, date, total_amount, total_profit
+            )
+
             # Update sale items (deletes old, inserts new)
             self.sale_service._update_sale_items(sale_id, items)
-            
+
             # Apply new stock deduction
             InventoryService.apply_batch_updates(
                 items, multiplier=-1.0, emit_events=False
             )
-            
+
             # Log audit trail
             AuditService.log_operation(
                 "update_sale",
@@ -79,7 +81,9 @@ class UpdateSaleWorkflow:
                     "date": date,
                     "old_item_count": len(old_items),
                     "new_item_count": len(items),
-                    "product_ids": self.sale_service._get_product_ids([*old_items, *items]),
+                    "product_ids": self.sale_service._get_product_ids(
+                        [*old_items, *items]
+                    ),
                     "total_amount": total_amount,
                     "total_profit": total_profit,
                 },

@@ -1,59 +1,58 @@
 import re
-from dataclasses import dataclass, field, replace
 from datetime import datetime
-from typing import Any, ClassVar, Dict
+from typing import Any, ClassVar, Dict, Optional
+
+import sqlalchemy as sa
+from pydantic import model_validator
+from sqlmodel import Field, SQLModel
 
 from utils.exceptions import ValidationException
 from utils.system.logger import logger
 
 
-@dataclass(frozen=True)
-class Category:
+class Category(SQLModel, table=True):
     """
     Represents a product category in the system.
-
-    Attributes:
-        id (int): Unique identifier for the category
-        name (str): Name of the category
-        created_at (datetime): Timestamp when category was created
-        updated_at (datetime): Timestamp when category was last updated
     """
 
-    id: int
-    name: str
-    created_at: datetime = field(default_factory=datetime.now)
-    updated_at: datetime = field(default_factory=datetime.now)
+    __tablename__ = "categories"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(unique=True, index=True)
+    created_at: Optional[datetime] = Field(
+        default_factory=datetime.now,
+        sa_column=sa.Column(sa.DateTime, nullable=True, server_default=sa.func.now()),
+    )
+    updated_at: Optional[datetime] = Field(
+        default_factory=datetime.now,
+        sa_column=sa.Column(sa.DateTime, nullable=True, server_default=sa.func.now()),
+    )
 
     # Class constants
     NAME_MAX_LENGTH: ClassVar[int] = 50
     NAME_MIN_LENGTH: ClassVar[int] = 1
     NAME_PATTERN: ClassVar[str] = r"^[\w\s\-]+$"
 
-    def __post_init__(self) -> None:
+    @model_validator(mode="after")
+    def post_init_validation(self) -> "Category":
         """Validate category data after initialization."""
         self.validate_name(self.name)
-        if not isinstance(self.id, int):
-            logger.error(
-                "Invalid category ID type", extra={"id": self.id, "type": type(self.id)}
-            )
-            raise ValidationException("Category ID must be an integer")
-        if self.id < 0:
-            logger.error("Negative category ID", extra={"id": self.id})
-            raise ValidationException("Category ID cannot be negative")
+        if self.id is not None:
+            if not isinstance(self.id, int):
+                logger.error(
+                    "Invalid category ID type",
+                    extra={"id": self.id, "type": type(self.id)},
+                )
+                raise ValidationException("Category ID must be an integer")
+            if self.id < 0:
+                logger.error("Negative category ID", extra={"id": self.id})
+                raise ValidationException("Category ID cannot be negative")
+        return self
 
     @classmethod
     def from_db_row(cls, row: Dict[str, Any]) -> "Category":
         """
         Create a Category instance from a database row.
-
-        Args:
-            row: Dictionary containing category data from database
-
-        Returns:
-            Category: New Category instance
-
-        Raises:
-            ValidationException: If required fields are missing or invalid
         """
         try:
             return cls(
@@ -61,12 +60,12 @@ class Category:
                 name=str(row["name"]),
                 created_at=(
                     datetime.fromisoformat(row["created_at"])
-                    if "created_at" in row
+                    if "created_at" in row and row["created_at"]
                     else datetime.now()
                 ),
                 updated_at=(
                     datetime.fromisoformat(row["updated_at"])
-                    if "updated_at" in row
+                    if "updated_at" in row and row["updated_at"]
                     else datetime.now()
                 ),
             )
@@ -80,30 +79,22 @@ class Category:
     def to_dict(self) -> Dict[str, Any]:
         """
         Convert category to dictionary representation.
-
-        Returns:
-            Dict[str, Any]: Dictionary containing category data
         """
         return {
             "id": self.id,
             "name": self.name,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
+            "created_at": self.created_at.isoformat()
+            if isinstance(self.created_at, datetime)
+            else self.created_at,
+            "updated_at": self.updated_at.isoformat()
+            if isinstance(self.updated_at, datetime)
+            else self.updated_at,
         }
 
     @staticmethod
     def validate_name(name: str) -> str:
         """
         Validate and normalize category name.
-
-        Args:
-            name: Category name to validate
-
-        Returns:
-            str: Normalized category name
-
-        Raises:
-            ValidationException: If name is invalid
         """
         if not name:
             logger.warning("Empty category name provided")
@@ -141,27 +132,19 @@ class Category:
     def clone(self, **changes: Any) -> "Category":
         """
         Create a copy of this category with optional changes.
-
-        Args:
-            **changes: Attribute changes to apply to the clone
-
-        Returns:
-            Category: New Category instance with changes applied
         """
-        return replace(self, **changes)
+        data = {
+            "id": self.id,
+            "name": self.name,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
+        data.update(changes)
+        return Category(**data)
 
     def update(self, name: str) -> "Category":
         """
         Create new category instance with updated name.
-
-        Args:
-            name: New category name
-
-        Returns:
-            Category: New Category instance with updated name
-
-        Raises:
-            ValidationException: If name is invalid
         """
         self.validate_name(name)
         return self.clone(name=name, updated_at=datetime.now())
@@ -190,11 +173,5 @@ class Category:
     def create_empty(cls, id: int = 0) -> "Category":
         """
         Create an empty category instance.
-
-        Args:
-            id: Category ID (defaults to 0, meaning not yet persisted)
-
-        Returns:
-            Category: New empty Category instance
         """
         return cls(id=id, name="")

@@ -126,7 +126,6 @@ class PurchaseItemDialog(QDialog):
 
 
 class PurchaseView(QWidget):
-    purchase_updated = Signal()
 
     def __init__(self):
         super().__init__()
@@ -389,7 +388,6 @@ class PurchaseView(QWidget):
                 self.load_purchases()
                 self.clear_purchase()
                 show_info_message("Éxito", "Compra completada exitosamente")
-                self.purchase_updated.emit()
             else:
                 raise DatabaseException("Falló al crear compra")
 
@@ -589,7 +587,6 @@ class PurchaseView(QWidget):
                 self.purchase_service.delete_purchase(purchase.id)
                 self.load_purchases()
                 show_info_message("Éxito", "Compra eliminada exitosamente")
-                self.purchase_updated.emit()
             except Exception as e:
                 logger.error(f"Error deleting purchase: {str(e)}")
                 raise

@@ -69,19 +69,26 @@ def test_create_backup_no_db(backup_service, tmp_path):
 
 
 def test_create_backup_skips_when_disk_space_low(backup_service, source_db):
-    with patch("services.backup_service.DATABASE_PATH", source_db), patch(
-        "services.backup_service.shutil.disk_usage",
-        return_value=SimpleNamespace(total=100, used=100, free=0),
+    with (
+        patch("services.backup_service.DATABASE_PATH", source_db),
+        patch(
+            "services.backup_service.shutil.disk_usage",
+            return_value=SimpleNamespace(total=100, used=100, free=0),
+        ),
     ):
         backup_path = backup_service.create_backup()
         assert backup_path is None
 
 
 def test_create_backup_emits_event_when_disk_space_low(backup_service, source_db):
-    with patch("services.backup_service.DATABASE_PATH", source_db), patch(
-        "services.backup_service.shutil.disk_usage",
-        return_value=SimpleNamespace(total=100, used=100, free=0),
-    ), patch("services.backup_service.event_system") as mock_event_system:
+    with (
+        patch("services.backup_service.DATABASE_PATH", source_db),
+        patch(
+            "services.backup_service.shutil.disk_usage",
+            return_value=SimpleNamespace(total=100, used=100, free=0),
+        ),
+        patch("services.backup_service.event_system") as mock_event_system,
+    ):
         backup_path = backup_service.create_backup()
 
         assert backup_path is None

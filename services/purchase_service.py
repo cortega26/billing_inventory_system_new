@@ -181,7 +181,9 @@ class PurchaseService:
                     "date": date,
                     "old_item_count": len(old_items),
                     "new_item_count": len(items),
-                    "product_ids": PurchaseService._get_product_ids([*old_items, *items]),
+                    "product_ids": PurchaseService._get_product_ids(
+                        [*old_items, *items]
+                    ),
                     "total_amount": total_amount,
                 },
             )
@@ -234,7 +236,6 @@ class PurchaseService:
                 raise ValidationException(f"Invalid cost price: {cost_price}")
         except (ValueError, TypeError) as e:
             raise ValidationException(f"Invalid item data: {str(e)}")
-
 
     @staticmethod
     def _get_product_ids(items: List[Any]) -> List[int]:

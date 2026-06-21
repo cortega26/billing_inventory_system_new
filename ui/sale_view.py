@@ -1,7 +1,8 @@
 from typing import Any, Dict, List, Optional
 
-from PySide6.QtCore import QDate, QPoint, Qt, QTimer, Signal
+from PySide6.QtCore import QDate, QEvent, QPoint, QSettings, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
+from config import APP_NAME, COMPANY_NAME
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -33,6 +34,7 @@ from services.customer_service import CustomerService
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
 from services.sale_service import SaleService
+from ui.styles import DesignTokens
 from ui.sale_view_support import (
     build_customer_display,
     build_customer_selection_text,
@@ -493,13 +495,13 @@ class SaleItemDialog(QDialog):
 
 
 class SaleView(QWidget):
-    sale_updated = Signal()
 
     def __init__(self):
         super().__init__()
         self.sale_service = SaleService()
         self.customer_service = CustomerService()
         self.product_service = ProductService()
+        self.settings = QSettings(COMPANY_NAME, APP_NAME)
         self.setup_ui()
         self.setup_scan_sound()
 
@@ -567,9 +569,14 @@ class SaleView(QWidget):
 
         # Quick Scan checkbox
         self.quick_scan_checkbox = QCheckBox("Escaneo Rápido (Auto-Agregar 1)")
-        # Tip: Add tooltip to explain what it does
         self.quick_scan_checkbox.setToolTip(
             "Al marcar, los artículos se agregan automáticamente con cantidad 1 sin diálogo de confirmación."
+        )
+        self.quick_scan_checkbox.setChecked(
+            self.settings.value("QuickScanEnabled", False, type=bool)
+        )
+        self.quick_scan_checkbox.toggled.connect(
+            lambda checked: self.settings.setValue("QuickScanEnabled", checked)
         )
         barcode_layout.addWidget(self.quick_scan_checkbox)
 
@@ -586,6 +593,16 @@ class SaleView(QWidget):
         date_layout.addStretch()
         layout.addLayout(date_layout)
 
+        # Scan warning label
+        self.scan_warning_label = QLabel()
+        self.scan_warning_label.setStyleSheet(
+            f"color: {DesignTokens.COLOR_WARNING}; background-color: {DesignTokens.COLOR_WARNING_BG}; "
+            "font-weight: bold; padding: 6px; border-radius: 4px;"
+        )
+        self.scan_warning_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.scan_warning_label.setVisible(False)
+        layout.addWidget(self.scan_warning_label)
+
         # Sale items table
         self.sale_items_table = create_table(
             [
@@ -600,6 +617,7 @@ class SaleView(QWidget):
         self.sale_items_table.setSelectionBehavior(
             QTableWidget.SelectionBehavior.SelectRows
         )
+        self.sale_items_table.installEventFilter(self)
         layout.addWidget(self.sale_items_table)
 
         # Total amount display
@@ -662,6 +680,20 @@ class SaleView(QWidget):
 
         # Focus barcode input
         self.barcode_input.setFocus()
+
+    def eventFilter(self, watched, event):
+        if watched == self.sale_items_table and event.type() == QEvent.Type.KeyPress:
+            key = event.key()
+            if key == Qt.Key.Key_Delete:
+                self.void_selected_item()
+                return True
+            elif key == Qt.Key.Key_Plus:
+                self.adjust_selected_quantity(1)
+                return True
+            elif key == Qt.Key.Key_Minus:
+                self.adjust_selected_quantity(-1)
+                return True
+        return super().eventFilter(watched, event)
 
     def setup_shortcuts(self):
         # Barcode field focus (Ctrl+B)
@@ -728,11 +760,18 @@ class SaleView(QWidget):
                         inventory = inventory_service.get_inventory(product.id)
                         current_stock = inventory.quantity if inventory else 0.0
                         if current_stock < 10:
-                            QMessageBox.warning(
-                                self,
-                                "Alerta de Stock Bajo",
-                                f"¡Advertencia! El producto '{product.name}' tiene stock bajo. Disponible: {current_stock} unidades",
+                            self.scan_warning_label.setText(
+                                f"⚠️ ¡Advertencia! El producto '{product.name}' tiene stock bajo. Disponible: {current_stock} unidades"
                             )
+                            self.scan_warning_label.setVisible(True)
+                            QTimer.singleShot(5000, lambda: self.scan_warning_label.setVisible(False))
+
+                            main_window = self.window()
+                            if main_window and hasattr(main_window, "show_status_message"):
+                                main_window.show_status_message(
+                                    f"⚠️ ¡Advertencia! El producto '{product.name}' tiene stock bajo. Disponible: {current_stock} unidades",
+                                    10000
+                                )
                     except Exception as e:
                         logger.error(f"Error checking stock in quick scan: {e}")
 

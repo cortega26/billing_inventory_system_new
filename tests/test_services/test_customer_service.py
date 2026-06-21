@@ -45,13 +45,16 @@ class TestCustomerService:
         assert customer.identifier_9 == sample_customer_data["identifier_9"]
         assert customer.name == sample_customer_data["name"]
         assert customer.is_active is True
-        assert len(
-            AuditService.get_entries(
-                entity_type="customer",
-                entity_id=customer_id,
-                operation="create_customer",
+        assert (
+            len(
+                AuditService.get_entries(
+                    entity_type="customer",
+                    entity_id=customer_id,
+                    operation="create_customer",
+                )
             )
-        ) == 1
+            == 1
+        )
 
     def test_get_customer_missing_returns_none(self, customer_service):
         assert customer_service.get_customer(999999) is None
@@ -92,13 +95,16 @@ class TestCustomerService:
         assert archived_customer.deleted_at is not None
         assert customer_service.get_all_customers() == []
         assert len(customer_service.get_all_customers(active_only=False)) == 1
-        assert len(
-            AuditService.get_entries(
-                entity_type="customer",
-                entity_id=customer_id,
-                operation="delete_customer",
+        assert (
+            len(
+                AuditService.get_entries(
+                    entity_type="customer",
+                    entity_id=customer_id,
+                    operation="delete_customer",
+                )
             )
-        ) == 1
+            == 1
+        )
 
     def test_restore_customer_reactivates_visibility(
         self, customer_service, sample_customer_data
@@ -118,13 +124,16 @@ class TestCustomerService:
         assert [customer.id for customer in customer_service.get_all_customers()] == [
             customer_id
         ]
-        assert len(
-            AuditService.get_entries(
-                entity_type="customer",
-                entity_id=customer_id,
-                operation="restore_customer",
+        assert (
+            len(
+                AuditService.get_entries(
+                    entity_type="customer",
+                    entity_id=customer_id,
+                    operation="restore_customer",
+                )
             )
-        ) == 1
+            == 1
+        )
 
     def test_search_customers_excludes_archived_by_default(
         self, customer_service, sample_customer_data

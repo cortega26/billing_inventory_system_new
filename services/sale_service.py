@@ -351,6 +351,7 @@ class SaleService:
         self, sale_id: int, customer_id: int, date: str, items: List[Dict[str, Any]]
     ) -> None:
         from services.update_sale_workflow import UpdateSaleWorkflow
+
         UpdateSaleWorkflow(self).execute(sale_id, customer_id, date, items)
 
     @staticmethod
@@ -456,7 +457,6 @@ class SaleService:
         """Clear the sale cache."""
         SaleService.get_all_sales.cache_clear()
         logger.debug("Sale cache cleared")
-
 
     @staticmethod
     def _build_receipt_id(sale_date_str: str) -> str:

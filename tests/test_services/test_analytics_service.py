@@ -123,9 +123,7 @@ def test_get_top_selling_products_uses_metric_engine_and_preserves_output_shape(
         ),
     )
 
-    result = AnalyticsService.get_top_selling_products(
-        "2026-04-01", "2026-04-02", 5
-    )
+    result = AnalyticsService.get_top_selling_products("2026-04-01", "2026-04-02", 5)
 
     assert result == [
         {
@@ -165,9 +163,7 @@ def test_get_category_performance_uses_metric_engine_and_preserves_output_shape(
         ),
     )
 
-    result = AnalyticsService.get_category_performance(
-        "2026-04-01", "2026-04-02"
-    )
+    result = AnalyticsService.get_category_performance("2026-04-01", "2026-04-02")
 
     assert result == [
         {
@@ -346,9 +342,7 @@ def test_get_profit_margin_distribution_uses_metric_engine_and_preserves_output_
         ),
     )
 
-    result = AnalyticsService.get_profit_margin_distribution(
-        "2026-04-01", "2026-04-02"
-    )
+    result = AnalyticsService.get_profit_margin_distribution("2026-04-01", "2026-04-02")
 
     assert result == [
         {

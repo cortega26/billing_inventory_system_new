@@ -238,7 +238,9 @@ class ProductService:
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def search_products(self, search_term: str, active_only: bool = True) -> List[Product]:
+    def search_products(
+        self, search_term: str, active_only: bool = True
+    ) -> List[Product]:
         """
         Search products by name, description, or barcode.
 

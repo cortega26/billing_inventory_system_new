@@ -65,7 +65,9 @@ def test_add_customer_does_not_reemit_customer_added_event(qtbot, db_manager, mo
         event_system.customer_added.emit(101)
         return 101
 
-    mocker.patch.object(view.customer_service, "create_customer", side_effect=create_customer)
+    mocker.patch.object(
+        view.customer_service, "create_customer", side_effect=create_customer
+    )
     payloads, handler = capture_signal(event_system.customer_added)
 
     try:
@@ -100,7 +102,9 @@ def test_edit_customer_does_not_reemit_customer_updated_event(
     def update_customer(*_args, **_kwargs):
         event_system.customer_updated.emit(customer_id)
 
-    mocker.patch.object(view.customer_service, "update_customer", side_effect=update_customer)
+    mocker.patch.object(
+        view.customer_service, "update_customer", side_effect=update_customer
+    )
     payloads, handler = capture_signal(event_system.customer_updated)
 
     try:
@@ -129,7 +133,9 @@ def test_delete_customer_does_not_reemit_customer_deleted_event(
     def delete_customer(_customer_id):
         event_system.customer_deleted.emit(_customer_id)
 
-    mocker.patch.object(view.customer_service, "delete_customer", side_effect=delete_customer)
+    mocker.patch.object(
+        view.customer_service, "delete_customer", side_effect=delete_customer
+    )
     payloads, handler = capture_signal(event_system.customer_deleted)
 
     try:

@@ -74,7 +74,13 @@ class TestCriticalBackendFlows:
         assert inventory.quantity == 100.0
 
         operations = [entry["operation"] for entry in AuditService.get_entries()]
-        assert operations == ["create_product", "create_customer", "create_purchase", "create_sale", "delete_sale"]
+        assert operations == [
+            "create_product",
+            "create_customer",
+            "create_purchase",
+            "create_sale",
+            "delete_sale",
+        ]
 
     def test_inventory_constraints_negative_stock(self):
         """Verify that selling more than available stock raises an error."""
@@ -99,7 +105,9 @@ class TestCriticalBackendFlows:
         assert "Inventory cannot be negative" in str(
             excinfo.value
         ) or "constraint failed" in str(excinfo.value)
-        assert AuditService.get_entries(entity_type="sale", operation="create_sale") == []
+        assert (
+            AuditService.get_entries(entity_type="sale", operation="create_sale") == []
+        )
 
     def test_precision_enforcement(self):
         """Verify that strictly more than QUANTITY_PRECISION decimal places raises error."""

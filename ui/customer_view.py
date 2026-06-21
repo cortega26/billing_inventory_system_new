@@ -103,7 +103,6 @@ class EditCustomerDialog(QDialog):
 
 
 class CustomerView(QWidget):
-    customer_updated = Signal()
 
     def __init__(self):
         super().__init__()
@@ -413,7 +412,6 @@ class CustomerView(QWidget):
 
                 self.load_customers()
                 show_info_message("Éxito", "Cliente actualizado exitosamente.")
-                self.customer_updated.emit()
                 logger.info(f"Customer updated successfully: ID {customer.id}")
         except Exception as e:
             logger.error(
@@ -456,7 +454,6 @@ class CustomerView(QWidget):
                     self.customer_service.restore_customer(customer_id)
                     show_info_message("Éxito", "Cliente restaurado exitosamente.")
                 self.load_customers()
-                self.customer_updated.emit()
                 logger.info(
                     "Customer status updated",
                     extra={"customer_id": customer_id, "is_active": not is_active},
@@ -483,7 +480,6 @@ class CustomerView(QWidget):
                 if customer_id is not None:
                     self.load_customers()
                     show_info_message("Éxito", "Cliente agregado exitosamente.")
-                    self.customer_updated.emit()
                     logger.info(f"Customer added successfully: ID {customer_id}")
                 else:
                     raise DatabaseException("Error al agregar cliente.")
@@ -532,7 +528,6 @@ class CustomerView(QWidget):
                 self.load_customers()
 
                 show_info_message("Éxito", "Cliente actualizado exitosamente.")
-                self.customer_updated.emit()
                 logger.info(f"Customer updated successfully: ID {customer.id}")
 
             except Exception as e:
@@ -569,7 +564,6 @@ class CustomerView(QWidget):
                     self.customer_service.restore_customer(customer.id)
                     show_info_message("Éxito", "Cliente restaurado exitosamente.")
                 self.load_customers()
-                self.customer_updated.emit()
                 logger.info(
                     "Customer status updated",
                     extra={"customer_id": customer.id, "is_active": not is_active},

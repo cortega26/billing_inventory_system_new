@@ -5,7 +5,6 @@ from utils.exceptions import DatabaseException
 
 
 class TestSchemaConstraints:
-
     def test_foreign_key_on_delete_restrict(self, db_manager):
         """Test that products cannot be deleted if they are used in sale_items (ON DELETE RESTRICT)."""
         # Create a product
@@ -18,7 +17,7 @@ class TestSchemaConstraints:
         # Create a customer (needed for sale foreign key)
         cursor = DatabaseManager.execute_query(
             "INSERT INTO customers (identifier_9, name) VALUES (?, ?)",
-            ("TEST12345", "Test Customer"),
+            ("912345678", "Test Customer"),
         )
         customer_id = cursor.lastrowid
 
@@ -86,7 +85,7 @@ class TestSchemaConstraints:
 
         cursor = DatabaseManager.execute_query(
             "INSERT INTO customers (identifier_9, name) VALUES (?, ?)",
-            ("TESTCASCADE", "Cascade Customer"),
+            ("998765432", "Cascade Customer"),
         )
         customer_id = cursor.lastrowid
 

@@ -71,9 +71,7 @@ def _get_schema_path() -> str:
     schema_path = Path(__file__).resolve().parent.parent / "schema.sql"
     if schema_path.exists():
         return str(schema_path)
-    raise DatabaseException(
-        f"schema.sql not found. Expected at: {schema_path}"
-    )
+    raise DatabaseException(f"schema.sql not found. Expected at: {schema_path}")
 
 
 def _load_table_statements(schema_path: str) -> list[str]:

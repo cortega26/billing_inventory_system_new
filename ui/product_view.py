@@ -152,7 +152,6 @@ class EditProductDialog(QDialog):
 
 
 class ProductView(QWidget):
-    product_updated = Signal()
 
     def __init__(self):
         super().__init__()
@@ -424,7 +423,6 @@ class ProductView(QWidget):
                     self.filter_products(products=fresh_products)
 
                     show_info_message("Éxito", "Producto agregado exitosamente.")
-                    self.product_updated.emit()
                     logger.info(f"Product added successfully: ID {product_id}")
                 else:
                     raise DatabaseException("Error al agregar producto.")
@@ -462,7 +460,6 @@ class ProductView(QWidget):
                     self.filter_products(products=fresh_products)
 
                     show_info_message("Éxito", "Producto actualizado exitosamente.")
-                    self.product_updated.emit()
                     logger.info(f"Product updated successfully: ID {product.id}")
                 except Exception as e:
                     logger.error(f"Error updating product: {str(e)}")
@@ -504,7 +501,6 @@ class ProductView(QWidget):
                         active_only=not self.show_archived_checkbox.isChecked()
                     )
                     self.filter_products(products=fresh_products)
-                    self.product_updated.emit()
                     logger.info(
                         "Product status updated",
                         extra={"product_id": product.id, "is_active": not is_active},

@@ -40,7 +40,9 @@ def test_edit_inventory_does_not_reemit_inventory_events(qtbot, db_manager, mock
 
     view = InventoryView()
     qtbot.addWidget(view)
-    item = next(entry for entry in view.current_inventory if entry["product_id"] == product_id)
+    item = next(
+        entry for entry in view.current_inventory if entry["product_id"] == product_id
+    )
 
     mocker.patch("ui.inventory_view.EditInventoryDialog", return_value=FakeDialog())
     mocker.patch("ui.inventory_view.show_info_message")

@@ -170,8 +170,8 @@ class AnalyticsView(QWidget):
                 "Tendencia de Ganancias": lambda: self.show_profit_trend(
                     start_date, end_date
                 ),
-                "Distribución Margen Ganancia": lambda: self.show_profit_margin_distribution(
-                    start_date, end_date
+                "Distribución Margen Ganancia": lambda: (
+                    self.show_profit_margin_distribution(start_date, end_date)
                 ),
             }
 

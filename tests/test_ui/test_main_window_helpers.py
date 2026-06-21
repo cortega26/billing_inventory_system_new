@@ -43,7 +43,9 @@ def test_main_window_includes_audit_tab(qtbot, db_manager, allow_main_window_clo
     window = MainWindow()
     qtbot.addWidget(window)
 
-    tab_names = [window.tab_widget.tabText(index) for index in range(window.tab_widget.count())]
+    tab_names = [
+        window.tab_widget.tabText(index) for index in range(window.tab_widget.count())
+    ]
 
     assert "Auditoría" in tab_names
 
@@ -79,7 +81,9 @@ def test_main_window_refreshes_once_for_customer_add(
         event_system.customer_added.emit(301)
         return 301
 
-    mocker.patch.object(customer_view.customer_service, "create_customer", side_effect=create_customer)
+    mocker.patch.object(
+        customer_view.customer_service, "create_customer", side_effect=create_customer
+    )
 
     customer_view.add_customer()
 
@@ -115,7 +119,9 @@ def test_main_window_refreshes_once_for_product_add(
         event_system.product_added.emit(302)
         return 302
 
-    mocker.patch.object(product_view.product_service, "create_product", side_effect=create_product)
+    mocker.patch.object(
+        product_view.product_service, "create_product", side_effect=create_product
+    )
 
     product_view.add_product()
 
@@ -140,7 +146,9 @@ def test_main_window_refreshes_once_for_purchase_create(
         event_system.purchase_added.emit(303)
         return 303
 
-    mocker.patch.object(purchase_view.purchase_service, "create_purchase", side_effect=create_purchase)
+    mocker.patch.object(
+        purchase_view.purchase_service, "create_purchase", side_effect=create_purchase
+    )
 
     purchase_view.complete_purchase()
 
@@ -190,7 +198,11 @@ def test_purchase_view_delete_does_not_reemit_purchase_deleted_event(
         def delete_purchase(_purchase_id):
             event_system.purchase_deleted.emit(_purchase_id)
 
-        mocker.patch.object(purchase_view.purchase_service, "delete_purchase", side_effect=delete_purchase)
+        mocker.patch.object(
+            purchase_view.purchase_service,
+            "delete_purchase",
+            side_effect=delete_purchase,
+        )
 
         purchase_view.delete_purchase(SimpleNamespace(id=304))
 

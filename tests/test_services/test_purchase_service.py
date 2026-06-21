@@ -209,7 +209,9 @@ class TestPurchaseService:
     def test_create_purchase_emits_purchase_and_inventory_events_once(
         self, purchase_service, sample_purchase_data, sample_product
     ):
-        purchase_payloads, purchase_handler = capture_signal(event_system.purchase_added)
+        purchase_payloads, purchase_handler = capture_signal(
+            event_system.purchase_added
+        )
         inventory_payloads, inventory_handler = capture_signal(
             event_system.inventory_changed
         )

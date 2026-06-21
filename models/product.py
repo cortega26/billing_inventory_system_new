@@ -1,31 +1,89 @@
-from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, Optional
+
+import sqlalchemy as sa
+from pydantic import PrivateAttr, model_validator
+from sqlmodel import Field, SQLModel
 
 from models.enums import MAX_PRICE_CLP
 from utils.exceptions import ValidationException
 
 
-@dataclass
-class Product:
-    """Product entity with proper dataclass implementation."""
+class Product(SQLModel, table=True):
+    """Product entity with SQLModel implementation."""
 
-    id: int
+    __tablename__ = "products"
+
+    __table_args__ = (
+        sa.CheckConstraint("cost_price >= 0", name="check_cost_price_positive"),
+        sa.CheckConstraint("sell_price >= 0", name="check_sell_price_positive"),
+        sa.CheckConstraint("is_active IN (0, 1)", name="check_product_active"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
     name: str
-    description: str
-    category_id: Optional[int]
-    cost_price: int  # Chilean Pesos - always integer
-    sell_price: int  # Chilean Pesos - always integer
-    barcode: Optional[str] = None
-    category_name: Optional[str] = None
-    is_active: bool = True
-    deleted_at: Optional[str] = None
-    created_at: datetime = field(default_factory=datetime.now)
-    updated_at: datetime = field(default_factory=datetime.now)
+    description: Optional[str] = Field(default=None)
+    category_id: Optional[int] = Field(
+        default=None,
+        sa_column=sa.Column(
+            sa.Integer,
+            sa.ForeignKey("categories.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+    )
+    cost_price: int = Field(
+        default=0,
+        sa_column=sa.Column(sa.Integer, nullable=False, server_default=sa.text("0")),
+    )
+    sell_price: int = Field(
+        default=0,
+        sa_column=sa.Column(sa.Integer, nullable=False, server_default=sa.text("0")),
+    )
+    barcode: Optional[str] = Field(default=None, unique=True)
+    is_active: bool = Field(
+        default=True,
+        sa_column=sa.Column(sa.Boolean, nullable=False, server_default=sa.text("1")),
+    )
+    deleted_at: Optional[str] = Field(default=None)
+    created_at: Optional[datetime] = Field(
+        default_factory=datetime.now,
+        sa_column=sa.Column(sa.DateTime, nullable=True, server_default=sa.func.now()),
+    )
+    updated_at: Optional[datetime] = Field(
+        default_factory=datetime.now,
+        sa_column=sa.Column(sa.DateTime, nullable=True, server_default=sa.func.now()),
+    )
 
-    def __post_init__(self):
+    # Fields not in the database table (extra joined info)
+    _category_name: Optional[str] = PrivateAttr(default=None)
+
+    @property
+    def category_name(self) -> Optional[str]:
+        return self._category_name
+
+    @category_name.setter
+    def category_name(self, value: Optional[str]):
+        self._category_name = value
+
+    def __init__(self, **data: Any):
+        category_name = data.pop("category_name", None)
+        for field in ("cost_price", "sell_price"):
+            if field in data:
+                val = data[field]
+                if not isinstance(val, int) or isinstance(val, bool):
+                    raise ValidationException(
+                        f"{field} must be an integer (CLP, no decimals)"
+                    )
+        super().__init__(**data)
+        if category_name is not None:
+            self.category_name = category_name
+        self.validate()
+
+    @model_validator(mode="after")
+    def post_init_validation(self) -> "Product":
         """Validate data after initialization."""
         self.validate()
+        return self
 
     def validate(self):
         """Validate product data."""
@@ -101,12 +159,12 @@ class Product:
             deleted_at=row.get("deleted_at"),
             created_at=(
                 datetime.fromisoformat(row["created_at"])
-                if "created_at" in row
+                if "created_at" in row and row["created_at"]
                 else datetime.now()
             ),
             updated_at=(
                 datetime.fromisoformat(row["updated_at"])
-                if "updated_at" in row
+                if "updated_at" in row and row["updated_at"]
                 else datetime.now()
             ),
         )
@@ -124,6 +182,10 @@ class Product:
             "barcode": self.barcode,
             "is_active": self.is_active,
             "deleted_at": self.deleted_at,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
+            "created_at": self.created_at.isoformat()
+            if isinstance(self.created_at, datetime)
+            else self.created_at,
+            "updated_at": self.updated_at.isoformat()
+            if isinstance(self.updated_at, datetime)
+            else self.updated_at,
         }

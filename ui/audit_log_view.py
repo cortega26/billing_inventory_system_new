@@ -73,7 +73,9 @@ class AuditLogView(QWidget):
             self.entity_type_combo.addItem(entity_type.capitalize(), entity_type)
 
         self.operation_input = QLineEdit()
-        self.operation_input.setPlaceholderText("Operación exacta, por ejemplo create_sale")
+        self.operation_input.setPlaceholderText(
+            "Operación exacta, por ejemplo create_sale"
+        )
 
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Buscar en payload, actor, entidad o ID")
@@ -275,7 +277,9 @@ class AuditLogView(QWidget):
             return truncate_string(str(payload), 80)
 
         if isinstance(parsed_payload, dict):
-            parts = [f"{key}={value}" for key, value in list(parsed_payload.items())[:3]]
+            parts = [
+                f"{key}={value}" for key, value in list(parsed_payload.items())[:3]
+            ]
             return truncate_string(", ".join(parts) if parts else "Payload vacío", 80)
 
         return truncate_string(str(parsed_payload), 80)
@@ -287,6 +291,8 @@ class AuditLogView(QWidget):
 
         try:
             parsed_payload = json.loads(payload)
-            return json.dumps(parsed_payload, ensure_ascii=False, indent=2, sort_keys=True)
+            return json.dumps(
+                parsed_payload, ensure_ascii=False, indent=2, sort_keys=True
+            )
         except (TypeError, json.JSONDecodeError):
             return str(payload)

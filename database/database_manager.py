@@ -6,6 +6,9 @@ import time
 from contextlib import contextmanager
 from typing import Any, Dict, List, Tuple, Union
 
+from sqlalchemy.pool import StaticPool
+from sqlmodel import Session, create_engine
+
 from utils.exceptions import DatabaseException
 from utils.system.logger import logger
 
@@ -23,6 +26,7 @@ STARTUP_PRAGMAS = (
 
 class DatabaseManager:
     _connection = None
+    _engine = None
     _connection_lock = threading.RLock()
     _transaction_state = threading.local()
 
@@ -49,14 +53,34 @@ class DatabaseManager:
                 except sqlite3.Error:
                     pass
 
-            cls._connection = sqlite3.connect(
-                db_path,
-                check_same_thread=False,
-                detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES,
+            if db_path == ":memory:":
+                connection_uri = "sqlite://"
+            else:
+                connection_uri = f"sqlite:///{db_path}"
+
+            # Create SQLModel engine with StaticPool to share a single connection
+            cls._engine = create_engine(
+                connection_uri,
+                connect_args={
+                    "check_same_thread": False,
+                    "detect_types": sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES,
+                },
+                poolclass=StaticPool,
             )
+
+            # Retrieve the single underlying sqlite3 DBAPI connection from StaticPool
+            raw_conn = cls._engine.raw_connection()
+            cls._connection = raw_conn.driver_connection
             cls._connection.row_factory = sqlite3.Row
             cls._transaction_state.depth = 0
             cls.apply_startup_pragmas()
+
+    @classmethod
+    def get_session(cls) -> Session:
+        """Get a SQLModel Session."""
+        if cls._engine is None:
+            cls.initialize()
+        return Session(cls._engine)
 
     @classmethod
     def _get_transaction_depth(cls) -> int:

@@ -20,7 +20,9 @@ class PurchaseQueryService:
     @handle_exceptions(DatabaseException, show_dialog=True)
     def get_purchase(purchase_id: int) -> Optional[Purchase]:
         purchase_id = validate_integer(purchase_id, min_value=1)
-        row = DatabaseManager.fetch_one("SELECT * FROM purchases WHERE id = ?", (purchase_id,))
+        row = DatabaseManager.fetch_one(
+            "SELECT * FROM purchases WHERE id = ?", (purchase_id,)
+        )
         if row:
             purchase = Purchase.from_db_row(row)
             purchase.items = PurchaseQueryService.get_purchase_items(purchase_id)

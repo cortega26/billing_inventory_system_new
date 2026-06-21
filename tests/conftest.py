@@ -1,4 +1,3 @@
-import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -25,15 +24,17 @@ def db_manager():
     DatabaseManager.initialize(":memory:")
     DatabaseManager.execute_query("PRAGMA foreign_keys = ON")
 
-    # Ensure schema is loaded
-    project_root = Path(__file__).parent.parent
-    schema_path = project_root / "schema.sql"
-    if os.path.exists(schema_path):
-        with open(schema_path, "r") as f:
-            schema_sql = f.read()
-            # We explicitly execute script on the new connection
-            with DatabaseManager.get_db_connection() as conn:
-                conn.executescript(schema_sql)
+    # Create tables via SQLModel
+    from sqlmodel import SQLModel
+    from models.category import Category  # noqa: F401
+    from models.product import Product  # noqa: F401
+    from models.customer import Customer  # noqa: F401
+    from models.inventory import Inventory, InventoryAdjustment  # noqa: F401
+    from models.sale import Sale, SaleItem  # noqa: F401
+    from models.purchase import Purchase, PurchaseItem  # noqa: F401
+    from models.audit_log import AuditLog  # noqa: F401
+
+    SQLModel.metadata.create_all(DatabaseManager._engine)
 
     yield DatabaseManager
 

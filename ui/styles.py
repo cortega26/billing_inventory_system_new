@@ -82,7 +82,7 @@ def get_global_stylesheet() -> str:
     }}
 
     QPushButton:hover {{
-        background-color: #E0E0E0; /* Slightly darker than BG_ALT */
+        background-color: #4D4D4D; /* Slightly lighter than BG_ALT */
     }}
 
     QPushButton:pressed {{

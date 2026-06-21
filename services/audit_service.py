@@ -100,7 +100,7 @@ class AuditService:
         if search_term:
             search_pattern = f"%{search_term.strip()}%"
             filters.append(
-                "(" 
+                "("
                 "LOWER(operation) LIKE LOWER(?) OR "
                 "LOWER(entity_type) LIKE LOWER(?) OR "
                 "CAST(COALESCE(entity_id, '') AS TEXT) LIKE ? OR "

@@ -36,9 +36,7 @@ def validate_name_field(
     )
 
 
-def validate_description_field(
-    data: Dict[str, Any], validated: Dict[str, Any]
-) -> None:
+def validate_description_field(data: Dict[str, Any], validated: Dict[str, Any]) -> None:
     if "description" not in data:
         return
     validated["description"] = validate_string(
@@ -46,16 +44,12 @@ def validate_description_field(
     )
 
 
-def validate_category_field(
-    data: Dict[str, Any], validated: Dict[str, Any]
-) -> None:
+def validate_category_field(data: Dict[str, Any], validated: Dict[str, Any]) -> None:
     if "category_id" not in data:
         return
     category_id = data.get("category_id")
     validated["category_id"] = (
-        validate_integer(category_id, min_value=1)
-        if category_id is not None
-        else None
+        validate_integer(category_id, min_value=1) if category_id is not None else None
     )
 
 

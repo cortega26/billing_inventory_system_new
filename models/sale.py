@@ -1,26 +1,67 @@
-from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+
+import sqlalchemy as sa
+from pydantic import PrivateAttr, model_validator
+from sqlmodel import Column, Field, Integer, Relationship, SQLModel
 
 from utils.exceptions import ValidationException
 from utils.system.logger import logger
 from utils.validation.validators import validate_money, validate_money_multiplication
 
 
-@dataclass
-class SaleItem:
-    id: int
-    sale_id: int
-    product_id: int
-    quantity: float  # Allow up to 3 decimals for weight-based products
-    unit_price: int  # Chilean Pesos - always integer
-    profit: int  # Chilean Pesos - always integer
-    product_name: Optional[str] = None
+class SaleItem(SQLModel, table=True):
+    """Sale item entity with SQLModel implementation."""
 
-    def __post_init__(self):
+    __tablename__ = "sale_items"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    sale_id: int = Field(
+        sa_column=sa.Column(
+            sa.Integer, sa.ForeignKey("sales.id", ondelete="CASCADE"), nullable=False
+        )
+    )
+    product_id: int = Field(
+        sa_column=sa.Column(
+            sa.Integer,
+            sa.ForeignKey("products.id", ondelete="RESTRICT"),
+            nullable=False,
+        )
+    )
+    quantity: float  # Allow up to 3 decimals for weight-based products
+    unit_price: int = Field(sa_column=Column("price", Integer, nullable=False))
+    profit: int  # Chilean Pesos - always integer
+    created_at: Optional[datetime] = Field(
+        default_factory=datetime.now,
+        sa_column=sa.Column(sa.DateTime, nullable=True, server_default=sa.func.now()),
+    )
+
+    # Relationship to parent Sale
+    sale: Optional["Sale"] = Relationship(back_populates="items")
+
+    # Field not in the database table (extra joined info)
+    _product_name: Optional[str] = PrivateAttr(default=None)
+
+    @property
+    def product_name(self) -> Optional[str]:
+        return self._product_name
+
+    @product_name.setter
+    def product_name(self, value: Optional[str]):
+        self._product_name = value
+
+    def __init__(self, **data: Any):
+        product_name = data.pop("product_name", None)
+        super().__init__(**data)
+        if product_name is not None:
+            self.product_name = product_name
+
+    @model_validator(mode="after")
+    def post_init_validation(self) -> "SaleItem":
         self.quantity = self.normalize_quantity(self.quantity)
         self.validate_price(self.unit_price)
         self.validate_profit(self.profit)
+        return self
 
     @classmethod
     def from_db_row(cls, row: Dict[str, Any]) -> "SaleItem":
@@ -33,6 +74,11 @@ class SaleItem:
                 unit_price=int(row["price"]),
                 profit=int(row["profit"]),
                 product_name=row.get("product_name"),
+                created_at=(
+                    datetime.fromisoformat(row["created_at"])
+                    if "created_at" in row and row["created_at"]
+                    else datetime.now()
+                ),
             )
         except (ValueError, TypeError) as e:
             logger.error(f"Error creating SaleItem from row: {row}")
@@ -92,27 +138,71 @@ class SaleItem:
 VALID_STATUSES = frozenset({"confirmed", "cancelled"})
 
 
-@dataclass
-class Sale:
-    id: int
-    customer_id: Optional[int]
-    date: datetime
-    total_amount: int  # Chilean Pesos - always integer
-    total_profit: int  # Chilean Pesos - always integer
-    receipt_id: Optional[str] = None
-    status: str = "confirmed"
-    items: List[SaleItem] = field(default_factory=list)
+class Sale(SQLModel, table=True):
+    """Sale entity with SQLModel implementation."""
 
-    def __post_init__(self):
+    __tablename__ = "sales"
+
+    __table_args__ = (
+        sa.CheckConstraint(
+            "status IN ('confirmed', 'cancelled')", name="check_sale_status"
+        ),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    customer_id: Optional[int] = Field(
+        default=None,
+        sa_column=sa.Column(
+            sa.Integer,
+            sa.ForeignKey("customers.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+    )
+    date: Optional[datetime] = Field(
+        default_factory=datetime.now,
+        sa_column=sa.Column(sa.DateTime, nullable=True, server_default=sa.func.now()),
+    )
+    total_amount: int = Field(
+        default=0,
+        sa_column=sa.Column(sa.Integer, nullable=False, server_default=sa.text("0")),
+    )
+    total_profit: int = Field(
+        default=0,
+        sa_column=sa.Column(sa.Integer, nullable=False, server_default=sa.text("0")),
+    )
+    receipt_id: Optional[str] = Field(default=None, unique=True)
+    status: str = Field(
+        default="confirmed",
+        sa_column=sa.Column(
+            sa.String, nullable=False, server_default=sa.text("'confirmed'")
+        ),
+    )
+    created_at: Optional[datetime] = Field(
+        default_factory=datetime.now,
+        sa_column=sa.Column(sa.DateTime, nullable=True, server_default=sa.func.now()),
+    )
+
+    # Relationship to SaleItems
+    items: List[SaleItem] = Relationship(back_populates="sale")
+
+    @model_validator(mode="after")
+    def post_init_validation(self) -> "Sale":
         self.validate_customer_id(self.customer_id)
         self.validate_date(self.date)
         self.validate_total_amount(self.total_amount)
         self.validate_total_profit(self.total_profit)
         self.validate_status(self.status)
+        return self
 
     @classmethod
     def from_db_row(cls, row: Dict[str, Any]) -> "Sale":
         try:
+            # Parse date string
+            try:
+                date_val = datetime.strptime(row["date"], "%Y-%m-%d")
+            except ValueError:
+                date_val = datetime.fromisoformat(row["date"])
+
             return cls(
                 id=int(row["id"]),
                 customer_id=(
@@ -120,12 +210,16 @@ class Sale:
                     if row.get("customer_id") is not None
                     else None
                 ),
-                # date=datetime.fromisoformat(row["date"]),
-                date=datetime.strptime(row["date"], "%Y-%m-%d"),
+                date=date_val,
                 total_amount=int(row["total_amount"]),
                 total_profit=int(row["total_profit"]),
                 receipt_id=row.get("receipt_id"),
                 status=row.get("status", "confirmed"),
+                created_at=(
+                    datetime.fromisoformat(row["created_at"])
+                    if "created_at" in row and row["created_at"]
+                    else datetime.now()
+                ),
             )
         except (ValueError, TypeError) as e:
             logger.error(f"Error creating Sale from row: {row}")
@@ -199,7 +293,7 @@ class Sale:
         return {
             "id": self.id,
             "customer_id": self.customer_id,
-            "date": self.date.isoformat(),
+            "date": self.date.strftime("%Y-%m-%d"),
             "total_amount": self.total_amount,
             "total_profit": self.total_profit,
             "receipt_id": self.receipt_id,
@@ -210,6 +304,6 @@ class Sale:
     def __str__(self) -> str:
         return (
             f"Sale(id={self.id}, customer_id={self.customer_id}, "
-            f"date='{self.date.isoformat()}', total_amount={self.total_amount}, "
+            f"date='{self.date.strftime('%Y-%m-%d')}', total_amount={self.total_amount}, "
             f"total_profit={self.total_profit}, receipt_id='{self.receipt_id}')"
         )

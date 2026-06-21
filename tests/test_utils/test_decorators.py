@@ -37,6 +37,4 @@ def test_handle_exceptions_shows_dialog_for_widgets(qtbot, mocker):
     with pytest.raises(DatabaseException, match="fallo de UI"):
         widget.explode()
 
-    show_error_dialog.assert_called_once_with(
-        "Operation Failed", "fallo de UI", widget
-    )
+    show_error_dialog.assert_called_once_with("Operation Failed", "fallo de UI", widget)

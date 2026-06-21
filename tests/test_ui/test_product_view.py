@@ -69,7 +69,9 @@ def test_add_product_does_not_reemit_product_added_event(qtbot, db_manager, mock
         event_system.product_added.emit(201)
         return 201
 
-    mocker.patch.object(view.product_service, "create_product", side_effect=create_product)
+    mocker.patch.object(
+        view.product_service, "create_product", side_effect=create_product
+    )
     payloads, handler = capture_signal(event_system.product_added)
 
     try:
@@ -80,9 +82,7 @@ def test_add_product_does_not_reemit_product_added_event(qtbot, db_manager, mock
         event_system.product_added.disconnect(handler)
 
 
-def test_edit_product_does_not_reemit_product_updated_event(
-    qtbot, db_manager, mocker
-):
+def test_edit_product_does_not_reemit_product_updated_event(qtbot, db_manager, mocker):
     service = ProductService()
     product_id = service.create_product(
         {
@@ -117,7 +117,9 @@ def test_edit_product_does_not_reemit_product_updated_event(
     def update_product(*_args, **_kwargs):
         event_system.product_updated.emit(product_id)
 
-    mocker.patch.object(view.product_service, "update_product", side_effect=update_product)
+    mocker.patch.object(
+        view.product_service, "update_product", side_effect=update_product
+    )
     payloads, handler = capture_signal(event_system.product_updated)
 
     try:
@@ -154,7 +156,9 @@ def test_delete_product_does_not_reemit_product_deleted_event(
     def delete_product(_product_id):
         event_system.product_deleted.emit(_product_id)
 
-    mocker.patch.object(view.product_service, "delete_product", side_effect=delete_product)
+    mocker.patch.object(
+        view.product_service, "delete_product", side_effect=delete_product
+    )
     payloads, handler = capture_signal(event_system.product_deleted)
 
     try:

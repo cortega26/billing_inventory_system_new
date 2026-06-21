@@ -4,5 +4,9 @@
     "language": "en",
     "backup_interval": 24,
     "backup_dir": "backups",
-    "backup_retention_days": 7
+    "backup_retention_days": 7,
+    "pin_hash": "ec67b10795a9a610e6a361efcf4a156172dd10739d352b6cad03699d84f2e35f",
+    "last_backup_success": "2026-06-21T17:23:01.153878",
+    "last_backup_skipped_time": "",
+    "last_backup_skipped_reason": ""
 }

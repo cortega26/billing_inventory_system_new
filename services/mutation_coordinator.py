@@ -35,7 +35,9 @@ class MutationCoordinator:
             try:
                 event_system.inventory_changed.emit(product_id)
             except Exception as e:
-                logger.error(f"Error emitting inventory_changed for product {product_id}: {e}")
+                logger.error(
+                    f"Error emitting inventory_changed for product {product_id}: {e}"
+                )
 
         # 4. Emit specific signal
         try:

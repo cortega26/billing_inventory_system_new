@@ -110,13 +110,16 @@ class TestProductServiceContracts:
         assert product.category_id is None
         assert product.category_name == "Uncategorized"
         assert product.is_active is True
-        assert len(
-            AuditService.get_entries(
-                entity_type="product",
-                entity_id=product_id,
-                operation="create_product",
+        assert (
+            len(
+                AuditService.get_entries(
+                    entity_type="product",
+                    entity_id=product_id,
+                    operation="create_product",
+                )
             )
-        ) == 1
+            == 1
+        )
 
     def test_get_product_missing_returns_none(self, product_service):
         assert product_service.get_product(999999) is None
@@ -139,7 +142,9 @@ class TestProductServiceContracts:
 
         show_error_dialog.assert_not_called()
 
-    def test_normalize_create_product_data_sets_optional_defaults(self, product_service):
+    def test_normalize_create_product_data_sets_optional_defaults(
+        self, product_service
+    ):
         normalized = normalize_create_product_data(
             {"name": "Simple product", "cost_price": 500, "sell_price": 900}
         )
@@ -172,7 +177,10 @@ class TestProductServiceContracts:
             7, {"name": "Nuevo nombre", "barcode": "12345678"}
         )
 
-        assert query == "UPDATE products SET name = :name, barcode = :barcode WHERE id = :product_id"
+        assert (
+            query
+            == "UPDATE products SET name = :name, barcode = :barcode WHERE id = :product_id"
+        )
         assert params == {
             "name": "Nuevo nombre",
             "barcode": "12345678",
@@ -203,16 +211,20 @@ class TestProductServiceContracts:
         assert archived_product.is_active is False
         assert archived_product.deleted_at is not None
         assert product_service.get_all_products() == []
-        assert [product.id for product in product_service.get_all_products(active_only=False)] == [
-            product_id
-        ]
-        assert len(
-            AuditService.get_entries(
-                entity_type="product",
-                entity_id=product_id,
-                operation="delete_product",
+        assert [
+            product.id
+            for product in product_service.get_all_products(active_only=False)
+        ] == [product_id]
+        assert (
+            len(
+                AuditService.get_entries(
+                    entity_type="product",
+                    entity_id=product_id,
+                    operation="delete_product",
+                )
             )
-        ) == 1
+            == 1
+        )
 
     def test_restore_product_reactivates_visibility(self, product_service):
         product_id = product_service.create_product(
@@ -234,13 +246,16 @@ class TestProductServiceContracts:
         assert [product.id for product in product_service.get_all_products()] == [
             product_id
         ]
-        assert len(
-            AuditService.get_entries(
-                entity_type="product",
-                entity_id=product_id,
-                operation="restore_product",
+        assert (
+            len(
+                AuditService.get_entries(
+                    entity_type="product",
+                    entity_id=product_id,
+                    operation="restore_product",
+                )
             )
-        ) == 1
+            == 1
+        )
 
     def test_delete_product_with_history_archives_and_preserves_ledger(
         self,
@@ -308,7 +323,9 @@ class TestProductServiceContracts:
         results = product_service.search_products("Archived", active_only=False)
         assert [product.id for product in results] == [product_id]
 
-    def test_create_product_emits_product_and_inventory_events_once(self, product_service):
+    def test_create_product_emits_product_and_inventory_events_once(
+        self, product_service
+    ):
         product_payloads, product_handler = capture_signal(event_system.product_added)
         inventory_payloads, inventory_handler = capture_signal(
             event_system.inventory_changed

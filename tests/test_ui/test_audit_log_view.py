@@ -27,7 +27,9 @@ def test_audit_log_view_displays_entries_and_payload(qtbot, db_manager):
     assert '"identifier_9": "923456789"' in view.detail_text.toPlainText()
 
 
-def test_audit_log_view_exports_visible_entries(qtbot, db_manager, tmp_path, monkeypatch):
+def test_audit_log_view_exports_visible_entries(
+    qtbot, db_manager, tmp_path, monkeypatch
+):
     AuditService.log_operation(
         "delete_product",
         "product",

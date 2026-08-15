@@ -1,3 +1,4 @@
+import contextlib
 import shutil
 import sqlite3
 import threading
@@ -16,13 +17,13 @@ class BackupService:
     _instance: Optional["BackupService"] = None
     _lock = threading.Lock()
     _stop_event = threading.Event()
-    _scheduler_thread: Optional[threading.Thread] = None
+    _scheduler_thread: threading.Thread | None = None
 
     def __new__(cls) -> "BackupService":
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
-                    cls._instance = super(BackupService, cls).__new__(cls)
+                    cls._instance = super().__new__(cls)
         return cls._instance
 
     def get_backup_dir(self) -> Path:
@@ -41,7 +42,7 @@ class BackupService:
                 raise
         return backup_dir
 
-    def create_backup(self) -> Optional[str]:
+    def create_backup(self) -> str | None:
         """
         Creates a backup of the current database.
         Returns the path to the backup file if successful, None otherwise.
@@ -105,10 +106,8 @@ class BackupService:
             config.set("last_backup_skipped_reason", str(e))
             config.save()
             if "backup_path" in locals() and backup_path.exists():
-                try:
+                with contextlib.suppress(Exception):
                     backup_path.unlink()
-                except Exception:
-                    pass
             return None
 
     def cleanup_old_backups(self) -> None:

@@ -1,6 +1,6 @@
 from datetime import datetime
 from functools import lru_cache
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from database.database_manager import DatabaseManager
 from models.enums import MAX_SALE_ITEMS, QUANTITY_PRECISION
@@ -34,7 +34,7 @@ class SaleService:
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def create_sale(
-        self, customer_id: int, date: str, items: List[Dict[str, Any]]
+        self, customer_id: int, date: str, items: list[dict[str, Any]]
     ) -> int:
         """
         1) Insert a new 'sales' row with zero placeholders for total_amount / total_profit.
@@ -126,14 +126,14 @@ class SaleService:
             if isinstance(e, (ValidationException, NotFoundException)):
                 raise e
             logger.error(f"Error in create_sale: {str(e)}", extra={"exc_info": True})
-            raise DatabaseException(f"Failed to create sale: {str(e)}")
+            raise DatabaseException(f"Failed to create sale: {str(e)}") from e
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_sale(self, sale_id: int) -> Optional[Sale]:
+    def get_sale(self, sale_id: int) -> Sale | None:
         sale_id = validate_integer(sale_id, min_value=1)
         query = """
-        SELECT s.*, 
+        SELECT s.*,
             COALESCE(s.receipt_id, '') as receipt_id
         FROM sales s
         WHERE s.id = ?
@@ -157,7 +157,7 @@ class SaleService:
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_customer_sales(self, customer_id: int) -> List[Sale]:
+    def get_customer_sales(self, customer_id: int) -> list[Sale]:
         """Get all sales for a specific customer."""
         customer_id = validate_integer(customer_id, min_value=1)
         query = "SELECT * FROM sales WHERE customer_id = ?"
@@ -165,7 +165,7 @@ class SaleService:
         sales = []
         for row in rows:
             sale = Sale.from_db_row(row)
-            sale.items = self.get_sale_items(sale.id)
+            sale.items = self.get_sale_items(sale.id or 0)
             sales.append(sale)
         logger.info(
             "Customer sales retrieved",
@@ -177,7 +177,7 @@ class SaleService:
     @lru_cache(maxsize=128)
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_all_sales(limit: int = 100, offset: int = 0) -> List[Sale]:
+    def get_all_sales(limit: int = 100, offset: int = 0) -> list[Sale]:
         """Get a page of sales with items in optimized queries.
 
         Args:
@@ -219,7 +219,7 @@ class SaleService:
             """
             items_rows = DatabaseManager.fetch_all(items_query, tuple(sale_ids))
 
-            items_by_sale: Dict[int, List[SaleItem]] = {}
+            items_by_sale: dict[int, list[SaleItem]] = {}
             for item_row in items_rows:
                 sid = item_row["sale_id"]
                 if sid not in items_by_sale:
@@ -227,7 +227,7 @@ class SaleService:
                 items_by_sale[sid].append(SaleItem.from_db_row(item_row))
 
             for sale in sales:
-                sale.items = items_by_sale.get(sale.id, [])
+                sale.items = items_by_sale.get(sale.id or 0, [])
 
             logger.info(
                 f"Retrieved {len(sales)} sales",
@@ -237,12 +237,12 @@ class SaleService:
 
         except Exception as e:
             logger.error(f"Error fetching sales: {str(e)}")
-            raise DatabaseException(f"Failed to fetch sales: {str(e)}")
+            raise DatabaseException(f"Failed to fetch sales: {str(e)}") from e
 
     @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_sale_items(sale_id: int) -> List[SaleItem]:
+    def get_sale_items(sale_id: int) -> list[SaleItem]:
         logger.debug(f"Fetching items for sale {sale_id}")
         query = """
         SELECT si.*,
@@ -297,7 +297,7 @@ class SaleService:
             logger.error(
                 "Failed to delete sale", extra={"error": str(e), "sale_id": sale_id}
             )
-            raise DatabaseException(f"Failed to delete sale: {str(e)}")
+            raise DatabaseException(f"Failed to delete sale: {str(e)}") from e
 
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
@@ -343,12 +343,12 @@ class SaleService:
             logger.error(
                 "Failed to cancel sale", extra={"error": str(e), "sale_id": sale_id}
             )
-            raise DatabaseException(f"Failed to cancel sale: {str(e)}")
+            raise DatabaseException(f"Failed to cancel sale: {str(e)}") from e
 
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def update_sale(
-        self, sale_id: int, customer_id: int, date: str, items: List[Dict[str, Any]]
+        self, sale_id: int, customer_id: int, date: str, items: list[dict[str, Any]]
     ) -> None:
         from services.update_sale_workflow import UpdateSaleWorkflow
 
@@ -412,6 +412,8 @@ class SaleService:
         sale = self._require_sale(sale_id)
 
         if not sale.receipt_id:
+            if sale.date is None:
+                raise ValidationException("Sale date is required to generate receipt")
             receipt_id = self.generate_receipt_id(sale.date)
             self._update_sale_receipt_id(sale_id, receipt_id)
             sale.receipt_id = receipt_id
@@ -479,8 +481,8 @@ class SaleService:
         return f"{date_part}{next_number:03d}"
 
     @staticmethod
-    def _get_product_ids(items: List[Any]) -> List[int]:
-        product_ids: List[int] = []
+    def _get_product_ids(items: list[Any]) -> list[int]:
+        product_ids: list[int] = []
         for item in items:
             product_id = (
                 item["product_id"]
@@ -491,7 +493,7 @@ class SaleService:
                 product_ids.append(int(product_id))
         return product_ids
 
-    def _validate_sale_items(self, items: List[Dict[str, Any]]) -> None:
+    def _validate_sale_items(self, items: list[dict[str, Any]]) -> None:
         if not items:
             raise ValidationException("Sale must have at least one item")
         if len(items) > MAX_SALE_ITEMS:
@@ -523,11 +525,11 @@ class SaleService:
                 )
 
             except (ValueError, TypeError):
-                raise ValidationException("Invalid quantity or price format")
+                raise ValidationException("Invalid quantity or price format") from None
 
     @staticmethod
     @db_operation(show_dialog=True)
-    def _insert_sale_items(sale_id: int, items: List[Dict[str, Any]]) -> None:
+    def _insert_sale_items(sale_id: int, items: list[dict[str, Any]]) -> None:
         for item in items:
             # Convert float quantity to string for storage
             # Ensure precision decimal places
@@ -561,7 +563,7 @@ class SaleService:
 
     @staticmethod
     @db_operation(show_dialog=True)
-    def _update_sale_items(sale_id: int, items: List[Dict[str, Any]]) -> None:
+    def _update_sale_items(sale_id: int, items: list[dict[str, Any]]) -> None:
         DatabaseManager.execute_query(
             "DELETE FROM sale_items WHERE sale_id = ?", (sale_id,)
         )
@@ -571,7 +573,7 @@ class SaleService:
     @db_operation(show_dialog=True)
     def get_top_selling_products(
         start_date: str, end_date: str, limit: int = 10
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         limit = validate_integer(limit, min_value=1, max_value=1000)
@@ -623,7 +625,7 @@ class SaleService:
         end_date: str,
         limit: int = 100,
         offset: int = 0,
-    ) -> List[Sale]:
+    ) -> list[Sale]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         limit = validate_integer(limit, min_value=1)
@@ -657,7 +659,7 @@ class SaleService:
         """
         items_rows = DatabaseManager.fetch_all(items_query, tuple(sale_ids))
 
-        items_by_sale: Dict[int, List[SaleItem]] = {}
+        items_by_sale: dict[int, list[SaleItem]] = {}
         for item_row in items_rows:
             sid = item_row["sale_id"]
             if sid not in items_by_sale:
@@ -665,7 +667,7 @@ class SaleService:
             items_by_sale[sid].append(SaleItem.from_db_row(item_row))
 
         for sale in sales:
-            sale.items = items_by_sale.get(sale.id, [])
+            sale.items = items_by_sale.get(sale.id or 0, [])
 
         logger.info(
             "Sales by date range retrieved",
@@ -681,10 +683,10 @@ class SaleService:
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_daily_sales_report(self, date: str) -> Dict[str, Any]:
+    def get_daily_sales_report(self, date: str) -> dict[str, Any]:
         date = validate_date(date)
         query = """
-            SELECT 
+            SELECT
                 COUNT(*) as total_sales,
                 COALESCE(SUM(total_amount), 0) as total_revenue,
                 COALESCE(AVG(total_amount), 0) as average_sale_amount,
@@ -718,7 +720,7 @@ class SaleService:
     @handle_exceptions(DatabaseException, show_dialog=True)
     def get_sales_by_product(
         self, product_id: int, start_date: str, end_date: str
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         product_id = validate_integer(product_id, min_value=1)
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
@@ -754,11 +756,11 @@ class SaleService:
     @handle_exceptions(DatabaseException, show_dialog=True)
     def get_sales_distribution_by_category(
         self, start_date: str, end_date: str
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         query = """
-            SELECT 
+            SELECT
                 c.name as category_name,
                 COUNT(DISTINCT s.id) as sale_count,
                 SUM(si.quantity * si.price) as total_revenue,
@@ -791,12 +793,12 @@ class SaleService:
         )
         return distribution
 
-    @lru_cache(maxsize=100)
-    def get_product_details(self, product_id: int) -> Optional[Dict[str, Any]]:
+    @lru_cache(maxsize=100)  # noqa: B019 (intentional: paired with clear_cache)
+    def get_product_details(self, product_id: int) -> dict[str, Any] | None:
         product = self.product_service.get_product(product_id)
         return product.to_dict() if product else None
 
-    def calculate_total_amount(self, items: List[Dict[str, Any]]) -> int:
+    def calculate_total_amount(self, items: list[dict[str, Any]]) -> int:
         """Calculate total amount for a sale."""
         return sum(
             FinancialCalculator.calculate_item_total(
@@ -805,20 +807,20 @@ class SaleService:
             for item in items
         )
 
-    def calculate_total_profit(self, items: List[Dict[str, Any]]) -> int:
+    def calculate_total_profit(self, items: list[dict[str, Any]]) -> int:
         """Calculate total profit for a sale."""
         return sum(int(item["profit"]) for item in items)
 
-    def get_sale_statistics(self, start_date: str, end_date: str) -> Dict[str, Any]:
+    def get_sale_statistics(self, start_date: str, end_date: str) -> dict[str, Any]:
         """Get aggregated sale statistics for a date range."""
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         query = """
-            SELECT 
+            SELECT
                 COUNT(*) as total_sales,
                 SUM(total_amount) as total_amount,
                 SUM(total_profit) as total_profit
-            FROM sales 
+            FROM sales
             WHERE date BETWEEN ? AND ?
         """
         result = DatabaseManager.fetch_one(query, (start_date, end_date))

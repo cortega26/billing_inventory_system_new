@@ -1,0 +1,16 @@
+{
+  "include": [
+    "config.py",
+    "main.py",
+    "database",
+    "models",
+    "services",
+    "utils",
+    "scripts/check_schema_drift.py"
+  ],
+  "exclude": ["**/__pycache__", "**/.venv"],
+  "pythonVersion": "3.13",
+  "venvPath": ".",
+  "venv": ".venv",
+  "typeCheckingMode": "basic"
+}

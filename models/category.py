@@ -1,6 +1,6 @@
 import re
 from datetime import datetime
-from typing import Any, ClassVar, Dict, Optional
+from typing import Any, ClassVar
 
 import sqlalchemy as sa
 from pydantic import model_validator
@@ -15,15 +15,15 @@ class Category(SQLModel, table=True):
     Represents a product category in the system.
     """
 
-    __tablename__ = "categories"
+    __tablename__: str = "categories"
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     name: str = Field(unique=True, index=True)
-    created_at: Optional[datetime] = Field(
+    created_at: datetime | None = Field(
         default_factory=datetime.now,
         sa_column=sa.Column(sa.DateTime, nullable=True, server_default=sa.func.now()),
     )
-    updated_at: Optional[datetime] = Field(
+    updated_at: datetime | None = Field(
         default_factory=datetime.now,
         sa_column=sa.Column(sa.DateTime, nullable=True, server_default=sa.func.now()),
     )
@@ -50,7 +50,7 @@ class Category(SQLModel, table=True):
         return self
 
     @classmethod
-    def from_db_row(cls, row: Dict[str, Any]) -> "Category":
+    def from_db_row(cls, row: dict[str, Any]) -> "Category":
         """
         Create a Category instance from a database row.
         """
@@ -74,21 +74,25 @@ class Category(SQLModel, table=True):
                 "Failed to create category from DB row",
                 extra={"error": str(e), "row": row},
             )
-            raise ValidationException(f"Invalid category data: {str(e)}")
+            raise ValidationException(f"Invalid category data: {str(e)}") from e
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert category to dictionary representation.
         """
         return {
             "id": self.id,
             "name": self.name,
-            "created_at": self.created_at.isoformat()
-            if isinstance(self.created_at, datetime)
-            else self.created_at,
-            "updated_at": self.updated_at.isoformat()
-            if isinstance(self.updated_at, datetime)
-            else self.updated_at,
+            "created_at": (
+                self.created_at.isoformat()
+                if isinstance(self.created_at, datetime)
+                else self.created_at
+            ),
+            "updated_at": (
+                self.updated_at.isoformat()
+                if isinstance(self.updated_at, datetime)
+                else self.updated_at
+            ),
         }
 
     @staticmethod

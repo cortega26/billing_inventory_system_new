@@ -161,7 +161,7 @@ class AuditLogView(QWidget):
             logger.info("Audit log view refreshed", extra={"count": len(entries)})
         except Exception as e:
             logger.error(f"Error refreshing audit log view: {str(e)}")
-            raise UIException(f"No fue posible cargar la bitácora: {str(e)}")
+            raise UIException(f"No fue posible cargar la bitácora: {str(e)}") from e
 
     def populate_table(self, entries: list[dict[str, Any]]) -> None:
         self.audit_table.setRowCount(len(entries))
@@ -257,7 +257,7 @@ class AuditLogView(QWidget):
                     )
         except OSError as e:
             logger.error(f"Error exporting audit log: {str(e)}")
-            raise UIException(f"No fue posible exportar la bitácora: {str(e)}")
+            raise UIException(f"No fue posible exportar la bitácora: {str(e)}") from e
 
         show_info_message("Exportación exitosa", f"Bitácora exportada en {file_path}")
 

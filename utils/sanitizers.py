@@ -1,7 +1,6 @@
 import html
 import re
 from decimal import Decimal
-from typing import Union
 
 
 def sanitize_html(value: str) -> str:
@@ -57,8 +56,8 @@ def strip_tags(value: str) -> str:
 
 
 def sanitize_number(
-    value: Union[int, float, Decimal, str],
-) -> Union[int, float, Decimal]:
+    value: int | float | Decimal | str,
+) -> int | float | Decimal:
     """
     Ensure the given value is a valid number.
 
@@ -82,7 +81,7 @@ def sanitize_number(
             try:
                 return Decimal(value)
             except Exception:
-                raise ValueError(f"Cannot convert {value} to a number")
+                raise ValueError(f"Cannot convert {value} to a number") from None
 
 
 def truncate_string(value: str, max_length: int) -> str:

@@ -1,3 +1,4 @@
+import contextlib
 import threading
 from decimal import Decimal
 
@@ -43,10 +44,8 @@ def db_manager():
     yield DatabaseManager
     # Cleanup
     if DatabaseManager._connection:
-        try:
+        with contextlib.suppress(Exception):
             DatabaseManager._connection.close()
-        except Exception:
-            pass
         DatabaseManager._connection = None
 
 
@@ -65,7 +64,7 @@ class TestDatabaseManager:
         # Verify table exists
         cursor = db_manager._get_cursor()
         cursor.execute("""
-            SELECT name FROM sqlite_master 
+            SELECT name FROM sqlite_master
             WHERE type='table' AND name='test_table'
         """)
         assert cursor.fetchone() is not None

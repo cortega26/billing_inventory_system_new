@@ -13,7 +13,7 @@ class AnalyticsEngine:
     Engine for executing analytics metrics with read-only database access.
     """
 
-    def __init__(self, db_path: Path = None):
+    def __init__(self, db_path: Path | None = None):
         self.db_path = db_path or DATABASE_PATH
 
     def _get_connection(self) -> sqlite3.Connection:

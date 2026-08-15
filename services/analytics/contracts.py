@@ -1,14 +1,14 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, List, Type
+from typing import Any
 
 
 @dataclass
 class MetricResult:
     """Standardized result wrapper for metric execution."""
 
-    data: List[Dict[str, Any]]
-    meta: Dict[str, Any]
+    data: list[dict[str, Any]]
+    meta: dict[str, Any]
 
 
 class Metric(ABC):
@@ -28,7 +28,7 @@ class Metric(ABC):
 
     @property
     @abstractmethod
-    def output_schema(self) -> Dict[str, Type]:
+    def output_schema(self) -> dict[str, type]:
         """Expected output fields and their types."""
         pass
 
@@ -42,6 +42,7 @@ class Metric(ABC):
         """Returns the parameters to bind to the query."""
         pass
 
+    @abstractmethod
     def validate_params(self, **kwargs) -> None:
         """Optional hook to validate parameters before execution."""
         pass

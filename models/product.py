@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 import sqlalchemy as sa
 from pydantic import PrivateAttr, model_validator
@@ -12,7 +12,7 @@ from utils.exceptions import ValidationException
 class Product(SQLModel, table=True):
     """Product entity with SQLModel implementation."""
 
-    __tablename__ = "products"
+    __tablename__: str = "products"
 
     __table_args__ = (
         sa.CheckConstraint("cost_price >= 0", name="check_cost_price_positive"),
@@ -20,10 +20,10 @@ class Product(SQLModel, table=True):
         sa.CheckConstraint("is_active IN (0, 1)", name="check_product_active"),
     )
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     name: str
-    description: Optional[str] = Field(default=None)
-    category_id: Optional[int] = Field(
+    description: str | None = Field(default=None)
+    category_id: int | None = Field(
         default=None,
         sa_column=sa.Column(
             sa.Integer,
@@ -39,30 +39,30 @@ class Product(SQLModel, table=True):
         default=0,
         sa_column=sa.Column(sa.Integer, nullable=False, server_default=sa.text("0")),
     )
-    barcode: Optional[str] = Field(default=None, unique=True)
+    barcode: str | None = Field(default=None, unique=True)
     is_active: bool = Field(
         default=True,
         sa_column=sa.Column(sa.Boolean, nullable=False, server_default=sa.text("1")),
     )
-    deleted_at: Optional[str] = Field(default=None)
-    created_at: Optional[datetime] = Field(
+    deleted_at: str | None = Field(default=None)
+    created_at: datetime | None = Field(
         default_factory=datetime.now,
         sa_column=sa.Column(sa.DateTime, nullable=True, server_default=sa.func.now()),
     )
-    updated_at: Optional[datetime] = Field(
+    updated_at: datetime | None = Field(
         default_factory=datetime.now,
         sa_column=sa.Column(sa.DateTime, nullable=True, server_default=sa.func.now()),
     )
 
     # Fields not in the database table (extra joined info)
-    _category_name: Optional[str] = PrivateAttr(default=None)
+    _category_name: str | None = PrivateAttr(default=None)
 
     @property
-    def category_name(self) -> Optional[str]:
+    def category_name(self) -> str | None:
         return self._category_name
 
     @category_name.setter
-    def category_name(self, value: Optional[str]):
+    def category_name(self, value: str | None):
         self._category_name = value
 
     def __init__(self, **data: Any):
@@ -142,7 +142,7 @@ class Product(SQLModel, table=True):
         return round((self.calculate_profit() / self.sell_price) * 100, 2)
 
     @classmethod
-    def from_db_row(cls, row: Dict[str, Any]) -> "Product":
+    def from_db_row(cls, row: dict[str, Any]) -> "Product":
         """Create Product from database row."""
         return cls(
             id=int(row["id"]),
@@ -169,7 +169,7 @@ class Product(SQLModel, table=True):
             ),
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
             "id": self.id,
@@ -182,10 +182,14 @@ class Product(SQLModel, table=True):
             "barcode": self.barcode,
             "is_active": self.is_active,
             "deleted_at": self.deleted_at,
-            "created_at": self.created_at.isoformat()
-            if isinstance(self.created_at, datetime)
-            else self.created_at,
-            "updated_at": self.updated_at.isoformat()
-            if isinstance(self.updated_at, datetime)
-            else self.updated_at,
+            "created_at": (
+                self.created_at.isoformat()
+                if isinstance(self.created_at, datetime)
+                else self.created_at
+            ),
+            "updated_at": (
+                self.updated_at.isoformat()
+                if isinstance(self.updated_at, datetime)
+                else self.updated_at
+            ),
         }

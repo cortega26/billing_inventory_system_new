@@ -1,11 +1,12 @@
-from typing import Any, Callable, Union
+from collections.abc import Callable
+from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QTableWidgetItem
 
 
 class NumericTableWidgetItem(QTableWidgetItem):
-    def __init__(self, value: Union[int, float]):
+    def __init__(self, value: int | float):
         super().__init__(str(value))
         self.value = value
         self.setTextAlignment(
@@ -19,7 +20,7 @@ class NumericTableWidgetItem(QTableWidgetItem):
 
 
 class PercentageTableWidgetItem(QTableWidgetItem):
-    def __init__(self, value: Union[int, float, None]):
+    def __init__(self, value: int | float | None):
         display_value = (
             f"{value:.2f}%".replace(".", ",") if value is not None else "N/A"
         )
@@ -40,8 +41,8 @@ class PercentageTableWidgetItem(QTableWidgetItem):
 class PriceTableWidgetItem(QTableWidgetItem):
     def __init__(
         self,
-        value: Union[int, float, None],
-        format_func: Callable[[Union[int, float]], str],
+        value: int | float | None,
+        format_func: Callable[[int | float], str],
     ):
         display_value = format_func(value) if value is not None else "N/A"
         super().__init__(display_value)

@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Protocol, Type, cast
+from typing import Protocol, cast
 
 from PySide6.QtCore import QPoint, QSettings, QSize
 from PySide6.QtGui import QAction, QKeySequence
@@ -94,7 +94,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle(f"{APP_NAME} - v{APP_VERSION}")
         self.settings = QSettings(COMPANY_NAME, APP_NAME)
-        self.views_by_name: Dict[str, QWidget] = {}
+        self.views_by_name: dict[str, QWidget] = {}
         self.setup_ui()
 
     @ui_operation(show_dialog=True)
@@ -131,7 +131,7 @@ class MainWindow(QMainWindow):
             logger.info("Main window UI setup completed successfully")
         except Exception as e:
             logger.error(f"Error setting up main window UI: {str(e)}")
-            raise UIException(f"Failed to set up main window UI: {str(e)}")
+            raise UIException(f"Failed to set up main window UI: {str(e)}") from e
 
     def setup_menu_bar(self):
         menu_bar = QMenuBar(self)
@@ -208,7 +208,7 @@ class MainWindow(QMainWindow):
     @handle_exceptions(UIException, show_dialog=True)
     def create_tabs(self):
         try:
-            tabs: Dict[str, Type[QWidget]] = {
+            tabs: dict[str, type[QWidget]] = {
                 DASHBOARD_TAB: DashboardView,
                 CUSTOMERS_TAB: CustomerView,
                 PRODUCTS_TAB: ProductView,
@@ -232,7 +232,7 @@ class MainWindow(QMainWindow):
             self.connect_to_events()
         except Exception as e:
             logger.error(f"Error creating tabs: {str(e)}")
-            raise UIException(f"Failed to create tabs: {str(e)}")
+            raise UIException(f"Failed to create tabs: {str(e)}") from e
 
     def restore_last_tab(self):
         last_tab_index = self.settings.value("LastTabIndex", 0)
@@ -348,9 +348,7 @@ class MainWindow(QMainWindow):
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(UIException, show_dialog=True)
-    def refresh_relevant_views(
-        self, target_tab_names: Optional[tuple[str, ...]] = None
-    ):
+    def refresh_relevant_views(self, target_tab_names: tuple[str, ...] | None = None):
         try:
             if target_tab_names is None:
                 target_tab_names = tuple(self.views_by_name.keys())
@@ -362,12 +360,12 @@ class MainWindow(QMainWindow):
                 refreshed_tabs.add(tab_name)
 
                 widget = self.views_by_name.get(tab_name)
-                if hasattr(widget, "refresh") and callable(getattr(widget, "refresh")):
+                if hasattr(widget, "refresh") and callable(widget.refresh):
                     refreshable_widget = cast(RefreshableWidget, widget)
                     refreshable_widget.refresh()
         except Exception as e:
             logger.error(f"Error refreshing views: {str(e)}")
-            raise UIException(f"Failed to refresh views: {str(e)}")
+            raise UIException(f"Failed to refresh views: {str(e)}") from e
 
     def create_menu(self, name: str, actions: list) -> QMenu:
         menu = QMenu(name, self)
@@ -386,7 +384,7 @@ class MainWindow(QMainWindow):
     def export_data(self):
         current_widget = self.tab_widget.currentWidget()
         if hasattr(current_widget, "export_current_view") and callable(
-            getattr(current_widget, "export_current_view")
+            current_widget.export_current_view
         ):
             exportable_widget = cast(ExportableWidget, current_widget)
             exportable_widget.export_current_view()
@@ -431,15 +429,13 @@ class MainWindow(QMainWindow):
     def refresh_current_tab(self):
         try:
             current_widget = self.tab_widget.currentWidget()
-            if hasattr(current_widget, "refresh") and callable(
-                getattr(current_widget, "refresh")
-            ):
+            if hasattr(current_widget, "refresh") and callable(current_widget.refresh):
                 refreshable_widget = cast(RefreshableWidget, current_widget)
                 refreshable_widget.refresh()
             self.show_status_message("Vista actualizada")
         except Exception as e:
             logger.error(f"Error refreshing current tab: {str(e)}")
-            raise UIException(f"Failed to refresh current tab: {str(e)}")
+            raise UIException(f"Failed to refresh current tab: {str(e)}") from e
 
     @ui_operation(show_dialog=True)
     def show_user_guide(self):

@@ -69,7 +69,7 @@ class TestInventoryService:
             inventory_service, "get_inventory", return_value=mock_inventory
         )
 
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationException):
             inventory_service.update_quantity(sample_product.id, -1.0)
 
 

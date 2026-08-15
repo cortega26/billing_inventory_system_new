@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from database.database_manager import DatabaseManager
 from models.enums import QUANTITY_PRECISION, InventoryAction
@@ -25,7 +25,7 @@ from utils.validation.validators import (
 class InventoryService:
     @staticmethod
     def apply_batch_updates(
-        items: List[Any], multiplier: float = 1.0, emit_events: bool = True
+        items: list[Any], multiplier: float = 1.0, emit_events: bool = True
     ) -> None:
         """
         Apply inventory updates for a batch of items.
@@ -57,10 +57,10 @@ class InventoryService:
                 logger.error(f"Failed to update inventory for product {p_id}: {str(e)}")
                 raise ValidationException(
                     f"Inventory update failed for product {p_id}: {str(e)}"
-                )
+                ) from e
 
     @staticmethod
-    def _normalize_batch_item(item: Any) -> Optional[tuple[Any, Any]]:
+    def _normalize_batch_item(item: Any) -> tuple[Any, Any] | None:
         if isinstance(item, dict):
             product_id = item.get("product_id")
             quantity = item.get("quantity")
@@ -161,7 +161,7 @@ class InventoryService:
     @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(NotFoundException, DatabaseException, show_dialog=True)
-    def get_inventory(product_id: int) -> Optional[Inventory]:
+    def get_inventory(product_id: int) -> Inventory | None:
         product_id = validate_integer(product_id, min_value=1)
         query = "SELECT * FROM inventory WHERE product_id = ?"
         row = DatabaseManager.fetch_one(query, (product_id,))
@@ -175,10 +175,10 @@ class InventoryService:
     @lru_cache(maxsize=1)
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_all_inventory() -> List[Dict[str, Any]]:
+    def get_all_inventory() -> list[dict[str, Any]]:
         """Get all inventory items with product and category details."""
         query = """
-            SELECT 
+            SELECT
                 i.product_id,
                 i.quantity,
                 p.name as product_name,
@@ -210,7 +210,7 @@ class InventoryService:
 
         except Exception as e:
             logger.error(f"Error fetching inventory: {str(e)}")
-            raise DatabaseException(f"Failed to fetch inventory: {str(e)}")
+            raise DatabaseException(f"Failed to fetch inventory: {str(e)}") from e
 
     @staticmethod
     @db_operation(show_dialog=True)
@@ -342,7 +342,7 @@ class InventoryService:
     @handle_exceptions(DatabaseException, show_dialog=True)
     def get_inventory_movements(
         product_id: int, start_date: str, end_date: str
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         product_id = validate_integer(product_id, min_value=1)
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
@@ -353,13 +353,13 @@ class InventoryService:
             FROM inventory_adjustments
             WHERE product_id = ? AND date BETWEEN ? AND ?
             UNION ALL
-            SELECT 'sale' as type, s.date, -si.quantity as quantity_change, 
+            SELECT 'sale' as type, s.date, -si.quantity as quantity_change,
                    'Sale' as reason
             FROM sale_items si
             JOIN sales s ON si.sale_id = s.id
             WHERE si.product_id = ? AND s.date BETWEEN ? AND ?
             UNION ALL
-            SELECT 'purchase' as type, p.date, pi.quantity as quantity_change, 
+            SELECT 'purchase' as type, p.date, pi.quantity as quantity_change,
                    'Purchase' as reason
             FROM purchase_items pi
             JOIN purchases p ON pi.purchase_id = p.id
@@ -382,7 +382,7 @@ class InventoryService:
     @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_inventory_turnover(start_date: str, end_date: str) -> Dict[int, float]:
+    def get_inventory_turnover(start_date: str, end_date: str) -> dict[int, float]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         # inventory has exactly one row per product, so AVG(quantity) == quantity.
@@ -418,7 +418,7 @@ class InventoryService:
         return turnover_ratios
 
     @staticmethod
-    def get_low_stock_products(threshold: int = 10) -> List[Dict[str, Any]]:
+    def get_low_stock_products(threshold: int = 10) -> list[dict[str, Any]]:
         query = """
             SELECT p.id, p.name, i.quantity
             FROM products p

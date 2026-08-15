@@ -3,8 +3,8 @@
 import sqlite3
 import threading
 import time
-from contextlib import contextmanager
-from typing import Any, Dict, List, Tuple, Union
+from contextlib import contextmanager, suppress
+from typing import Any
 
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, create_engine
@@ -48,10 +48,8 @@ class DatabaseManager:
 
         with cls._connection_lock:
             if cls._connection is not None:
-                try:
+                with suppress(sqlite3.Error):
                     cls._connection.close()
-                except sqlite3.Error:
-                    pass
 
             if db_path == ":memory:":
                 connection_uri = "sqlite://"
@@ -70,8 +68,10 @@ class DatabaseManager:
 
             # Retrieve the single underlying sqlite3 DBAPI connection from StaticPool
             raw_conn = cls._engine.raw_connection()
-            cls._connection = raw_conn.driver_connection
-            cls._connection.row_factory = sqlite3.Row
+            connection = raw_conn.driver_connection
+            assert connection is not None
+            cls._connection = connection
+            connection.row_factory = sqlite3.Row
             cls._transaction_state.depth = 0
             cls.apply_startup_pragmas()
 
@@ -138,7 +138,7 @@ class DatabaseManager:
             raise DatabaseException(f"Transaction failed: {str(e)}") from e
 
     @classmethod
-    def fetch_one(cls, query: str, params: Union[tuple, Dict[str, Any]] = ()):
+    def fetch_one(cls, query: str, params: tuple | list | dict[str, Any] = ()):
         try:
             with cls._connection_lock:
                 cursor = cls._get_cursor()
@@ -153,10 +153,10 @@ class DatabaseManager:
         except Exception as e:
             if isinstance(e, DatabaseException):
                 raise
-            raise DatabaseException(f"Query failed: {str(e)}")
+            raise DatabaseException(f"Query failed: {str(e)}") from e
 
     @classmethod
-    def fetch_all(cls, query: str, params: Union[tuple, Dict[str, Any]] = ()):
+    def fetch_all(cls, query: str, params: tuple | list | dict[str, Any] = ()):
         try:
             with cls._connection_lock:
                 cursor = cls._get_cursor()
@@ -170,11 +170,11 @@ class DatabaseManager:
         except Exception as e:
             if isinstance(e, DatabaseException):
                 raise
-            raise DatabaseException(f"Query failed: {str(e)}")
+            raise DatabaseException(f"Query failed: {str(e)}") from e
 
     @classmethod
     def execute_query(
-        cls, query: str, params: Union[tuple, Dict[str, Any]] = ()
+        cls, query: str, params: tuple | list | dict[str, Any] = ()
     ) -> sqlite3.Cursor:
         """Execute a query and return the cursor."""
         if cls._connection is None:
@@ -196,7 +196,7 @@ class DatabaseManager:
         except Exception as e:
             if isinstance(e, DatabaseException):
                 raise
-            raise DatabaseException(f"Query execution failed: {str(e)}")
+            raise DatabaseException(f"Query execution failed: {str(e)}") from e
 
     @classmethod
     def begin_transaction(cls):
@@ -259,10 +259,10 @@ class DatabaseManager:
             with cls._connection_lock:
                 yield cls._connection
         except Exception as e:
-            raise DatabaseException(f"Database connection error: {str(e)}")
+            raise DatabaseException(f"Database connection error: {str(e)}") from e
 
     @classmethod
-    def executemany(cls, query: str, params: List[Tuple]) -> sqlite3.Cursor:
+    def executemany(cls, query: str, params: list[tuple]) -> sqlite3.Cursor:
         """Execute a query with multiple parameter sets and commit."""
         if cls._connection is None:
             cls.initialize()
@@ -278,4 +278,4 @@ class DatabaseManager:
         except Exception as e:
             if isinstance(e, DatabaseException):
                 raise
-            raise DatabaseException(f"Batch execution failed: {str(e)}")
+            raise DatabaseException(f"Batch execution failed: {str(e)}") from e

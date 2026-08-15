@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any
 from unittest.mock import Mock
 
 import pytest
@@ -37,8 +37,8 @@ class BaseTest:
     def setup_mock_db_response(
         self,
         mock_db: Mock,
-        fetch_one_return: Optional[Dict[str, Any]] = None,
-        fetch_all_return: Optional[list] = None,
+        fetch_one_return: dict[str, Any] | None = None,
+        fetch_all_return: list | None = None,
         execute_return: Any = None,
     ):
         """Setup mock database responses with validation."""

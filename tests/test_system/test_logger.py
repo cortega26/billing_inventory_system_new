@@ -141,7 +141,7 @@ class TestLogger:
         """Test log file rotation."""
         # Write enough logs to trigger rotation
         # Use a loop that guarantees rotation without massive IO wait
-        for i in range(20):
+        for _i in range(20):
             # Write large chunks to trigger rotation quickly (1MB limit)
             configured_logger.info("X" * 100000)
 

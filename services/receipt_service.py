@@ -34,7 +34,8 @@ class ReceiptService:
             c.drawString(50, height - 50, f"Receipt #{sale.receipt_id}")
 
             c.setFont("Helvetica", 12)
-            c.drawString(50, height - 80, f"Date: {sale.date.strftime('%Y-%m-%d')}")
+            date_str = sale.date.strftime("%Y-%m-%d") if sale.date is not None else ""
+            c.drawString(50, height - 80, f"Date: {date_str}")
             c.drawString(50, height - 100, f"Customer ID: {sale.customer_id}")
 
             # Draw items header
@@ -81,7 +82,7 @@ class ReceiptService:
             )
         except Exception as e:
             logger.error(f"Error generating PDF receipt: {str(e)}")
-            raise ValidationException(f"Failed to generate PDF: {str(e)}")
+            raise ValidationException(f"Failed to generate PDF: {str(e)}") from e
 
     def send_via_whatsapp(self, sale_id: int, phone_number: str) -> None:
         """

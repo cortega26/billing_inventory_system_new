@@ -27,13 +27,10 @@ target_metadata = SQLModel.metadata
 
 
 def include_object(object, name, type_, reflected, compare_to):
-    if type_ == "table" and name in [
-        "sqlite_sequence",
-        "test_table",
-        "customer_payments",
-    ]:
-        return False
-    return True
+    return not (
+        type_ == "table"
+        and name in ["sqlite_sequence", "test_table", "customer_payments"]
+    )
 
 
 def run_migrations_offline() -> None:

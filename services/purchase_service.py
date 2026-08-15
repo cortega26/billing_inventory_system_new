@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from database.database_manager import DatabaseManager
 from models.enums import (
@@ -28,8 +28,8 @@ class PurchaseService:
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def create_purchase(
-        supplier: str, date: str, items: List[Dict[str, Any]]
-    ) -> Optional[int]:
+        supplier: str, date: str, items: list[dict[str, Any]]
+    ) -> int | None:
         supplier = validate_string(supplier, max_length=100)
         date = validate_date(date)
         PurchaseService._validate_purchase_items(items)
@@ -82,7 +82,7 @@ class PurchaseService:
         return purchase_id
 
     @staticmethod
-    def get_purchase(purchase_id: int) -> Optional[Purchase]:
+    def get_purchase(purchase_id: int) -> Purchase | None:
         return PurchaseQueryService.get_purchase(purchase_id)
 
     @staticmethod
@@ -94,7 +94,7 @@ class PurchaseService:
         raise NotFoundException(f"Purchase with ID {purchase_id} not found")
 
     @staticmethod
-    def get_all_purchases() -> List[Purchase]:
+    def get_all_purchases() -> list[Purchase]:
         return PurchaseQueryService.get_all_purchases()
 
     @staticmethod
@@ -138,14 +138,14 @@ class PurchaseService:
         )
 
     @staticmethod
-    def get_suppliers() -> List[str]:
+    def get_suppliers() -> list[str]:
         return PurchaseQueryService.get_suppliers()
 
     @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def update_purchase(
-        purchase_id: int, supplier: str, date: str, items: List[Dict[str, Any]]
+        purchase_id: int, supplier: str, date: str, items: list[dict[str, Any]]
     ) -> None:
         purchase_id = validate_integer(purchase_id, min_value=1)
         supplier = validate_string(supplier, max_length=100)
@@ -204,7 +204,7 @@ class PurchaseService:
         )
 
     @staticmethod
-    def _validate_purchase_items(items: List[Dict[str, Any]]) -> None:
+    def _validate_purchase_items(items: list[dict[str, Any]]) -> None:
         if not items:
             raise ValidationException("Purchase must have at least one item")
         if len(items) > MAX_PURCHASE_ITEMS:  # Prevent DOS attacks
@@ -216,7 +216,7 @@ class PurchaseService:
             PurchaseService._validate_purchase_item(item)
 
     @staticmethod
-    def _validate_purchase_item(item: Dict[str, Any]) -> None:
+    def _validate_purchase_item(item: dict[str, Any]) -> None:
         try:
             product_id = int(item.get("product_id", 0))
             if product_id <= 0 or product_id > 2147483647:
@@ -235,11 +235,11 @@ class PurchaseService:
             if cost_price < 0 or cost_price > MAX_PRICE_CLP:
                 raise ValidationException(f"Invalid cost price: {cost_price}")
         except (ValueError, TypeError) as e:
-            raise ValidationException(f"Invalid item data: {str(e)}")
+            raise ValidationException(f"Invalid item data: {str(e)}") from e
 
     @staticmethod
-    def _get_product_ids(items: List[Any]) -> List[int]:
-        product_ids: List[int] = []
+    def _get_product_ids(items: list[Any]) -> list[int]:
+        product_ids: list[int] = []
         for item in items:
             product_id = (
                 item["product_id"]
@@ -252,14 +252,14 @@ class PurchaseService:
 
     @staticmethod
     @db_operation(show_dialog=True)
-    def _insert_purchase(supplier: str, date: str, total_amount: int) -> Optional[int]:
+    def _insert_purchase(supplier: str, date: str, total_amount: int) -> int | None:
         query = "INSERT INTO purchases (supplier, date, total_amount) VALUES (?, ?, ?)"
         cursor = DatabaseManager.execute_query(query, (supplier, date, total_amount))
         return cursor.lastrowid
 
     @staticmethod
     @db_operation(show_dialog=True)
-    def _insert_purchase_items(purchase_id: int, items: List[Dict[str, Any]]) -> None:
+    def _insert_purchase_items(purchase_id: int, items: list[dict[str, Any]]) -> None:
         for item in items:
             query = """
                 INSERT INTO purchase_items (purchase_id, product_id, quantity, price)
@@ -290,7 +290,7 @@ class PurchaseService:
 
     @staticmethod
     @db_operation(show_dialog=True)
-    def _update_purchase_items(purchase_id: int, items: List[Dict[str, Any]]) -> None:
+    def _update_purchase_items(purchase_id: int, items: list[dict[str, Any]]) -> None:
         DatabaseManager.execute_query(
             "DELETE FROM purchase_items WHERE purchase_id = ?", (purchase_id,)
         )
@@ -299,7 +299,7 @@ class PurchaseService:
     @staticmethod
     def get_purchases_by_supplier(
         supplier: str, start_date: str, end_date: str
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         return PurchaseQueryService.get_purchases_by_supplier(
             supplier, start_date, end_date
         )
@@ -307,29 +307,29 @@ class PurchaseService:
     @staticmethod
     def get_purchase_trends(
         start_date: str, end_date: str, interval: str = "month"
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         return PurchaseQueryService.get_purchase_trends(start_date, end_date, interval)
 
     @staticmethod
     def get_top_suppliers(
         start_date: str, end_date: str, limit: int = 10
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         return PurchaseQueryService.get_top_suppliers(start_date, end_date, limit)
 
     # void_purchase removed (alias for delete_purchase)
 
     @staticmethod
-    def get_supplier_purchases(supplier: str) -> List[Purchase]:
+    def get_supplier_purchases(supplier: str) -> list[Purchase]:
         return PurchaseQueryService.get_supplier_purchases(supplier)
 
     # update_purchase_reference removed (unimplemented)
 
     @staticmethod
-    def get_purchase_statistics(start_date: str, end_date: str) -> Dict[str, Any]:
+    def get_purchase_statistics(start_date: str, end_date: str) -> dict[str, Any]:
         return PurchaseQueryService.get_purchase_statistics(start_date, end_date)
 
     @staticmethod
-    def get_purchase_history(start_date: str, end_date: str) -> List[Purchase]:
+    def get_purchase_history(start_date: str, end_date: str) -> list[Purchase]:
         return PurchaseQueryService.get_purchase_history(start_date, end_date)
 
     @staticmethod

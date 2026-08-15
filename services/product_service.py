@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from database.database_manager import DatabaseManager
 from models.product import Product
@@ -27,7 +27,7 @@ from utils.validation.validators import validate_integer, validate_string
 class ProductService:
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
-    def create_product(self, product_data: Dict[str, Any]) -> Optional[int]:
+    def create_product(self, product_data: dict[str, Any]) -> int | None:
         validated_data = normalize_create_product_data(
             self._validate_product_data(product_data, is_create=True)
         )
@@ -48,11 +48,11 @@ class ProductService:
             )
             if isinstance(e, (ValidationException, DatabaseException)):
                 raise
-            raise DatabaseException(f"Failed to create product: {str(e)}")
+            raise DatabaseException(f"Failed to create product: {str(e)}") from e
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_product(self, product_id: int) -> Optional[Product]:
+    def get_product(self, product_id: int) -> Product | None:
         """
         Get a product by ID.
 
@@ -67,7 +67,7 @@ class ProductService:
         """
         product_id = validate_integer(product_id, min_value=1)
         query = """
-        SELECT p.*, c.name as category_name 
+        SELECT p.*, c.name as category_name
         FROM products p
         LEFT JOIN categories c ON p.category_id = c.id
         WHERE p.id = :product_id
@@ -87,10 +87,10 @@ class ProductService:
 
         raise NotFoundException(f"Product with ID {product_id} not found")
 
-    @lru_cache(maxsize=4)
+    @lru_cache(maxsize=4)  # noqa: B019 (intentional: paired with clear_cache)
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_all_products(self, active_only: bool = True) -> List[Product]:
+    def get_all_products(self, active_only: bool = True) -> list[Product]:
         """Get products, optionally including archived records."""
         query = """
         SELECT DISTINCT p.*, c.name as category_name
@@ -109,13 +109,13 @@ class ProductService:
             return products
         except Exception as e:
             logger.error(f"Error retrieving products: {str(e)}")
-            raise DatabaseException(f"Failed to retrieve products: {str(e)}")
+            raise DatabaseException(f"Failed to retrieve products: {str(e)}") from e
 
     @db_operation(show_dialog=True)
     @handle_exceptions(
         NotFoundException, ValidationException, DatabaseException, show_dialog=True
     )
-    def update_product(self, product_id: int, update_data: Dict[str, Any]) -> None:
+    def update_product(self, product_id: int, update_data: dict[str, Any]) -> None:
         """
         Update a product.
 
@@ -158,7 +158,7 @@ class ProductService:
                 "Failed to update product",
                 extra={"error": str(e), "product_id": product_id},
             )
-            raise DatabaseException(f"Failed to update product: {str(e)}")
+            raise DatabaseException(f"Failed to update product: {str(e)}") from e
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
@@ -197,7 +197,7 @@ class ProductService:
             )
             if isinstance(e, NotFoundException):
                 raise
-            raise DatabaseException(f"Failed to archive product: {str(e)}")
+            raise DatabaseException(f"Failed to archive product: {str(e)}") from e
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
@@ -234,13 +234,13 @@ class ProductService:
             )
             if isinstance(e, NotFoundException):
                 raise
-            raise DatabaseException(f"Failed to restore product: {str(e)}")
+            raise DatabaseException(f"Failed to restore product: {str(e)}") from e
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
     def search_products(
         self, search_term: str, active_only: bool = True
-    ) -> List[Product]:
+    ) -> list[Product]:
         """
         Search products by name, description, or barcode.
 
@@ -282,7 +282,7 @@ class ProductService:
     @handle_exceptions(DatabaseException, show_dialog=True)
     def get_product_by_barcode(
         self, barcode: str, active_only: bool = True
-    ) -> Optional[Product]:
+    ) -> Product | None:
         """Get a product by barcode."""
         logger.debug(f"Getting product by barcode: {barcode}")
         query = """
@@ -302,7 +302,7 @@ class ProductService:
             return None
         except Exception as e:
             logger.error(f"Error getting product by barcode: {str(e)}")
-            raise DatabaseException(f"Failed to get product: {str(e)}")
+            raise DatabaseException(f"Failed to get product: {str(e)}") from e
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
@@ -354,7 +354,7 @@ class ProductService:
         logger.debug("Product cache cleared")
 
     @staticmethod
-    def _insert_product_with_inventory(validated_data: Dict[str, Any]) -> int:
+    def _insert_product_with_inventory(validated_data: dict[str, Any]) -> int:
         query = """
         INSERT INTO products (
             name, description, category_id, cost_price, sell_price, barcode
@@ -377,7 +377,7 @@ class ProductService:
         return product_id
 
     @staticmethod
-    def _log_product_creation(product_id: int, validated_data: Dict[str, Any]) -> None:
+    def _log_product_creation(product_id: int, validated_data: dict[str, Any]) -> None:
         AuditService.log_operation(
             "create_product",
             "product",
@@ -403,7 +403,7 @@ class ProductService:
             logger.warning(f"Failed to emit events for product creation: {e}")
 
     def _validate_changed_barcode(
-        self, current_product: Product, update_data: Dict[str, Any]
+        self, current_product: Product, update_data: dict[str, Any]
     ) -> None:
         if "barcode" not in update_data:
             return
@@ -412,7 +412,7 @@ class ProductService:
         self._validate_barcode_unique(update_data["barcode"])
 
     def _finalize_product_update(
-        self, product_id: int, updated_fields: List[str]
+        self, product_id: int, updated_fields: list[str]
     ) -> None:
         logger.info(
             "Product updated",
@@ -422,8 +422,8 @@ class ProductService:
         event_system.product_updated.emit(product_id)
 
     def _validate_product_data(
-        self, data: Dict[str, Any], is_create: bool
-    ) -> Dict[str, Any]:
+        self, data: dict[str, Any], is_create: bool
+    ) -> dict[str, Any]:
         """
         Validate product data.
 
@@ -437,7 +437,7 @@ class ProductService:
         Raises:
             ValidationException: If validation fails.
         """
-        validated: Dict[str, Any] = {}
+        validated: dict[str, Any] = {}
         validate_name_field(data, validated, is_create)
         validate_description_field(data, validated)
         validate_category_field(data, validated)

@@ -1,4 +1,5 @@
-from typing import Any, Callable, Dict, Optional, Sequence
+from collections.abc import Callable, Sequence
+from typing import Any
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -16,13 +17,13 @@ from utils.helpers import format_price
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
 
 RemoveSaleItemHandler = Callable[[int], None]
-SaleActionHandler = Callable[[Optional[Sale]], None]
+SaleActionHandler = Callable[[Sale | None], None]
 
 
 def render_sale_item_row(
     table: QTableWidget,
     row: int,
-    item: Dict[str, Any],
+    item: dict[str, Any],
     remove_handler: RemoveSaleItemHandler,
 ) -> None:
     """Render one current-sale row with stable formatting and actions."""
@@ -44,7 +45,7 @@ def render_sale_item_row(
 
 def update_sale_total_label(
     total_label: QLabel,
-    sale_items: Sequence[Dict[str, Any]],
+    sale_items: Sequence[dict[str, Any]],
 ) -> None:
     """Update the total label for the current sale using CLP rounding rules."""
     total_amount = sum(
@@ -57,7 +58,7 @@ def render_sale_history_row(
     table: QTableWidget,
     row: int,
     sale: Sale,
-    customer: Optional[Customer],
+    customer: Customer | None,
     on_view: SaleActionHandler,
     on_edit: SaleActionHandler,
     on_print: SaleActionHandler,

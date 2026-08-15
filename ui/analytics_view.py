@@ -3,7 +3,7 @@
 # Purpose: Correctly handle multi-column bar charts (e.g., for "Profit by Product").
 ###############################################################################
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from PySide6.QtCharts import (
     QBarCategoryAxis,
@@ -183,7 +183,7 @@ class AnalyticsView(QWidget):
                 )
         except Exception as e:
             logger.error(f"Error generating analytics: {str(e)}")
-            raise UIException(f"Error al generar analítica: {str(e)}")
+            raise UIException(f"Error al generar analítica: {str(e)}") from e
         finally:
             QApplication.restoreOverrideCursor()
 
@@ -220,7 +220,7 @@ class AnalyticsView(QWidget):
             logger.error(f"Error showing sales by weekday: {str(e)}")
             raise DatabaseException(
                 f"Error al mostrar ventas por día de la semana: {str(e)}"
-            )
+            ) from e
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
@@ -255,7 +255,7 @@ class AnalyticsView(QWidget):
             logger.error(f"Error showing top selling products: {str(e)}")
             raise DatabaseException(
                 f"Error al mostrar productos más vendidos: {str(e)}"
-            )
+            ) from e
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
@@ -279,7 +279,9 @@ class AnalyticsView(QWidget):
             logger.info(f"Displayed sales trend analysis: {len(data)} days")
         except Exception as e:
             logger.error(f"Error showing sales trend: {str(e)}")
-            raise DatabaseException(f"Error al mostrar tendencia de ventas: {str(e)}")
+            raise DatabaseException(
+                f"Error al mostrar tendencia de ventas: {str(e)}"
+            ) from e
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
@@ -307,7 +309,7 @@ class AnalyticsView(QWidget):
             logger.error(f"Error showing category performance: {str(e)}")
             raise DatabaseException(
                 f"Error al mostrar rendimiento por categoría: {str(e)}"
-            )
+            ) from e
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
@@ -346,7 +348,9 @@ class AnalyticsView(QWidget):
             logger.info(f"Displayed profit by product analysis: {len(data)} products")
         except Exception as e:
             logger.error(f"Error showing profit by product: {str(e)}")
-            raise DatabaseException(f"Error al mostrar ganancia por producto: {str(e)}")
+            raise DatabaseException(
+                f"Error al mostrar ganancia por producto: {str(e)}"
+            ) from e
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
@@ -372,7 +376,7 @@ class AnalyticsView(QWidget):
             logger.error(f"Error showing profit trend: {str(e)}")
             raise DatabaseException(
                 f"Error al mostrar tendencia de ganancias: {str(e)}"
-            )
+            ) from e
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
@@ -407,21 +411,21 @@ class AnalyticsView(QWidget):
             logger.error(f"Error showing profit margin distribution: {str(e)}")
             raise DatabaseException(
                 f"Error al mostrar distribución del margen de ganancia: {str(e)}"
-            )
+            ) from e
 
     ############################################################################
     # The updated _populate_table_and_chart to handle multi-column bars
     ############################################################################
     def _populate_table_and_chart(
         self,
-        data: List[Dict[str, Any]],
-        headers: List[str],
-        keys: List[str],
+        data: list[dict[str, Any]],
+        headers: list[str],
+        keys: list[str],
         x_key: str,
-        y_key: Optional[str],
+        y_key: str | None,
         title: str,
         chart_type: str = "bar",
-        metrics: Optional[List[str]] = None,
+        metrics: list[str] | None = None,
     ):
         """
         Populates the result_table using 'headers' (for visualization) and 'keys' (for data lookup).

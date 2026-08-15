@@ -1,7 +1,7 @@
 import os
-from typing import Any, List, Optional
+from typing import Any
 
-from PySide6.QtCore import QDate, Qt, QTimer, QUrl, Signal
+from PySide6.QtCore import QDate, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtMultimedia import QSoundEffect
 from PySide6.QtWidgets import (
@@ -114,7 +114,7 @@ class PurchaseItemDialog(QDialog):
             validate_float(self.cost_price_input.value(), min_value=1)
             self.accept()
         except ValidationException as e:
-            raise ValidationException(str(e))
+            raise ValidationException(str(e)) from e
 
     def get_item_data(self):
         return {
@@ -304,7 +304,7 @@ class PurchaseView(QWidget):
         finally:
             self.barcode_input.clear()
 
-    def find_product_by_barcode(self, barcode: str) -> Optional[Any]:
+    def find_product_by_barcode(self, barcode: str) -> Any | None:
         """Find a product by its barcode."""
         products = self.product_service.get_all_products()
         return next((p for p in products if p.barcode == barcode), None)
@@ -395,7 +395,7 @@ class PurchaseView(QWidget):
             logger.error(f"Error completing purchase: {str(e)}")
             raise
 
-    def update_purchase_table(self, purchases: List[Purchase]):
+    def update_purchase_table(self, purchases: list[Purchase]):
         """Update the purchases history table."""
         self.purchase_table.setRowCount(len(purchases))
         for row, purchase in enumerate(purchases):
@@ -446,7 +446,7 @@ class PurchaseView(QWidget):
             logger.info(f"Loaded {len(purchases)} purchases")
         except Exception as e:
             logger.error(f"Error loading purchases: {str(e)}")
-            raise DatabaseException(f"Error al cargar compras: {str(e)}")
+            raise DatabaseException(f"Error al cargar compras: {str(e)}") from e
         finally:
             QApplication.restoreOverrideCursor()
             self.progress_bar.setValue(100)
@@ -484,7 +484,7 @@ class PurchaseView(QWidget):
             logger.error(f"Error searching products: {str(e)}")
             show_error_message("Error", str(e))
 
-    def show_product_selection_dialog(self, products: List[Any]) -> Optional[Any]:
+    def show_product_selection_dialog(self, products: list[Any]) -> Any | None:
         """Show dialog for selecting from multiple matching products."""
         dialog = QDialog(self)
         dialog.setWindowTitle("Seleccionar Producto")
@@ -566,7 +566,7 @@ class PurchaseView(QWidget):
 
         except Exception as e:
             logger.error(f"Error viewing purchase: {str(e)}")
-            raise UIException(f"Error al ver la compra: {str(e)}")
+            raise UIException(f"Error al ver la compra: {str(e)}") from e
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(

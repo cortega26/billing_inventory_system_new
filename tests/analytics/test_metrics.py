@@ -32,28 +32,28 @@ def analytics_db_path(tmp_path):
     cursor.executescript("""
         CREATE TABLE categories (id INTEGER PRIMARY KEY, name TEXT);
         CREATE TABLE products (
-            id INTEGER PRIMARY KEY, 
-            name TEXT, 
+            id INTEGER PRIMARY KEY,
+            name TEXT,
             category_id INTEGER,
             cost_price INTEGER,
             sell_price INTEGER
         );
         CREATE TABLE inventory (
-            product_id INTEGER PRIMARY KEY, 
+            product_id INTEGER PRIMARY KEY,
             quantity DECIMAL(10,3)
         );
         CREATE TABLE sales (
-            id INTEGER PRIMARY KEY, 
-            date TEXT, 
+            id INTEGER PRIMARY KEY,
+            date TEXT,
             total_amount INTEGER,
             total_profit INTEGER,
             customer_id INTEGER
         );
         CREATE TABLE sale_items (
-            id INTEGER PRIMARY KEY, 
-            sale_id INTEGER, 
-            product_id INTEGER, 
-            quantity DECIMAL(10,3), 
+            id INTEGER PRIMARY KEY,
+            sale_id INTEGER,
+            product_id INTEGER,
+            quantity DECIMAL(10,3),
             price INTEGER
         );
     """)

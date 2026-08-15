@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from database.database_manager import DatabaseManager
 from models.category import Category
@@ -15,7 +15,7 @@ class CategoryService:
     @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
-    def create_category(name: str) -> Optional[int]:
+    def create_category(name: str) -> int | None:
         name = validate_string(name, min_length=1, max_length=50)
         name = sanitize_html(name)
         query = "INSERT INTO categories (name) VALUES (?)"
@@ -32,12 +32,12 @@ class CategoryService:
             logger.error(
                 "Failed to create category", extra={"error": str(e), "name": name}
             )
-            raise DatabaseException(f"Failed to create category: {str(e)}")
+            raise DatabaseException(f"Failed to create category: {str(e)}") from e
 
     @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(NotFoundException, DatabaseException, show_dialog=True)
-    def get_category(category_id: int) -> Optional[Category]:
+    def get_category(category_id: int) -> Category | None:
         category_id = validate_integer(category_id, min_value=1)
         query = "SELECT * FROM categories WHERE id = ?"
         row = DatabaseManager.fetch_one(query, (category_id,))
@@ -52,7 +52,7 @@ class CategoryService:
     @lru_cache(maxsize=1)
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_all_categories() -> List[Category]:
+    def get_all_categories() -> list[Category]:
         query = "SELECT * FROM categories ORDER BY name"
         rows = DatabaseManager.fetch_all(query)
         categories = [Category.from_db_row(row) for row in rows]
@@ -83,7 +83,7 @@ class CategoryService:
                 "Failed to update category",
                 extra={"error": str(e), "category_id": category_id},
             )
-            raise DatabaseException(f"Failed to update category: {str(e)}")
+            raise DatabaseException(f"Failed to update category: {str(e)}") from e
 
     @staticmethod
     @db_operation(show_dialog=True)
@@ -103,12 +103,12 @@ class CategoryService:
                 "Failed to delete category",
                 extra={"error": str(e), "category_id": category_id},
             )
-            raise DatabaseException(f"Failed to delete category: {str(e)}")
+            raise DatabaseException(f"Failed to delete category: {str(e)}") from e
 
     @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def search_categories(search_term: str) -> List[Category]:
+    def search_categories(search_term: str) -> list[Category]:
         search_term = validate_string(search_term, max_length=50)
         query = """
         SELECT * FROM categories
@@ -127,7 +127,7 @@ class CategoryService:
     @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(NotFoundException, DatabaseException, show_dialog=True)
-    def get_category_by_name(name: str) -> Optional[Category]:
+    def get_category_by_name(name: str) -> Category | None:
         name = validate_string(name, min_length=1, max_length=50)
         query = "SELECT * FROM categories WHERE name = ?"
         row = DatabaseManager.fetch_one(query, (name,))
@@ -141,7 +141,7 @@ class CategoryService:
     @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_products_in_category(category_id: int) -> List[Dict[str, Any]]:
+    def get_products_in_category(category_id: int) -> list[dict[str, Any]]:
         category_id = validate_integer(category_id, min_value=1)
         query = """
         SELECT p.id, p.name, p.description, p.cost_price, p.sell_price
@@ -158,11 +158,11 @@ class CategoryService:
     @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_category_statistics() -> List[Dict[str, Any]]:
+    def get_category_statistics() -> list[dict[str, Any]]:
         query = """
-        SELECT 
-            c.id, 
-            c.name, 
+        SELECT
+            c.id,
+            c.name,
             COUNT(p.id) as product_count,
             COALESCE(SUM(i.quantity), 0) as total_inventory,
             COALESCE(SUM(p.sell_price * i.quantity), 0) as inventory_value

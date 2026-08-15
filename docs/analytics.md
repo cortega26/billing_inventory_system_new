@@ -99,7 +99,7 @@ Identifies "dead stock" or slow movers: products with positive stock that haven'
     "product_id": 303,
     "name": "Floppy Disk",
     "stock_quantity": 50,
-    "last_sold_date": null 
+    "last_sold_date": null
   }
 ]
 ```
@@ -138,8 +138,8 @@ engine = AnalyticsEngine()
 metric = SalesDailyMetric()
 
 result = engine.execute_metric(
-    metric, 
-    start_date="2023-01-01", 
+    metric,
+    start_date="2023-01-01",
     end_date="2023-01-31"
 )
 

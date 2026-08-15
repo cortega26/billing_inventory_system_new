@@ -8,7 +8,7 @@ from services.inventory_service import InventoryService
 from services.product_service import ProductService
 from services.purchase_query_service import PurchaseQueryService
 from services.purchase_service import PurchaseService
-from utils.exceptions import NotFoundException, ValidationException
+from utils.exceptions import DatabaseException, NotFoundException, ValidationException
 from utils.system.event_system import event_system
 
 
@@ -166,7 +166,7 @@ class TestPurchaseService:
             "items": [{"product_id": 9999, "quantity": 10, "cost_price": 900}],
         }
 
-        with pytest.raises(Exception):
+        with pytest.raises(DatabaseException):
             purchase_service.create_purchase(**invalid_data)
 
         assert DatabaseManager.fetch_one("SELECT id FROM purchases") is None
@@ -177,7 +177,7 @@ class TestPurchaseService:
     ):
         purchase_id = purchase_service.create_purchase(**sample_purchase_data)
 
-        with pytest.raises(Exception):
+        with pytest.raises(DatabaseException):
             purchase_service.update_purchase(
                 purchase_id,
                 sample_purchase_data["supplier"],

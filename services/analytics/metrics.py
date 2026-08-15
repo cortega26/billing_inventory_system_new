@@ -1,5 +1,3 @@
-from typing import Dict, Type
-
 from services.analytics.contracts import Metric
 from utils.validation.validators import (
     validate_date,
@@ -18,12 +16,12 @@ class SalesDailyMetric(Metric):
         return "Daily sales aggregation (revenue and count) for a given date range."
 
     @property
-    def output_schema(self) -> Dict[str, Type]:
+    def output_schema(self) -> dict[str, type]:
         return {"date": str, "total_sales": int, "sale_count": int}
 
     def validate_params(self, **kwargs) -> None:
-        validate_date(kwargs.get("start_date"))
-        validate_date(kwargs.get("end_date"))
+        validate_date(kwargs["start_date"])
+        validate_date(kwargs["end_date"])
 
     def get_query(self, **kwargs) -> str:
         return """
@@ -51,12 +49,12 @@ class WeekdaySalesMetric(Metric):
         return "Sales aggregation grouped by weekday for a given date range."
 
     @property
-    def output_schema(self) -> Dict[str, Type]:
+    def output_schema(self) -> dict[str, type]:
         return {"weekday": str, "total_sales": int, "sale_count": int}
 
     def validate_params(self, **kwargs) -> None:
-        validate_date(kwargs.get("start_date"))
-        validate_date(kwargs.get("end_date"))
+        validate_date(kwargs["start_date"])
+        validate_date(kwargs["end_date"])
 
     def get_query(self, **kwargs) -> str:
         return """
@@ -92,7 +90,7 @@ class TopProductsMetric(Metric):
         return "Top selling products by quantity sold within a date range."
 
     @property
-    def output_schema(self) -> Dict[str, Type]:
+    def output_schema(self) -> dict[str, type]:
         return {
             "product_id": int,
             "name": str,
@@ -102,15 +100,15 @@ class TopProductsMetric(Metric):
         }
 
     def validate_params(self, **kwargs) -> None:
-        validate_date(kwargs.get("start_date"))
-        validate_date(kwargs.get("end_date"))
+        validate_date(kwargs["start_date"])
+        validate_date(kwargs["end_date"])
         validate_integer(kwargs.get("limit", 10), min_value=1)
 
     def get_query(self, **kwargs) -> str:
         return """
-            SELECT 
-                p.id as product_id, 
-                p.name, 
+            SELECT
+                p.id as product_id,
+                p.name,
                 ROUND(SUM(si.quantity), 3) as total_quantity,
                 CAST(SUM(ROUND(si.quantity * si.price)) AS INTEGER) as total_revenue,
                 COUNT(DISTINCT s.id) as sale_count
@@ -137,7 +135,7 @@ class LowStockMetric(Metric):
         return "Products with inventory quantity below a specified threshold."
 
     @property
-    def output_schema(self) -> Dict[str, Type]:
+    def output_schema(self) -> dict[str, type]:
         return {"product_id": int, "name": str, "quantity": float}
 
     def validate_params(self, **kwargs) -> None:
@@ -145,9 +143,9 @@ class LowStockMetric(Metric):
 
     def get_query(self, **kwargs) -> str:
         return """
-            SELECT 
-                p.id as product_id, 
-                p.name, 
+            SELECT
+                p.id as product_id,
+                p.name,
                 i.quantity
             FROM products p
             JOIN inventory i ON p.id = i.product_id
@@ -169,7 +167,7 @@ class InventoryAgingMetric(Metric):
         return "Products with positive stock that haven't been sold in the last N days."
 
     @property
-    def output_schema(self) -> Dict[str, Type]:
+    def output_schema(self) -> dict[str, type]:
         return {
             "product_id": int,
             "name": str,
@@ -184,7 +182,7 @@ class InventoryAgingMetric(Metric):
         # We need products with quantity > 0
         # AND (no sales ever OR last sale was more than N days ago)
         return """
-            SELECT 
+            SELECT
                 p.id as product_id,
                 p.name,
                 i.quantity as stock_quantity,
@@ -195,7 +193,7 @@ class InventoryAgingMetric(Metric):
             LEFT JOIN sales s ON si.sale_id = s.id
             WHERE i.quantity > 0
             GROUP BY p.id
-            HAVING last_sold_date IS NULL 
+            HAVING last_sold_date IS NULL
                OR last_sold_date < date('now', '-' || ? || ' days')
             ORDER BY last_sold_date ASC
         """
@@ -214,7 +212,7 @@ class DepartmentSalesMetric(Metric):
         return "Sales performance grouped by category (department) for a date range."
 
     @property
-    def output_schema(self) -> Dict[str, Type]:
+    def output_schema(self) -> dict[str, type]:
         return {
             "category": str,
             "total_sales": int,
@@ -223,12 +221,12 @@ class DepartmentSalesMetric(Metric):
         }
 
     def validate_params(self, **kwargs) -> None:
-        validate_date(kwargs.get("start_date"))
-        validate_date(kwargs.get("end_date"))
+        validate_date(kwargs["start_date"])
+        validate_date(kwargs["end_date"])
 
     def get_query(self, **kwargs) -> str:
         return """
-            SELECT 
+            SELECT
                 COALESCE(c.name, 'Uncategorized') as category,
                 CAST(SUM(ROUND(si.quantity * si.price)) AS INTEGER) as total_sales,
                 ROUND(SUM(si.quantity), 3) as units_sold,
@@ -256,7 +254,7 @@ class ProfitTrendMetric(Metric):
         return "Daily revenue and profit trend for a given date range."
 
     @property
-    def output_schema(self) -> Dict[str, Type]:
+    def output_schema(self) -> dict[str, type]:
         return {
             "date": str,
             "daily_revenue": int,
@@ -265,8 +263,8 @@ class ProfitTrendMetric(Metric):
         }
 
     def validate_params(self, **kwargs) -> None:
-        validate_date(kwargs.get("start_date"))
-        validate_date(kwargs.get("end_date"))
+        validate_date(kwargs["start_date"])
+        validate_date(kwargs["end_date"])
 
     def get_query(self, **kwargs) -> str:
         return """
@@ -295,12 +293,12 @@ class WeeklyProfitTrendMetric(Metric):
         return "Weekly profit trend with a representative week start date."
 
     @property
-    def output_schema(self) -> Dict[str, Type]:
+    def output_schema(self) -> dict[str, type]:
         return {"week": str, "week_start": str, "weekly_profit": int}
 
     def validate_params(self, **kwargs) -> None:
-        validate_date(kwargs.get("start_date"))
-        validate_date(kwargs.get("end_date"))
+        validate_date(kwargs["start_date"])
+        validate_date(kwargs["end_date"])
 
     def get_query(self, **kwargs) -> str:
         return """
@@ -328,7 +326,7 @@ class ProductProfitMetric(Metric):
         return "Product profit analytics with revenue, cost, profit, volume, and sale count."
 
     @property
-    def output_schema(self) -> Dict[str, Type]:
+    def output_schema(self) -> dict[str, type]:
         return {
             "product_id": int,
             "name": str,
@@ -340,8 +338,8 @@ class ProductProfitMetric(Metric):
         }
 
     def validate_params(self, **kwargs) -> None:
-        validate_date(kwargs.get("start_date"))
-        validate_date(kwargs.get("end_date"))
+        validate_date(kwargs["start_date"])
+        validate_date(kwargs["end_date"])
         validate_integer(kwargs.get("limit", 10), min_value=1)
 
     def get_query(self, **kwargs) -> str:
@@ -377,7 +375,7 @@ class ProfitMarginDistributionMetric(Metric):
         return "Distribution of products by profit margin range for a date range."
 
     @property
-    def output_schema(self) -> Dict[str, Type]:
+    def output_schema(self) -> dict[str, type]:
         return {
             "margin_range": str,
             "product_count": int,
@@ -386,8 +384,8 @@ class ProfitMarginDistributionMetric(Metric):
         }
 
     def validate_params(self, **kwargs) -> None:
-        validate_date(kwargs.get("start_date"))
-        validate_date(kwargs.get("end_date"))
+        validate_date(kwargs["start_date"])
+        validate_date(kwargs["end_date"])
 
     def get_query(self, **kwargs) -> str:
         return """
@@ -447,7 +445,7 @@ class SalesSummaryMetric(Metric):
         return "Summary sales metrics for a date range."
 
     @property
-    def output_schema(self) -> Dict[str, Type]:
+    def output_schema(self) -> dict[str, type]:
         return {
             "total_sales": int,
             "total_revenue": int,
@@ -457,8 +455,8 @@ class SalesSummaryMetric(Metric):
         }
 
     def validate_params(self, **kwargs) -> None:
-        validate_date(kwargs.get("start_date"))
-        validate_date(kwargs.get("end_date"))
+        validate_date(kwargs["start_date"])
+        validate_date(kwargs["end_date"])
 
     def get_query(self, **kwargs) -> str:
         return """

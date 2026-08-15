@@ -5,7 +5,7 @@ import logging.handlers
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import yaml
 
@@ -25,7 +25,7 @@ class LogLevel:
 class StructuredLogger:
     """Enhanced logger with structured logging capabilities and context management."""
 
-    def __init__(self, name: str, log_file: Optional[Path] = None):
+    def __init__(self, name: str, log_file: Path | None = None):
         self.name = name
         self._context = {}
         self._log_file = log_file
@@ -44,9 +44,7 @@ class StructuredLogger:
         new_logger._context = {**self._context, **kwargs}
         return new_logger
 
-    def _format_message(
-        self, message: str, extra: Optional[Dict[str, Any]] = None
-    ) -> str:
+    def _format_message(self, message: str, extra: dict[str, Any] | None = None) -> str:
         """Format message with context and extra data."""
         # Ensure extra is a dictionary to prevent 'int object is not a mapping' errors
         if extra is not None and not isinstance(extra, dict):
@@ -60,22 +58,22 @@ class StructuredLogger:
         }
         return json.dumps(log_data)
 
-    def info(self, message: str, extra: Optional[Dict[str, Any]] = None) -> None:
+    def info(self, message: str, extra: dict[str, Any] | None = None) -> None:
         self._logger.info(self._format_message(message, extra))
 
-    def debug(self, message: str, extra: Optional[Dict[str, Any]] = None) -> None:
+    def debug(self, message: str, extra: dict[str, Any] | None = None) -> None:
         self._logger.debug(self._format_message(message, extra))
 
-    def warning(self, message: str, extra: Optional[Dict[str, Any]] = None) -> None:
+    def warning(self, message: str, extra: dict[str, Any] | None = None) -> None:
         self._logger.warning(self._format_message(message, extra))
 
-    def error(self, message: str, extra: Optional[Dict[str, Any]] = None) -> None:
+    def error(self, message: str, extra: dict[str, Any] | None = None) -> None:
         self._logger.error(self._format_message(message, extra))
 
-    def critical(self, message: str, extra: Optional[Dict[str, Any]] = None) -> None:
+    def critical(self, message: str, extra: dict[str, Any] | None = None) -> None:
         self._logger.critical(self._format_message(message, extra))
 
-    def exception(self, message: str, extra: Optional[Dict[str, Any]] = None) -> None:
+    def exception(self, message: str, extra: dict[str, Any] | None = None) -> None:
         """Log an exception with traceback."""
         extra = extra or {}
         extra["exc_info"] = True
@@ -105,10 +103,9 @@ class JsonFormatter(logging.Formatter):
             data["message"] = record.msg
 
         # Handle exception info
-        if record.exc_info:
+        if record.exc_info and not record.exc_text:
             # Format exception using default formatter's method logic
-            if not record.exc_text:
-                record.exc_text = self.formatException(record.exc_info)
+            record.exc_text = self.formatException(record.exc_info)
 
         if record.exc_text:
             data["exc_info"] = record.exc_text
@@ -128,6 +125,8 @@ class LoggerConfig:
         self.backup_count = backup_count
         self.format = format
 
+
+import contextlib
 
 from utils.exceptions import ConfigurationException
 
@@ -149,8 +148,8 @@ def setup_logger(config: LoggerConfig) -> StructuredLogger:
             backupCount=config.backup_count,
             encoding="utf-8",
         )
-    except (OSError, IOError) as e:
-        raise ConfigurationException(f"Failed to configure logger: {e}")
+    except OSError as e:
+        raise ConfigurationException(f"Failed to configure logger: {e}") from e
 
     handler.setFormatter(
         JsonFormatter()
@@ -173,10 +172,8 @@ def rotate_logs(log_dir: Path) -> None:
 def clear_logs(log_dir: Path) -> None:
     """Clear all log files in the given directory."""
     for log_file in log_dir.glob("*.log*"):
-        try:
+        with contextlib.suppress(OSError):
             log_file.unlink(missing_ok=True)
-        except OSError:
-            pass
 
 
 def setup_structured_logger() -> StructuredLogger:

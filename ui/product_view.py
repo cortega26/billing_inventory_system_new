@@ -1,6 +1,6 @@
-from typing import Any, List, Optional
+from typing import Any
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -54,7 +54,7 @@ from utils.validation.validators import validate_float, validate_string
 
 class EditProductDialog(QDialog):
     def __init__(
-        self, product: Optional[Product], categories: List[Category], parent=None
+        self, product: Product | None, categories: list[Category], parent=None
     ):
         super().__init__(parent)
         self.product = product
@@ -138,7 +138,7 @@ class EditProductDialog(QDialog):
             try:
                 Product.validate_barcode(barcode)
             except ValidationException as e:
-                raise ValidationException(str(e))
+                raise ValidationException(str(e)) from e
 
         self.product_data = {
             "name": name,
@@ -266,7 +266,7 @@ class ProductView(QWidget):
             self.filter_products(products=fresh_products)
         except Exception as e:
             logger.error(f"Error changing category: {str(e)}")
-            raise UIException(f"Failed to change category: {str(e)}")
+            raise UIException(f"Failed to change category: {str(e)}") from e
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
@@ -280,7 +280,7 @@ class ProductView(QWidget):
             logger.info("Categories loaded successfully")
         except Exception as e:
             logger.error(f"Error loading categories: {str(e)}")
-            raise DatabaseException(f"Error al cargar categorías: {str(e)}")
+            raise DatabaseException(f"Error al cargar categorías: {str(e)}") from e
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
@@ -298,13 +298,13 @@ class ProductView(QWidget):
             logger.info("Products loaded successfully")
         except Exception as e:
             logger.error(f"Error loading products: {str(e)}")
-            raise DatabaseException(f"Error al cargar productos: {str(e)}")
+            raise DatabaseException(f"Error al cargar productos: {str(e)}") from e
         finally:
             QApplication.restoreOverrideCursor()
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(UIException, show_dialog=True)
-    def update_product_table(self, products: List[Product]):
+    def update_product_table(self, products: list[Product]):
         """Update the product table display."""
         logger.debug(f"Updating product table with {len(products)} products")
         try:
@@ -397,7 +397,9 @@ class ProductView(QWidget):
             logger.info("Product table updated successfully")
         except Exception as e:
             logger.error(f"Error updating product table: {str(e)}")
-            raise UIException(f"Error al actualizar la tabla de productos: {str(e)}")
+            raise UIException(
+                f"Error al actualizar la tabla de productos: {str(e)}"
+            ) from e
         finally:
             QApplication.restoreOverrideCursor()
 
@@ -434,7 +436,7 @@ class ProductView(QWidget):
     @handle_exceptions(
         ValidationException, DatabaseException, UIException, show_dialog=True
     )
-    def edit_product(self, product: Optional[Product] = None):
+    def edit_product(self, product: Product | None = None):
         if product is None:
             selected_rows = self.product_table.selectionModel().selectedRows()
             if not selected_rows:
@@ -534,8 +536,8 @@ class ProductView(QWidget):
     )
     def filter_products(
         self,
-        products: Optional[List[Product]] = None,
-        search_term: Optional[str] = None,
+        products: list[Product] | None = None,
+        search_term: str | None = None,
     ):
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:

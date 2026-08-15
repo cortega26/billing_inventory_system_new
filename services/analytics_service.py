@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from functools import lru_cache
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from services.analytics.engine import AnalyticsEngine
 from services.analytics.metrics import (
@@ -25,7 +25,7 @@ class AnalyticsService:
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
-    def get_sales_by_weekday(start_date: str, end_date: str) -> List[Dict[str, Any]]:
+    def get_sales_by_weekday(start_date: str, end_date: str) -> list[dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
@@ -54,7 +54,7 @@ class AnalyticsService:
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def get_top_selling_products(
         start_date: str, end_date: str, limit: int = 10
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
@@ -89,7 +89,7 @@ class AnalyticsService:
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
-    def get_sales_trend(start_date: str, end_date: str) -> List[Dict[str, Any]]:
+    def get_sales_trend(start_date: str, end_date: str) -> list[dict[str, Any]]:
         """
         Returns a list of { 'date': 'YYYY-MM-DD', 'daily_sales': sum_of_that_day, 'sale_count': ...}
         ensuring the line chart can parse date with "yyyy-MM-dd" and sums daily totals.
@@ -120,7 +120,7 @@ class AnalyticsService:
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
-    def get_weekly_profit_trend(start_date: str, end_date: str) -> List[Dict[str, Any]]:
+    def get_weekly_profit_trend(start_date: str, end_date: str) -> list[dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
@@ -149,7 +149,7 @@ class AnalyticsService:
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def get_profit_and_volume_by_product(
         start_date: str, end_date: str, limit: int = 5
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
@@ -178,7 +178,7 @@ class AnalyticsService:
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def get_category_performance(
         start_date: str, end_date: str
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
@@ -208,7 +208,7 @@ class AnalyticsService:
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def get_profit_by_product(
         start_date: str, end_date: str, limit: int = 10
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
@@ -238,7 +238,7 @@ class AnalyticsService:
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
-    def get_profit_trend(start_date: str, end_date: str) -> List[Dict[str, Any]]:
+    def get_profit_trend(start_date: str, end_date: str) -> list[dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
@@ -265,7 +265,7 @@ class AnalyticsService:
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def get_profit_margin_distribution(
         start_date: str, end_date: str
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
@@ -289,7 +289,7 @@ class AnalyticsService:
     @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
-    def get_sales_summary(start_date: str, end_date: str) -> Dict[str, Any]:
+    def get_sales_summary(start_date: str, end_date: str) -> dict[str, Any]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         AnalyticsService._validate_date_range(start_date, end_date)
@@ -331,7 +331,7 @@ class AnalyticsService:
         logger.debug("Analytics cache cleared")
 
     @staticmethod
-    def get_date_range(range_type: str) -> Tuple[str, str]:
+    def get_date_range(range_type: str) -> tuple[str, str]:
         today = datetime.now().date()
         date_ranges = {
             "today": (today, today),
@@ -363,4 +363,4 @@ class AnalyticsService:
                 raise ValidationException("Start date must be before end date")
 
         except ValueError as e:
-            raise ValidationException(f"Invalid date format: {str(e)}")
+            raise ValidationException(f"Invalid date format: {str(e)}") from e

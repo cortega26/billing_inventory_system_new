@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from database.database_manager import DatabaseManager
 from models.customer import Customer
@@ -27,9 +27,9 @@ class CustomerService:
     def create_customer(
         self,
         identifier_9: str,
-        name: Optional[str] = None,
-        identifier_3or4: Optional[str] = None,
-    ) -> Optional[int]:
+        name: str | None = None,
+        identifier_3or4: str | None = None,
+    ) -> int | None:
         """
         Create a new customer.
 
@@ -87,7 +87,7 @@ class CustomerService:
                 "Failed to create customer",
                 extra={"error": str(e), "identifier_9": identifier_9},
             )
-            raise DatabaseException(f"Failed to create customer: {str(e)}")
+            raise DatabaseException(f"Failed to create customer: {str(e)}") from e
 
     def validate_identifier(self, value: str, identifier_type: str) -> str:
         """
@@ -113,7 +113,7 @@ class CustomerService:
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def update_identifier_3or4(
-        self, customer_id: int, identifier_3or4: Optional[str]
+        self, customer_id: int, identifier_3or4: str | None
     ) -> None:
         """
         Update the 3 or 4-digit identifier for a customer.
@@ -153,13 +153,13 @@ class CustomerService:
                 raise
             raise DatabaseException(
                 f"Failed to update customer 3or4 identifier: {str(e)}"
-            )
+            ) from e
 
         self.clear_cache()
         event_system.customer_updated.emit(customer_id)
 
     @staticmethod
-    def _set_identifier_3or4(customer_id: int, identifier_3or4: Optional[str]) -> None:
+    def _set_identifier_3or4(customer_id: int, identifier_3or4: str | None) -> None:
         delete_query = "DELETE FROM customer_identifiers WHERE customer_id = ?"
         insert_query = "INSERT INTO customer_identifiers (customer_id, identifier_3or4) VALUES (?, ?)"
 
@@ -168,7 +168,7 @@ class CustomerService:
             DatabaseManager.execute_query(insert_query, (customer_id, identifier_3or4))
 
     @db_operation(show_dialog=True)
-    def get_customer(self, customer_id: int) -> Optional[Customer]:
+    def get_customer(self, customer_id: int) -> Customer | None:
         """
         Get a customer by ID.
 
@@ -202,10 +202,10 @@ class CustomerService:
 
         raise NotFoundException(f"Customer with ID {customer_id} not found")
 
-    @lru_cache(maxsize=100)
+    @lru_cache(maxsize=100)  # noqa: B019 (intentional: paired with clear_cache)
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_all_customers(self, active_only: bool = True) -> List[Customer]:
+    def get_all_customers(self, active_only: bool = True) -> list[Customer]:
         """Get all customers, optionally including archived records."""
         query = """
         SELECT c.*, ci.identifier_3or4
@@ -224,7 +224,7 @@ class CustomerService:
             return customers
         except Exception as e:
             logger.error(f"Error fetching all customers: {str(e)}")
-            raise DatabaseException(f"Failed to fetch customers: {str(e)}")
+            raise DatabaseException(f"Failed to fetch customers: {str(e)}") from e
 
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
@@ -274,8 +274,8 @@ class CustomerService:
                         params.append(value)
 
                     query = """
-                        UPDATE customers 
-                        SET {} 
+                        UPDATE customers
+                        SET {}
                         WHERE id = ?
                     """.format(", ".join(update_fields))
                     params.append(customer_id)
@@ -305,7 +305,7 @@ class CustomerService:
             logger.error(f"[update_customer] Error: {str(e)}", extra={"exc_info": True})
             if isinstance(e, (NotFoundException, ValidationException)):
                 raise
-            raise DatabaseException(f"Failed to update customer: {str(e)}")
+            raise DatabaseException(f"Failed to update customer: {str(e)}") from e
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
@@ -339,7 +339,7 @@ class CustomerService:
             )
             if isinstance(e, NotFoundException):
                 raise
-            raise DatabaseException(f"Failed to archive customer: {str(e)}")
+            raise DatabaseException(f"Failed to archive customer: {str(e)}") from e
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
@@ -373,13 +373,13 @@ class CustomerService:
             )
             if isinstance(e, NotFoundException):
                 raise
-            raise DatabaseException(f"Failed to restore customer: {str(e)}")
+            raise DatabaseException(f"Failed to restore customer: {str(e)}") from e
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
     def get_customer_by_identifier_9(
         self, identifier_9: str, active_only: bool = True
-    ) -> Optional[Customer]:
+    ) -> Customer | None:
         """Get a customer by their 9-digit identifier."""
         identifier_9 = validate_identifier_9(identifier_9)
         query = """
@@ -407,7 +407,7 @@ class CustomerService:
     @handle_exceptions(DatabaseException, show_dialog=True)
     def get_customers_by_identifier_3or4(
         self, identifier_3or4: str, active_only: bool = True
-    ) -> List[Customer]:
+    ) -> list[Customer]:
         """
         Get customers by their 3 or 4-digit identifier.
         Returns a list of unique customers based on identifier_9.
@@ -461,11 +461,11 @@ class CustomerService:
 
         except Exception as e:
             logger.error(f"Error retrieving customers by identifier_3or4: {str(e)}")
-            raise DatabaseException(f"Failed to retrieve customers: {str(e)}")
+            raise DatabaseException(f"Failed to retrieve customers: {str(e)}") from e
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_customer_stats(self, customer_id: int) -> Tuple[int, int]:
+    def get_customer_stats(self, customer_id: int) -> tuple[int, int]:
         """
         Get customer statistics.
 
@@ -499,7 +499,7 @@ class CustomerService:
     @handle_exceptions(DatabaseException, show_dialog=True)
     def search_customers(
         self, search_term: str, active_only: bool = True
-    ) -> List[Customer]:
+    ) -> list[Customer]:
         """
         Search customers by name or identifier.
 
@@ -547,7 +547,7 @@ class CustomerService:
     @db_operation(show_dialog=True)
     def get_customer_purchase_history(
         self, customer_id: int, limit: int = 10
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Get customer purchase history.
 

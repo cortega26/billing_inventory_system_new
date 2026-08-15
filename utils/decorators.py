@@ -1,6 +1,7 @@
 import functools
 import time
-from typing import Any, Callable, List, Optional, ParamSpec, Type, TypeVar
+from collections.abc import Callable
+from typing import Any, ParamSpec, TypeVar
 
 from utils.system.logger import logger
 from utils.validation.validators import validate
@@ -61,7 +62,7 @@ def _get_dialog_parent(args: tuple[Any, ...]) -> Any:
 
 
 def handle_exceptions(
-    *exception_types: Type[Exception], show_dialog: bool = False
+    *exception_types: type[Exception], show_dialog: bool = False
 ) -> Callable[[Callable[P, T]], Callable[P, T]]:
     """
     A decorator to handle specified exception types.
@@ -99,7 +100,7 @@ def db_operation(
 
 
 def validate_input(
-    validators: List[Callable[[Any], bool]],
+    validators: list[Callable[[Any], bool]],
     error_message: str,
     show_dialog: bool = False,
 ) -> Callable[[Callable[P, T]], Callable[P, T]]:
@@ -175,7 +176,7 @@ def retry(
         @functools.wraps(func)
         def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
             attempts = 0
-            last_exception: Optional[Exception] = None
+            last_exception: Exception | None = None
             while attempts < max_attempts:
                 try:
                     return func(*args, **kwargs)
@@ -202,7 +203,7 @@ def retry(
 
 
 def measure_performance(
-    threshold: Optional[float] = None,
+    threshold: float | None = None,
 ) -> Callable[[Callable[P, T]], Callable[P, T]]:
     """
     A decorator that measures the execution time of a function.

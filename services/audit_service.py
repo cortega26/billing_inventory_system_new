@@ -1,5 +1,5 @@
 import json
-from typing import Any, Dict, Optional
+from typing import Any
 
 from database.database_manager import DatabaseManager
 from utils.exceptions import DatabaseException, ValidationException
@@ -10,9 +10,9 @@ class AuditService:
     def log_operation(
         operation: str,
         entity_type: str,
-        entity_id: Optional[int],
-        payload: Optional[Dict[str, Any]] = None,
-        actor: Optional[str] = None,
+        entity_id: int | None,
+        payload: dict[str, Any] | None = None,
+        actor: str | None = None,
     ) -> None:
         if not operation:
             raise ValidationException("operation is required for audit log")
@@ -35,9 +35,9 @@ class AuditService:
 
     @staticmethod
     def get_entries(
-        entity_type: Optional[str] = None,
-        entity_id: Optional[int] = None,
-        operation: Optional[str] = None,
+        entity_type: str | None = None,
+        entity_id: int | None = None,
+        operation: str | None = None,
     ) -> list[dict[str, Any]]:
         filters = []
         params = []
@@ -62,16 +62,18 @@ class AuditService:
         try:
             return DatabaseManager.fetch_all(query, tuple(params))
         except Exception as e:
-            raise DatabaseException(f"Failed to fetch audit log entries: {str(e)}")
+            raise DatabaseException(
+                f"Failed to fetch audit log entries: {str(e)}"
+            ) from e
 
     @staticmethod
     def search_entries(
-        entity_type: Optional[str] = None,
-        operation: Optional[str] = None,
-        actor: Optional[str] = None,
-        search_term: Optional[str] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
+        entity_type: str | None = None,
+        operation: str | None = None,
+        actor: str | None = None,
+        search_term: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
         limit: int = 200,
     ) -> list[dict[str, Any]]:
         filters = []
@@ -124,4 +126,6 @@ class AuditService:
         try:
             return DatabaseManager.fetch_all(query, tuple(params))
         except Exception as e:
-            raise DatabaseException(f"Failed to search audit log entries: {str(e)}")
+            raise DatabaseException(
+                f"Failed to search audit log entries: {str(e)}"
+            ) from e

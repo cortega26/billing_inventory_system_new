@@ -1,12 +1,11 @@
 import pytest
-from PySide6.QtCore import Qt, QSettings
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QKeyEvent
-from PySide6.QtWidgets import QWidget
 
 from config import APP_NAME, COMPANY_NAME
-from services.product_service import ProductService
-from services.inventory_service import InventoryService
 from services.category_service import CategoryService
+from services.inventory_service import InventoryService
+from services.product_service import ProductService
 from ui.sale_view import SaleView
 
 pytest.importorskip("PySide6", reason="PySide6 not installed")
@@ -41,14 +40,16 @@ def test_non_blocking_low_stock_warning(qtbot, db_manager, mocker):
     cat_id = cat_service.create_category("Test Category")
 
     prod_service = ProductService()
-    p_id = prod_service.create_product({
-        "name": "Low Stock Cookie",
-        "barcode": "88888888",
-        "category_id": cat_id,
-        "sell_price": 500,
-        "cost_price": 250,
-        "stock_quantity": 0,
-    })
+    p_id = prod_service.create_product(
+        {
+            "name": "Low Stock Cookie",
+            "barcode": "88888888",
+            "category_id": cat_id,
+            "sell_price": 500,
+            "cost_price": 250,
+            "stock_quantity": 0,
+        }
+    )
 
     inv_service = InventoryService()
     inv_service.set_quantity(p_id, 3.0)  # low stock (3 < 10)
@@ -94,16 +95,22 @@ def test_table_keypress_event_filter(qtbot, db_manager, mocker):
     mock_adjust = mocker.patch.object(view, "adjust_selected_quantity")
 
     # Send Delete key to self.sale_items_table via event filter
-    event_del = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Delete, Qt.KeyboardModifier.NoModifier)
+    event_del = QKeyEvent(
+        QKeyEvent.Type.KeyPress, Qt.Key.Key_Delete, Qt.KeyboardModifier.NoModifier
+    )
     view.eventFilter(view.sale_items_table, event_del)
     mock_void.assert_called_once()
 
     # Send Plus key
-    event_plus = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Plus, Qt.KeyboardModifier.NoModifier)
+    event_plus = QKeyEvent(
+        QKeyEvent.Type.KeyPress, Qt.Key.Key_Plus, Qt.KeyboardModifier.NoModifier
+    )
     view.eventFilter(view.sale_items_table, event_plus)
     mock_adjust.assert_called_with(1)
 
     # Send Minus key
-    event_minus = QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key.Key_Minus, Qt.KeyboardModifier.NoModifier)
+    event_minus = QKeyEvent(
+        QKeyEvent.Type.KeyPress, Qt.Key.Key_Minus, Qt.KeyboardModifier.NoModifier
+    )
     view.eventFilter(view.sale_items_table, event_minus)
     mock_adjust.assert_called_with(-1)

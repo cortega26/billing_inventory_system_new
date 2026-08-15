@@ -1,5 +1,5 @@
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import sqlalchemy as sa
 from pydantic import PrivateAttr, model_validator
@@ -13,7 +13,7 @@ class Customer(SQLModel, table=True):
     Represents a customer in the system.
     """
 
-    __tablename__ = "customers"
+    __tablename__: str = "customers"
 
     __table_args__ = (
         sa.CheckConstraint("is_active IN (0, 1)", name="check_customer_active"),
@@ -31,24 +31,24 @@ class Customer(SQLModel, table=True):
         ),
     )
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     identifier_9: str = Field(unique=True, index=True)
-    name: Optional[str] = Field(default=None)
+    name: str | None = Field(default=None)
     is_active: bool = Field(
         default=True,
         sa_column=sa.Column(sa.Boolean, nullable=False, server_default=sa.text("1")),
     )
-    deleted_at: Optional[str] = Field(default=None)
+    deleted_at: str | None = Field(default=None)
 
     # Not a database column in the 'customers' table (stored in customer_identifiers table)
-    _identifier_3or4: Optional[str] = PrivateAttr(default=None)
+    _identifier_3or4: str | None = PrivateAttr(default=None)
 
     @property
-    def identifier_3or4(self) -> Optional[str]:
+    def identifier_3or4(self) -> str | None:
         return self._identifier_3or4
 
     @identifier_3or4.setter
-    def identifier_3or4(self, value: Optional[str]):
+    def identifier_3or4(self, value: str | None):
         self._identifier_3or4 = value
 
     def __init__(self, **data: Any):
@@ -70,7 +70,7 @@ class Customer(SQLModel, table=True):
         return self
 
     @classmethod
-    def from_db_row(cls, row: Dict[str, Any]) -> "Customer":
+    def from_db_row(cls, row: dict[str, Any]) -> "Customer":
         """
         Create a Customer instance from a database row.
         """
@@ -97,20 +97,19 @@ class Customer(SQLModel, table=True):
             raise ValidationException("identifier_9 must be a string of 9 digits")
 
     @staticmethod
-    def validate_identifier_3or4(identifier: Optional[str]) -> None:
+    def validate_identifier_3or4(identifier: str | None) -> None:
         """
         Validate 3 or 4-digit identifier.
         """
-        if identifier is not None:
-            if (
-                not isinstance(identifier, str)
-                or len(identifier) not in (3, 4)
-                or not identifier.isdigit()
-                or identifier.startswith("0")
-            ):
-                raise ValidationException(
-                    "identifier_3or4 must be a string of 3 or 4 digits"
-                )
+        if identifier is not None and (
+            not isinstance(identifier, str)
+            or len(identifier) not in (3, 4)
+            or not identifier.isdigit()
+            or identifier.startswith("0")
+        ):
+            raise ValidationException(
+                "identifier_3or4 must be a string of 3 or 4 digits"
+            )
 
     @staticmethod
     def validate_name(name: str) -> None:
@@ -139,14 +138,14 @@ class Customer(SQLModel, table=True):
         self.validate_identifier_9(new_identifier_9)
         self.identifier_9 = new_identifier_9
 
-    def update_identifier_3or4(self, new_identifier_3or4: Optional[str]) -> None:
+    def update_identifier_3or4(self, new_identifier_3or4: str | None) -> None:
         """
         Update the 3 or 4-digit identifier.
         """
         self.validate_identifier_3or4(new_identifier_3or4)
         self.identifier_3or4 = new_identifier_3or4
 
-    def update_name(self, new_name: Optional[str]) -> None:
+    def update_name(self, new_name: str | None) -> None:
         """
         Update the customer name.
         """
@@ -155,7 +154,7 @@ class Customer(SQLModel, table=True):
             new_name = " ".join(new_name.split())  # Normalize whitespace
         self.name = new_name
 
-    def get_all_identifiers(self) -> List[str]:
+    def get_all_identifiers(self) -> list[str]:
         """
         Get all identifiers associated with this customer.
         """
@@ -189,7 +188,7 @@ class Customer(SQLModel, table=True):
             and self.name == other.name
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert customer to dictionary.
         """
@@ -208,9 +207,9 @@ class CustomerIdentifier(SQLModel, table=True):
     Represents customer identifier 3 or 4 mapping to customer.
     """
 
-    __tablename__ = "customer_identifiers"
+    __tablename__: str = "customer_identifiers"
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     customer_id: int = Field(
         sa_column=sa.Column(
             sa.Integer,

@@ -1,4 +1,5 @@
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from collections.abc import Callable, Sequence
+from typing import Any
 
 from models.customer import Customer
 from models.product import Product
@@ -6,15 +7,15 @@ from utils.exceptions import ValidationException
 from utils.math.financial_calculator import FinancialCalculator
 from utils.system.logger import logger
 
-CustomerChooser = Callable[[List[Customer]], Optional[Customer]]
+CustomerChooser = Callable[[list[Customer]], Customer | None]
 
 
-def build_customer_display(customer: Optional[Customer]) -> str:
+def build_customer_display(customer: Customer | None) -> str:
     """Build a consistent customer display string for sale-related screens."""
     if customer is None:
         return "Cliente eliminado"
 
-    display_parts: List[str] = [customer.identifier_9]
+    display_parts: list[str] = [customer.identifier_9]
     if customer.identifier_3or4:
         display_parts.append(f"({customer.identifier_3or4})")
     if customer.name:
@@ -61,9 +62,9 @@ def build_shortcuts_help_text() -> str:
 
 def deduplicate_customers_by_phone(
     customers: Sequence[Customer],
-) -> List[Customer]:
+) -> list[Customer]:
     """Drop duplicated customer rows that share the same 9-digit identifier."""
-    unique_customers: List[Customer] = []
+    unique_customers: list[Customer] = []
     seen_phones = set()
 
     for customer in customers:
@@ -87,7 +88,7 @@ def resolve_customer_by_identifier(
     identifier: str,
     customer_service: Any,
     chooser: CustomerChooser,
-) -> Optional[Customer]:
+) -> Customer | None:
     """Resolve a customer from the cashier input without changing service contracts."""
     if len(identifier) == 9:
         return customer_service.get_customer_by_identifier_9(identifier)
@@ -118,7 +119,7 @@ def resolve_customer_by_identifier(
     raise ValidationException("Please enter a 3/4-digit or 9-digit identifier")
 
 
-def build_quick_scan_item_data(product: Product) -> Dict[str, Any]:
+def build_quick_scan_item_data(product: Product) -> dict[str, Any]:
     """Build the default sale item payload used by quick-scan mode."""
     quantity = 1.0
     sell_price = int(product.sell_price) if product.sell_price else 0
@@ -134,8 +135,8 @@ def build_quick_scan_item_data(product: Product) -> Dict[str, Any]:
 
 
 def prepare_processed_sale_items(
-    sale_items: Sequence[Dict[str, Any]],
-) -> List[Dict[str, Any]]:
+    sale_items: Sequence[dict[str, Any]],
+) -> list[dict[str, Any]]:
     """Normalize current sale items before sending them to the service layer."""
     return [
         {

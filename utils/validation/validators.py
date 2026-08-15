@@ -1,13 +1,14 @@
 import re
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Callable, List, Optional, Tuple, Type, TypeVar, Union
+from typing import Any, TypeVar
 
 from utils.exceptions import ValidationException
 
 T = TypeVar("T")
 
 
-def validate(value: Any, validators: List[Callable[[Any], bool]], error_message: str):
+def validate(value: Any, validators: list[Callable[[Any], bool]], error_message: str):
     for validator in validators:
         if not validator(value):
             raise ValidationException(error_message)
@@ -15,7 +16,7 @@ def validate(value: Any, validators: List[Callable[[Any], bool]], error_message:
 
 def validate_and_sanitize(
     value: Any,
-    validators: List[Callable[[Any], bool]],
+    validators: list[Callable[[Any], bool]],
     sanitizer: Callable[[Any], Any],
     error_message: str,
 ) -> Any:
@@ -25,7 +26,7 @@ def validate_and_sanitize(
 
 
 def is_instance_of(
-    class_or_tuple: Union[Type, Tuple[Type, ...]],
+    class_or_tuple: type | tuple[type, ...],
 ) -> Callable[[Any], bool]:
     return lambda value: isinstance(value, class_or_tuple)
 
@@ -66,7 +67,7 @@ def has_length(min_length: int, max_length: int) -> Callable[[Any], bool]:
 
 
 def validate_string(
-    value: str, min_length: int = 0, max_length: Optional[int] = 100
+    value: str, min_length: int = 0, max_length: int | None = 100
 ) -> str:
     """Validate a string value."""
     if not isinstance(value, str):
@@ -94,7 +95,7 @@ def validate_string(
 
 
 def validate_integer(
-    value: Any, min_value: Optional[int] = None, max_value: Optional[int] = None
+    value: Any, min_value: int | None = None, max_value: int | None = None
 ) -> int:
     """
     Validate and convert a value to integer.
@@ -127,13 +128,13 @@ def validate_integer(
             )
         return int_value
     except (ValueError, TypeError):
-        raise ValidationException(f"Invalid integer value: {value}")
+        raise ValidationException(f"Invalid integer value: {value}") from None
 
 
 def validate_float(
     value: Any,
-    min_value: Optional[float] = None,
-    max_value: Optional[float] = None,
+    min_value: float | None = None,
+    max_value: float | None = None,
     max_decimals: int = 3,
 ) -> float:
     """
@@ -176,7 +177,7 @@ def validate_float(
         # Round to specified decimal places
         return round(float_value, max_decimals)
     except (ValueError, TypeError):
-        raise ValidationException("Invalid float value")
+        raise ValidationException("Invalid float value") from None
 
 
 def validate_float_non_negative(value: float) -> float:
@@ -190,7 +191,7 @@ def validate_int_non_negative(value: int) -> int:
 
 
 def validate_money(
-    value: Any, field_name: str = "Amount", max_value: Optional[int] = 1_000_000
+    value: Any, field_name: str = "Amount", max_value: int | None = 1_000_000
 ) -> int:
     """
     Validate a money value (Chilean Pesos).
@@ -223,7 +224,7 @@ def validate_money(
             raise ValidationException(f"{field_name} cannot exceed {max_value:,} CLP")
         return money_value
     except (ValueError, TypeError):
-        raise ValidationException(f"Invalid {field_name.lower()} value")
+        raise ValidationException(f"Invalid {field_name.lower()} value") from None
 
 
 def validate_money_multiplication(
@@ -254,7 +255,7 @@ def validate_money_multiplication(
     except ValidationException:
         raise
     except (ValueError, TypeError):
-        raise ValidationException(f"Invalid {field_name.lower()} calculation")
+        raise ValidationException(f"Invalid {field_name.lower()} calculation") from None
 
 
 def validate_quantity(value: Any) -> float:
@@ -304,7 +305,9 @@ def validate_date(date_str: str, format: str = "%Y-%m-%d") -> str:
 
         return datetime_obj.strftime(format)
     except ValueError:
-        raise ValidationException(f"Invalid date format. Expected format: {format}")
+        raise ValidationException(
+            f"Invalid date format. Expected format: {format}"
+        ) from None
 
 
 def validate_boolean(value: Any) -> bool:
@@ -351,7 +354,7 @@ def validate_url(value: str) -> str:
     )
 
 
-def validate_identifier(value: str, length: Union[int, Tuple[int, ...]]) -> str:
+def validate_identifier(value: str, length: int | tuple[int, ...]) -> str:
     """Validate numeric identifier with specific length(s)."""
     value = validate_string(value)
 
@@ -385,8 +388,8 @@ def validate_list(
     value: Any,
     item_validator: Callable[[Any], Any],
     min_length: int = 0,
-    max_length: Optional[int] = None,
-) -> List[Any]:
+    max_length: int | None = None,
+) -> list[Any]:
     if not isinstance(value, list):
         raise ValidationException("Value must be a list")
     if len(value) < min_length:

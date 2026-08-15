@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any
 
 from database.database_manager import DatabaseManager
 from models.enums import QUANTITY_PRECISION
@@ -17,7 +17,7 @@ class UpdateSaleWorkflow:
         self.sale_service = sale_service
 
     def execute(
-        self, sale_id: int, customer_id: int, date: str, items: List[Dict[str, Any]]
+        self, sale_id: int, customer_id: int, date: str, items: list[dict[str, Any]]
     ) -> None:
         """
         Execute the update sale workflow.
@@ -102,18 +102,18 @@ class UpdateSaleWorkflow:
         )
 
     def _validate_inventory_for_sale_update(
-        self, old_items: List[Any], new_items: List[Dict[str, Any]]
+        self, old_items: list[Any], new_items: list[dict[str, Any]]
     ) -> None:
         """
         Pre-validate stock for sale updates before opening a transaction.
         """
-        old_quantities: Dict[int, float] = {}
+        old_quantities: dict[int, float] = {}
         for item in old_items:
             product_id = int(getattr(item, "product_id", 0))
             quantity = float(getattr(item, "quantity", 0.0))
             old_quantities[product_id] = old_quantities.get(product_id, 0.0) + quantity
 
-        new_quantities: Dict[int, float] = {}
+        new_quantities: dict[int, float] = {}
         for item in new_items:
             product_id = int(item["product_id"])
             quantity = float(item["quantity"])

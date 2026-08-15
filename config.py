@@ -7,7 +7,7 @@ import time
 from enum import IntEnum
 from json.decoder import JSONDecodeError
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Optional
 
 
 # Custom exceptions
@@ -66,7 +66,7 @@ class DebugLevel(IntEnum):
     DEBUG = 5
 
 
-DEBUG_LEVEL_MAP: Dict[DebugLevel, int] = {
+DEBUG_LEVEL_MAP: dict[DebugLevel, int] = {
     DebugLevel.CRITICAL: logging.CRITICAL,
     DebugLevel.ERROR: logging.ERROR,
     DebugLevel.WARNING: logging.WARNING,
@@ -82,18 +82,18 @@ class Config:
     """Thread-safe singleton class for managing application configuration."""
 
     _instance: Optional["Config"] = None
-    _config: Optional[Dict[str, Any]] = None
+    _config: dict[str, Any] | None = None
     _lock = threading.Lock()
     _cache_ttl: int = 300  # 5 minutes
     _last_load_time: float = 0
-    _config_file: Optional[Path] = None
+    _config_file: Path | None = None
 
     def __new__(cls) -> "Config":
         """Ensure singleton instance."""
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
-                    cls._instance = super(Config, cls).__new__(cls)
+                    cls._instance = super().__new__(cls)
         return cls._instance
 
     @classmethod
@@ -115,26 +115,26 @@ class Config:
                     )
                     if config_file.exists():
                         try:
-                            with open(config_file, "r") as f:
+                            with open(config_file) as f:
                                 loaded_config = json.load(f)
                             merged_config = cls._get_default_config()
                             merged_config.update(loaded_config)
                             cls._validate_config(merged_config)
                             cls._config = merged_config
                             cls._last_load_time = time.time()
-                        except (IOError, JSONDecodeError) as e:
+                        except (OSError, JSONDecodeError) as e:
                             logging.error(f"Error loading configuration: {e}")
-                            raise ConfigLoadError(f"Failed to load config: {e}")
+                            raise ConfigLoadError(f"Failed to load config: {e}") from e
                         except (ValueError, TypeError) as e:
                             logging.error(f"Invalid configuration: {e}")
-                            raise ConfigValidationError(f"Invalid config: {e}")
+                            raise ConfigValidationError(f"Invalid config: {e}") from e
                     else:
                         cls._config = cls._get_default_config()
                         cls._save_config()
                         cls._last_load_time = time.time()
 
     @classmethod
-    def _get_default_config(cls) -> Dict[str, Union[str, int]]:
+    def _get_default_config(cls) -> dict[str, str | int]:
         """Return the default configuration."""
         return {
             "version": CONFIG_VERSION,
@@ -159,12 +159,12 @@ class Config:
         try:
             with open(config_file, "w") as f:
                 json.dump(cls._config, f, indent=4)
-        except IOError as e:
+        except OSError as e:
             logging.error(f"Error saving configuration: {e}")
-            raise ConfigLoadError(f"Failed to save config: {e}")
+            raise ConfigLoadError(f"Failed to save config: {e}") from e
 
     @classmethod
-    def _validate_config(cls, config: Dict[str, Any]) -> None:
+    def _validate_config(cls, config: dict[str, Any]) -> None:
         """
         Validate the configuration structure and types.
 
@@ -206,14 +206,17 @@ class Config:
                     f"Invalid type for {key}. Expected {expected_type}, got {type(value)}"
                 )
 
-            if isinstance(valid_values, (list, tuple)):
-                if value not in valid_values and not (
+            if (
+                isinstance(valid_values, (list, tuple))
+                and value not in valid_values
+                and not (
                     isinstance(valid_values, tuple)
                     and valid_values[0] <= value <= valid_values[1]
-                ):
-                    raise ConfigValidationError(
-                        f"Invalid value for {key}. Must be one of {valid_values}"
-                    )
+                )
+            ):
+                raise ConfigValidationError(
+                    f"Invalid value for {key}. Must be one of {valid_values}"
+                )
 
     @classmethod
     def get(cls, key: str, default: Any = None) -> Any:

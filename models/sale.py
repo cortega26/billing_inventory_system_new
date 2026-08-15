@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import sqlalchemy as sa
 from pydantic import PrivateAttr, model_validator
@@ -13,9 +13,9 @@ from utils.validation.validators import validate_money, validate_money_multiplic
 class SaleItem(SQLModel, table=True):
     """Sale item entity with SQLModel implementation."""
 
-    __tablename__ = "sale_items"
+    __tablename__: str = "sale_items"
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     sale_id: int = Field(
         sa_column=sa.Column(
             sa.Integer, sa.ForeignKey("sales.id", ondelete="CASCADE"), nullable=False
@@ -31,7 +31,7 @@ class SaleItem(SQLModel, table=True):
     quantity: float  # Allow up to 3 decimals for weight-based products
     unit_price: int = Field(sa_column=Column("price", Integer, nullable=False))
     profit: int  # Chilean Pesos - always integer
-    created_at: Optional[datetime] = Field(
+    created_at: datetime | None = Field(
         default_factory=datetime.now,
         sa_column=sa.Column(sa.DateTime, nullable=True, server_default=sa.func.now()),
     )
@@ -40,14 +40,14 @@ class SaleItem(SQLModel, table=True):
     sale: Optional["Sale"] = Relationship(back_populates="items")
 
     # Field not in the database table (extra joined info)
-    _product_name: Optional[str] = PrivateAttr(default=None)
+    _product_name: str | None = PrivateAttr(default=None)
 
     @property
-    def product_name(self) -> Optional[str]:
+    def product_name(self) -> str | None:
         return self._product_name
 
     @product_name.setter
-    def product_name(self, value: Optional[str]):
+    def product_name(self, value: str | None):
         self._product_name = value
 
     def __init__(self, **data: Any):
@@ -64,7 +64,7 @@ class SaleItem(SQLModel, table=True):
         return self
 
     @classmethod
-    def from_db_row(cls, row: Dict[str, Any]) -> "SaleItem":
+    def from_db_row(cls, row: dict[str, Any]) -> "SaleItem":
         try:
             return cls(
                 id=int(row["id"]),
@@ -100,7 +100,7 @@ class SaleItem(SQLModel, table=True):
             return round(quantity, 3)
 
         except (ValueError, TypeError):
-            raise ValidationException("Invalid quantity format")
+            raise ValidationException("Invalid quantity format") from None
 
     @staticmethod
     def validate_price(price: int) -> None:
@@ -122,7 +122,7 @@ class SaleItem(SQLModel, table=True):
             self.unit_price, self.quantity, "Total price"
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "sale_id": self.sale_id,
@@ -141,7 +141,7 @@ VALID_STATUSES = frozenset({"confirmed", "cancelled"})
 class Sale(SQLModel, table=True):
     """Sale entity with SQLModel implementation."""
 
-    __tablename__ = "sales"
+    __tablename__: str = "sales"
 
     __table_args__ = (
         sa.CheckConstraint(
@@ -149,8 +149,8 @@ class Sale(SQLModel, table=True):
         ),
     )
 
-    id: Optional[int] = Field(default=None, primary_key=True)
-    customer_id: Optional[int] = Field(
+    id: int | None = Field(default=None, primary_key=True)
+    customer_id: int | None = Field(
         default=None,
         sa_column=sa.Column(
             sa.Integer,
@@ -158,7 +158,7 @@ class Sale(SQLModel, table=True):
             nullable=True,
         ),
     )
-    date: Optional[datetime] = Field(
+    date: datetime | None = Field(
         default_factory=datetime.now,
         sa_column=sa.Column(sa.DateTime, nullable=True, server_default=sa.func.now()),
     )
@@ -170,24 +170,26 @@ class Sale(SQLModel, table=True):
         default=0,
         sa_column=sa.Column(sa.Integer, nullable=False, server_default=sa.text("0")),
     )
-    receipt_id: Optional[str] = Field(default=None, unique=True)
+    receipt_id: str | None = Field(default=None, unique=True)
     status: str = Field(
         default="confirmed",
         sa_column=sa.Column(
             sa.String, nullable=False, server_default=sa.text("'confirmed'")
         ),
     )
-    created_at: Optional[datetime] = Field(
+    created_at: datetime | None = Field(
         default_factory=datetime.now,
         sa_column=sa.Column(sa.DateTime, nullable=True, server_default=sa.func.now()),
     )
 
     # Relationship to SaleItems
-    items: List[SaleItem] = Relationship(back_populates="sale")
+    items: list[SaleItem] = Relationship(back_populates="sale")
 
     @model_validator(mode="after")
     def post_init_validation(self) -> "Sale":
         self.validate_customer_id(self.customer_id)
+        if self.date is None:
+            raise ValidationException("Sale date is required")
         self.validate_date(self.date)
         self.validate_total_amount(self.total_amount)
         self.validate_total_profit(self.total_profit)
@@ -195,7 +197,7 @@ class Sale(SQLModel, table=True):
         return self
 
     @classmethod
-    def from_db_row(cls, row: Dict[str, Any]) -> "Sale":
+    def from_db_row(cls, row: dict[str, Any]) -> "Sale":
         try:
             # Parse date string
             try:
@@ -227,7 +229,7 @@ class Sale(SQLModel, table=True):
             raise
 
     @staticmethod
-    def validate_customer_id(customer_id: Optional[int]) -> None:
+    def validate_customer_id(customer_id: int | None) -> None:
         if customer_id is None:
             return
         if not isinstance(customer_id, int) or customer_id <= 0:
@@ -282,18 +284,18 @@ class Sale(SQLModel, table=True):
         self.validate_date(new_date)
         self.date = new_date
 
-    def update_customer(self, new_customer_id: Optional[int]) -> None:
+    def update_customer(self, new_customer_id: int | None) -> None:
         self.validate_customer_id(new_customer_id)
         self.customer_id = new_customer_id
 
-    def update_receipt_id(self, new_receipt_id: Optional[str]) -> None:
+    def update_receipt_id(self, new_receipt_id: str | None) -> None:
         self.receipt_id = new_receipt_id
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "customer_id": self.customer_id,
-            "date": self.date.strftime("%Y-%m-%d"),
+            "date": self.date.strftime("%Y-%m-%d") if self.date is not None else "",
             "total_amount": self.total_amount,
             "total_profit": self.total_profit,
             "receipt_id": self.receipt_id,
@@ -302,8 +304,9 @@ class Sale(SQLModel, table=True):
         }
 
     def __str__(self) -> str:
+        date_str = self.date.strftime("%Y-%m-%d") if self.date is not None else ""
         return (
             f"Sale(id={self.id}, customer_id={self.customer_id}, "
-            f"date='{self.date.strftime('%Y-%m-%d')}', total_amount={self.total_amount}, "
+            f"date='{date_str}', total_amount={self.total_amount}, "
             f"total_profit={self.total_profit}, receipt_id='{self.receipt_id}')"
         )

@@ -21,26 +21,21 @@ def _migrate_legacy_customers_table() -> None:
     with DatabaseManager.transaction():
         cursor = DatabaseManager._get_cursor()
 
-        cursor.execute(
-            """
+        cursor.execute("""
             SELECT sql FROM sqlite_master
             WHERE type='table' AND name='customers'
-            """
-        )
+            """)
 
         result = cursor.fetchone()
         if not result or "REGEXP" not in result[0]:
             return
 
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TEMPORARY TABLE customers_backup AS
             SELECT * FROM customers
-            """
-        )
+            """)
         cursor.execute("DROP TABLE customers")
-        cursor.execute(
-            """
+        cursor.execute("""
             CREATE TABLE customers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 identifier_9 TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -52,18 +47,15 @@ def _migrate_legacy_customers_table() -> None:
                 CHECK (identifier_9 NOT GLOB '*[^0-9]*'),
                 CHECK (name IS NULL OR LENGTH(name) <= 50)
             )
-            """
-        )
-        cursor.execute(
-            """
+            """)
+        cursor.execute("""
             INSERT INTO customers (id, identifier_9, name, is_active, deleted_at)
             SELECT id, identifier_9, name, 1, NULL
             FROM customers_backup
             WHERE LENGTH(identifier_9) = 9
             AND SUBSTR(identifier_9, 1, 1) = '9'
             AND identifier_9 NOT GLOB '*[^0-9]*'
-            """
-        )
+            """)
         cursor.execute("DROP TABLE customers_backup")
 
 
@@ -76,7 +68,7 @@ def _get_schema_path() -> str:
 
 def _load_table_statements(schema_path: str) -> list[str]:
     """Return only CREATE TABLE statements from the schema file."""
-    with open(schema_path, "r") as f:
+    with open(schema_path) as f:
         schema_sql = "\n".join(
             line for line in f.readlines() if not line.lstrip().startswith("--")
         )
@@ -97,4 +89,4 @@ def init_db(db_path: str | None = None):
         _migrate_legacy_customers_table()
         run_migrations()
     except Exception as e:
-        raise DatabaseException(f"Failed to initialize database: {str(e)}")
+        raise DatabaseException(f"Failed to initialize database: {str(e)}") from e

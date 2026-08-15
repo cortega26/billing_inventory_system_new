@@ -1,19 +1,19 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class StockMovementType(str, Enum):
+class StockMovementType(StrEnum):
     SALE = "sale"
     PURCHASE = "purchase"
     ADJUSTMENT = "adjustment"
 
 
-class InventoryAction(str, Enum):
+class InventoryAction(StrEnum):
     CREATE = "create"
     UPDATE = "update"
     SET = "set"
 
 
-class TimeInterval(str, Enum):
+class TimeInterval(StrEnum):
     DAY = "day"
     WEEK = "week"
     MONTH = "month"

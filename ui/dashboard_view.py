@@ -1,6 +1,6 @@
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from math import ceil
-from typing import Callable, Union
 
 from PySide6.QtCharts import (
     QBarCategoryAxis,
@@ -36,7 +36,7 @@ from utils.ui.table_items import NumericTableWidgetItem
 
 
 class MetricWidget(QFrame):
-    def __init__(self, label: str, value_func: Callable[[], Union[str, int, float]]):
+    def __init__(self, label: str, value_func: Callable[[], str | int | float]):
         super().__init__()
         self.value_func = value_func
         self.setFrameShape(QFrame.Shape.Box)
@@ -224,7 +224,7 @@ class DashboardView(QWidget):
             logger.info("Dashboard updated successfully")
         except Exception as e:
             logger.error("Failed to update dashboard", extra={"error": str(e)})
-            raise UIException(f"Dashboard update failed: {str(e)}")
+            raise UIException(f"Dashboard update failed: {str(e)}") from e
 
     def refresh(self):
         try:

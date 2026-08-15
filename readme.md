@@ -33,7 +33,7 @@ See `requirements.txt` for Python package dependencies.
 
 1. **Install Dependencies**:
    ```bash
-   pip install -r requirements.txt
+   uv pip install -r requirements.lock
    ```
 
 2. **Configuration**:
@@ -49,7 +49,7 @@ See `requirements.txt` for Python package dependencies.
 
 1. **Install Development Dependencies**:
    ```bash
-   pip install -r requirements-dev.txt
+   uv pip install -r requirements.lock
    ```
 
 2. **Run Tests**:
@@ -61,7 +61,18 @@ See `requirements.txt` for Python package dependencies.
    ```bash
    ruff check .
    black --check .
+   pyright
    ```
+
+4. **Schema Drift Check**:
+   ```bash
+   python scripts/check_schema_drift.py
+   ```
+
+After changing `requirements.txt` or `requirements-dev.txt`, regenerate the lockfile:
+```bash
+uv pip compile requirements.txt requirements-dev.txt --python-version 3.13 -o requirements.lock
+```
 
 ## License
 

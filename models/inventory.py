@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import Any, ClassVar, Dict, Optional
+from typing import Any, ClassVar
 
 import sqlalchemy as sa
 from pydantic import model_validator
@@ -23,13 +23,13 @@ class Inventory(SQLModel, table=True):
     Represents inventory for a product in the system.
     """
 
-    __tablename__ = "inventory"
+    __tablename__: str = "inventory"
 
     __table_args__ = (
         sa.CheckConstraint("quantity >= 0", name="check_quantity_positive"),
     )
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     product_id: int = Field(
         sa_column=sa.Column(
             sa.Integer,
@@ -40,11 +40,11 @@ class Inventory(SQLModel, table=True):
         )
     )
     quantity: float = Field(default=0.000)
-    created_at: Optional[datetime] = Field(
+    created_at: datetime | None = Field(
         default_factory=datetime.now,
         sa_column=sa.Column(sa.DateTime, nullable=True, server_default=sa.func.now()),
     )
-    updated_at: Optional[datetime] = Field(
+    updated_at: datetime | None = Field(
         default_factory=datetime.now,
         sa_column=sa.Column(sa.DateTime, nullable=True, server_default=sa.func.now()),
     )
@@ -58,9 +58,8 @@ class Inventory(SQLModel, table=True):
         """
         Validate inventory data after initialization.
         """
-        if self.id is not None:
-            if not isinstance(self.id, int) or self.id < 0:
-                raise ValidationException("Invalid inventory ID")
+        if self.id is not None and (not isinstance(self.id, int) or self.id < 0):
+            raise ValidationException("Invalid inventory ID")
 
         if not isinstance(self.product_id, int) or self.product_id < 0:
             raise ValidationException("Invalid product ID")
@@ -92,7 +91,7 @@ class Inventory(SQLModel, table=True):
             raise ValidationException(f"{field_name} exceeds maximum allowed value")
 
     @classmethod
-    def from_db_row(cls, row: Dict[str, Any]) -> "Inventory":
+    def from_db_row(cls, row: dict[str, Any]) -> "Inventory":
         """
         Create an Inventory instance from a database row.
         """
@@ -113,7 +112,7 @@ class Inventory(SQLModel, table=True):
                 ),
             )
         except (KeyError, ValueError, TypeError) as e:
-            raise ValidationException(f"Invalid inventory data: {str(e)}")
+            raise ValidationException(f"Invalid inventory data: {str(e)}") from e
 
     def update_quantity(self, change: float) -> "Inventory":
         """
@@ -142,7 +141,7 @@ class Inventory(SQLModel, table=True):
             return StockStatus.OUT_OF_STOCK
         return StockStatus.OPTIMAL
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert inventory to dictionary representation.
         """
@@ -151,12 +150,16 @@ class Inventory(SQLModel, table=True):
             "product_id": self.product_id,
             "quantity": str(self.quantity),
             "stock_status": self.get_stock_status().value,
-            "created_at": self.created_at.isoformat()
-            if isinstance(self.created_at, datetime)
-            else self.created_at,
-            "updated_at": self.updated_at.isoformat()
-            if isinstance(self.updated_at, datetime)
-            else self.updated_at,
+            "created_at": (
+                self.created_at.isoformat()
+                if isinstance(self.created_at, datetime)
+                else self.created_at
+            ),
+            "updated_at": (
+                self.updated_at.isoformat()
+                if isinstance(self.updated_at, datetime)
+                else self.updated_at
+            ),
         }
 
     def clone(self, **changes: Any) -> "Inventory":
@@ -193,9 +196,9 @@ class InventoryAdjustment(SQLModel, table=True):
     Represents an inventory adjustment in the system.
     """
 
-    __tablename__ = "inventory_adjustments"
+    __tablename__: str = "inventory_adjustments"
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     product_id: int = Field(foreign_key="products.id")
     quantity_change: float
     reason: str

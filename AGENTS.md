@@ -22,10 +22,6 @@ When these sources disagree, do not patch only one place. Either:
 - align code, docs, and tests in the same change, or
 - document the discrepancy explicitly in the PR and add the reconciliation work to the backlog.
 
-Current known contradictions that must not be ignored:
-
-- pytest configuration is duplicated between `pyproject.toml` and `pytest.ini`.
-
 ## Architecture Contracts
 
 Honor these boundaries unless you are intentionally refactoring them and updating tests plus this file:
@@ -36,9 +32,12 @@ Honor these boundaries unless you are intentionally refactoring them and updatin
   Service methods are the default entry points for domain mutations.
 - `database/` owns connection management, schema initialization, migrations, and SQL execution helpers.
 - `models/` owns domain data structures and DB row mapping.
+  Models are SQLModel classes; their metadata doubles as the Alembic autogenerate target and the source for the `db_manager` test fixture.
 - `utils/validation/` owns reusable input validation and normalization primitives.
 - `services/analytics/` is read-only by contract.
   It should never mutate business tables.
+- `services/mutation_coordinator.py` is the standardized post-commit finalization (cache clears + event emission) for sales, purchases, and adjustments.
+  New mutation workflows should reuse it instead of inventing their own cache/event sequence.
 
 Preferred dependency direction:
 
@@ -90,10 +89,16 @@ Be very careful with transactional assumptions in this repo.
 
 Before changing persistence behavior:
 
-- update `schema.sql` for new installs
-- update initialization or migration behavior in `database/__init__.py` or `database/migrations.py`
+- update `schema.sql` for new installs (this is what `database/__init__.py` applies at `init_db()`)
+- add a new Alembic revision under `alembic/versions/` for existing databases.
+  `database/migrations.py` runs `alembic upgrade head` on the active DB at every `init_db()`.
+- keep `models/` SQLModel classes and `schema.sql` in sync:
+  `alembic/env.py` autogenerates from `SQLModel.metadata` and excludes `sqlite_sequence`, `test_table`, and `customer_payments`.
 - add or update DB-focused tests in `tests/test_database/`
 - add or update service-flow tests when the change affects runtime behavior
+
+Note: `schema.sql` and the SQLModel metadata are two parallel schema definitions.
+A model change without the matching DDL (or vice versa) breaks new installs, autogenerate, or the `db_manager` test fixture.
 
 ## High-Risk Areas
 
@@ -107,6 +112,8 @@ Changes in these areas require extra care and usually extra tests:
   Product deletion interacts with history tables and can violate ledger expectations if handled casually.
 - `services/inventory_service.py`
   Protects non-negative stock and quantity precision.
+- `services/update_sale_workflow.py` and `services/mutation_coordinator.py`
+  Sale edits route through the workflow; post-commit cache/event finalization is centralized in the coordinator.
 - `services/backup_service.py`
   Encodes retention, directory handling, scheduling, and SQLite backup semantics.
 - `config.py`
@@ -152,10 +159,24 @@ Expected regression coverage by change type:
   update `tests/test_database/` and affected service-flow tests
 - Product, customer, inventory, sale, or purchase logic:
   update `tests/test_services/` and `tests/test_critical_backend_flows.py` when the flow is cross-domain
+- Analytics changes:
+  update `tests/analytics/` and `tests/test_services/test_analytics_service.py`
+- Model changes:
+  update `tests/test_models/`
+- UI or widget behavior:
+  update `tests/test_ui/` (UI tests need a display; CI runs pytest under xvfb)
 - Config or backup behavior:
   update `tests/test_config.py`, `tests/test_system/test_config.py`, and backup tests as applicable
 - Logger or event-system behavior:
   update matching system tests
+
+Testing environment notes (`tests/conftest.py`):
+
+- `db_manager` fixture provides a REAL in-memory database built from `SQLModel.metadata.create_all` (not `schema.sql`), so schema.sql CHECK/DDL constraints do not exist there.
+- Autouse fixtures `isolate_config` (resets the `Config` singleton per test) and `clear_test_data` (truncates tables) apply to every test.
+- `mock_database` / `mock_db_operations` fixtures replace `DatabaseManager` with mocks; prefer `db_manager` for real service-flow tests.
+- pytest enforces `--strict-markers`: new markers must be registered in `pyproject.toml` or tests fail.
+- `pytest-randomly` is installed, so test order is randomized; never rely on test ordering or shared state.
 
 When fixing a sad path:
 
@@ -176,6 +197,26 @@ Do not let `AGENTS.md`, tests, and implementation drift apart after a behavioral
 
 ## Practical Workflow For Agents
 
+Exact commands (prefer `.venv/bin/...`):
+
+- run one test file: `.venv/bin/python -m pytest tests/test_services/test_sale_service.py`
+- run a single test: `.venv/bin/python -m pytest tests/test_services/test_sale_service.py -k test_name`
+- full suite: `.venv/bin/python -m pytest`
+- lint: `.venv/bin/ruff check .`
+- format check: `.venv/bin/black --check .`
+- type check: `.venv/bin/pyright` (scoped to backend via `pyrightconfig.json`; `ui/` and `tests/` are excluded)
+- schema drift check: `.venv/bin/python scripts/check_schema_drift.py` (fresh `init_db()` vs `SQLModel.metadata`)
+- pre-commit: `uvx pre-commit run --all-files` (ruff, black, trailing whitespace)
+
+CI enforces `ruff check .`, `black --check .`, `pyright`, the schema drift check, and the full pytest suite under xvfb (`.github/workflows/ci.yml`).
+`pytest-xdist` is installed but the UI tests crash workers under `-n auto` (Qt); keep CI serial.
+
+Dependencies are pinned in `requirements.lock` (compiled with `uv pip compile`).
+After changing `requirements.txt` or `requirements-dev.txt`, regenerate the lockfile:
+`uv pip compile requirements.txt requirements-dev.txt --python-version 3.13 -o requirements.lock`
+and reinstall with `uv pip install -r requirements.lock`.
+The local `.venv` is Python 3.13 and must match the CI interpreter version.
+
 Before coding:
 
 - read the relevant service, validator, schema, and tests
@@ -190,10 +231,11 @@ Before finishing:
 
 ## Repo Notes Discovered During Setup
 
-- The project virtualenv currently runs the full suite successfully.
+- The project virtualenv is Python 3.13 (matching CI) and runs the full suite successfully.
   Prefer `.venv/bin/python -m pytest`.
 - The current shell still does not expose `python` and `ruff` on PATH consistently.
   Prefer `.venv/bin/python` and `.venv/bin/ruff`.
 - The repo currently uses Spanish for user-facing strings.
 - New or modified UI strings must be in Spanish to maintain consistency.
-- `pytest` currently uses `pytest.ini` and warns that pytest settings in `pyproject.toml` are ignored.
+- pytest configuration lives only in `pyproject.toml` (the old `pytest.ini` was removed);
+  `--strict-markers` means new markers must be registered there too.

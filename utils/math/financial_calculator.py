@@ -1,5 +1,5 @@
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any, Dict, List, Union
+from typing import Any
 
 
 class FinancialCalculator:
@@ -13,7 +13,7 @@ class FinancialCalculator:
     QUANTITY_PRECISION = 3
 
     @staticmethod
-    def _to_decimal(value: Union[int, float, Decimal, str]) -> Decimal:
+    def _to_decimal(value: int | float | Decimal | str) -> Decimal:
         if isinstance(value, float):
             return Decimal(
                 str(value)
@@ -52,7 +52,7 @@ class FinancialCalculator:
         return int(profit)
 
     @staticmethod
-    def calculate_sale_totals(items: List[Dict[str, Any]]) -> Dict[str, int]:
+    def calculate_sale_totals(items: list[dict[str, Any]]) -> dict[str, int]:
         """
         Calculate total amount and total profit for a list of items.
         Expected item keys: 'quantity', 'sell_price', 'profit' (optional, if pre-calculated)

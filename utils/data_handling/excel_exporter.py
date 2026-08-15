@@ -1,7 +1,8 @@
 import logging
 import os
+from collections.abc import Iterable
 from datetime import datetime
-from typing import Any, Dict, Iterable, List
+from typing import Any
 
 import xlsxwriter
 
@@ -17,8 +18,8 @@ class ExcelExporter:
     @handle_external_service(show_dialog=True)
     # @validate_input(show_dialog=True)
     def export_to_excel(
-        data: List[Dict[str, Any]],
-        headers: List[str],
+        data: list[dict[str, Any]],
+        headers: list[str],
         filename: str,
         sheet_name: str = "Sheet1",
         auto_adjust_columns: bool = True,
@@ -103,7 +104,7 @@ class ExcelExporter:
 
                 # Add data
                 for row, item in enumerate(data, start=1):
-                    for col, (key, value) in enumerate(item.items()):
+                    for col, (_key, value) in enumerate(item.items()):
                         if isinstance(value, datetime):
                             worksheet.write_datetime(row, col, value, date_format)
                         else:
@@ -117,21 +118,21 @@ class ExcelExporter:
             logger.info(
                 f"Excel file created successfully: {os.path.abspath(final_path)}"
             )
-        except IOError as e:
+        except OSError as e:
             raise ExternalServiceException(
                 f"Error writing to file {final_path}: {str(e)}"
-            )
+            ) from e
         except Exception as e:
             raise ExternalServiceException(
                 f"An error occurred while exporting to Excel: {str(e)}"
-            )
+            ) from e
 
     @staticmethod
     @handle_external_service(show_dialog=True)
     # @validate_input(show_dialog=True)
     def export_large_dataset(
-        data_generator: Iterable[Dict[str, Any]],
-        headers: List[str],
+        data_generator: Iterable[dict[str, Any]],
+        headers: list[str],
         filename: str,
         sheet_name: str = "Sheet1",
         chunk_size: int = 1000,
@@ -172,7 +173,7 @@ class ExcelExporter:
 
                 row = 1
                 for item in data_generator:
-                    for col, (key, value) in enumerate(item.items()):
+                    for col, (_key, value) in enumerate(item.items()):
                         if isinstance(value, datetime):
                             worksheet.write_datetime(row, col, value, date_format)
                         else:
@@ -185,11 +186,11 @@ class ExcelExporter:
             logger.info(
                 f"Large dataset exported successfully: {os.path.abspath(final_path)}"
             )
-        except IOError as e:
+        except OSError as e:
             raise ExternalServiceException(
                 f"Error writing to file {final_path}: {str(e)}"
-            )
+            ) from e
         except Exception as e:
             raise ExternalServiceException(
                 f"An error occurred while exporting large dataset to Excel: {str(e)}"
-            )
+            ) from e

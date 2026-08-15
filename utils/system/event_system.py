@@ -1,12 +1,13 @@
 import os
-from typing import Any, Callable, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 from utils.system.logger import logger
 
 try:
     if os.environ.get("USE_MOCK_EVENT_SYSTEM"):
         raise ImportError("Forcing MockEventSystem for tests")
-    from PySide6.QtCore import QObject, Signal
+    from PySide6.QtCore import QObject, Signal  # pyright: ignore[reportAssignmentType]
 except ImportError:
     # Fallback for headless environments/tests
     logger.warning("PySide6 not found or disabled, using MockEventSystem")
@@ -51,46 +52,52 @@ class EventSystem(QObject):
     """
 
     # Product-related signals
-    product_added = Signal(object)  # Emits the ID of the added product or data dict
-    product_updated = Signal(object)  # Emits the ID of the updated product or data dict
-    product_deleted = Signal(object)  # Emits the ID of the deleted product
+    product_added: Any = Signal(
+        object
+    )  # Emits the ID of the added product or data dict
+    product_updated: Any = Signal(
+        object
+    )  # Emits the ID of the updated product or data dict
+    product_deleted: Any = Signal(object)  # Emits the ID of the deleted product
 
     # Purchase-related signals
-    purchase_added = Signal(object)  # Emits the ID of the added purchase
-    purchase_updated = Signal(object)  # Emits the ID of the updated purchase
-    purchase_deleted = Signal(object)  # Emits the ID of the deleted purchase
+    purchase_added: Any = Signal(object)  # Emits the ID of the added purchase
+    purchase_updated: Any = Signal(object)  # Emits the ID of the updated purchase
+    purchase_deleted: Any = Signal(object)  # Emits the ID of the deleted purchase
 
     # Sale-related signals
-    sale_added = Signal(object)  # Emits the ID of the added sale
-    sale_updated = Signal(object)  # Emits the ID of the updated sale
-    sale_deleted = Signal(object)  # Emits the ID of the deleted sale
+    sale_added: Any = Signal(object)  # Emits the ID of the added sale
+    sale_updated: Any = Signal(object)  # Emits the ID of the updated sale
+    sale_deleted: Any = Signal(object)  # Emits the ID of the deleted sale
 
     # Inventory-related signals
-    inventory_changed = Signal(
+    inventory_changed: Any = Signal(
         object
     )  # Emits the ID of the product whose inventory changed
-    inventory_updated = Signal(object)  # Add if missing
+    inventory_updated: Any = Signal(object)  # Add if missing
 
     # Customer-related signals
-    customer_added = Signal(object)  # Emits the ID of the added customer
-    customer_updated = Signal(object)  # Emits the ID of the updated customer
-    customer_deleted = Signal(object)  # Emits the ID of the deleted customer
+    customer_added: Any = Signal(object)  # Emits the ID of the added customer
+    customer_updated: Any = Signal(object)  # Emits the ID of the updated customer
+    customer_deleted: Any = Signal(object)  # Emits the ID of the deleted customer
 
     # Category-related signals
-    category_added = Signal(object)  # Emits the ID of the added category
-    category_updated = Signal(object)  # Emits the ID of the updated category
-    category_deleted = Signal(object)  # Emits the ID of the deleted category
+    category_added: Any = Signal(object)  # Emits the ID of the added category
+    category_updated: Any = Signal(object)  # Emits the ID of the updated category
+    category_deleted: Any = Signal(object)  # Emits the ID of the deleted category
 
     # General application signals
-    app_settings_changed = Signal(dict)  # Emits a dictionary of changed settings
-    data_import_completed = Signal(
+    app_settings_changed: Any = Signal(dict)  # Emits a dictionary of changed settings
+    data_import_completed: Any = Signal(
         object
     )  # Emits True if import was successful, False otherwise
-    data_export_completed = Signal(
+    data_export_completed: Any = Signal(
         object
     )  # Emits True if export was successful, False otherwise
-    backup_skipped = Signal(dict)  # Emits metadata when automatic backup is skipped
-    backup_completed = Signal(object)  # Emits backup path or metadata on success
+    backup_skipped: Any = Signal(
+        dict
+    )  # Emits metadata when automatic backup is skipped
+    backup_completed: Any = Signal(object)  # Emits backup path or metadata on success
 
     def __init__(self):
         super().__init__()
@@ -158,7 +165,7 @@ class EventSystem(QObject):
             raise ValueError(f"Unknown event: {event_name}")
 
     def disconnect_from_event(
-        self, event_name: str, slot: Optional[Callable[..., None]] = None
+        self, event_name: str, slot: Callable[..., None] | None = None
     ) -> None:
         """
         Disconnect a slot (callback function) from a specific event.
@@ -184,7 +191,7 @@ class EventSystem(QObject):
             logger.error(f"Unknown event: {event_name}")
             raise ValueError(f"Unknown event: {event_name}")
 
-    def get_available_events(self) -> List[str]:
+    def get_available_events(self) -> list[str]:
         """
         Get a list of all available event names.
 

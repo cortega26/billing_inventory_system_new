@@ -1,5 +1,5 @@
 import sqlite3
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from database import DatabaseManager
 from utils.decorators import db_operation
@@ -19,7 +19,7 @@ class DataValidationService:
 
     @staticmethod
     @db_operation(show_dialog=True)
-    def diagnose_sales_data() -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    def diagnose_sales_data() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         """
         Diagnose sales data for inconsistencies.
         Returns tuple of (invalid_sales, orphaned_items)
@@ -66,7 +66,7 @@ class DataValidationService:
 
         except sqlite3.Error as e:
             logger.error(f"Database error during diagnosis: {e}")
-            raise DatabaseException(f"Database error during diagnosis: {e}")
+            raise DatabaseException(f"Database error during diagnosis: {e}") from e
 
     @staticmethod
     @db_operation(show_dialog=True)

@@ -131,4 +131,3 @@
 - No multi-currency expansion planned
 - No additional theme support planned
 - No full multi-language support planned beyond the current English-first migration
-  

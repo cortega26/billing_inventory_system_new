@@ -159,7 +159,7 @@ class Application:
             backup_service.start_scheduler()
         except DatabaseException as e:
             logger.critical(f"Failed to initialize database: {e}")
-            raise AppException(f"Failed to initialize database: {e}")
+            raise AppException(f"Failed to initialize database: {e}") from e
 
     # @staticmethod
     # def run():

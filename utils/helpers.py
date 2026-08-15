@@ -1,6 +1,7 @@
 import datetime
+from collections.abc import Callable
 from decimal import Decimal
-from typing import Any, Callable, List, Optional, TypeVar, Union
+from typing import Any, TypeVar
 
 from PySide6.QtWidgets import QHeaderView, QMessageBox, QTableWidget, QWidget
 
@@ -10,7 +11,7 @@ from utils.system.logger import logger
 T = TypeVar("T")
 
 
-def create_table(headers: List[str]) -> QTableWidget:
+def create_table(headers: list[str]) -> QTableWidget:
     """
     Create and return a QTableWidget with the specified headers.
 
@@ -88,8 +89,8 @@ def show_info_message(title: str, message: str) -> None:
 def validate_integer_input(
     value: str,
     field_name: str,
-    min_value: Optional[int] = None,
-    max_value: Optional[int] = None,
+    min_value: int | None = None,
+    max_value: int | None = None,
 ) -> int:
     """
     Validate and convert a string input to an integer within an optional range.
@@ -114,10 +115,10 @@ def validate_integer_input(
             raise ValidationException(f"{field_name} must not exceed {max_value}.")
         return int_value
     except ValueError:
-        raise ValidationException(f"{field_name} must be a valid integer.")
+        raise ValidationException(f"{field_name} must be a valid integer.") from None
 
 
-def safe_convert(value: Any, target_type: Callable[[Any], T], default: T) -> T:
+def safe_convert[T](value: Any, target_type: Callable[[Any], T], default: T) -> T:
     """
     Safely convert a value to a target type, returning a default value if conversion fails.
 
@@ -169,7 +170,7 @@ def truncate_string(text: str, max_length: int, ellipsis: str = "...") -> str:
     return text[: max_length - len(ellipsis)] + ellipsis
 
 
-def format_price(amount: Union[int, float, Decimal]) -> str:
+def format_price(amount: int | float | Decimal) -> str:
     """
     Format a price with dot as thousand separator and no decimals.
 
@@ -182,7 +183,7 @@ def format_price(amount: Union[int, float, Decimal]) -> str:
     return f"{int(amount):,}".replace(",", ".")
 
 
-def confirm_action(parent: Optional[QWidget], title: str, message: str) -> bool:
+def confirm_action(parent: QWidget | None, title: str, message: str) -> bool:
     """
     Display a confirmation dialog and return the user's choice.
 

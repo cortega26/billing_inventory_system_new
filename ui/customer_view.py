@@ -1,6 +1,6 @@
-from typing import List, Optional
+import contextlib
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
@@ -42,7 +42,7 @@ from utils.validation.validators import validate_string
 
 
 class EditCustomerDialog(QDialog):
-    def __init__(self, customer: Optional[Customer], parent=None):
+    def __init__(self, customer: Customer | None, parent=None):
         super().__init__(parent)
         self.customer = customer
         self.setWindowTitle("Editar Cliente" if customer else "Agregar Cliente")
@@ -99,7 +99,7 @@ class EditCustomerDialog(QDialog):
             )
             self.accept()
         except ValidationException as e:
-            raise ValidationException(str(e))
+            raise ValidationException(str(e)) from e
 
 
 class CustomerView(QWidget):
@@ -123,10 +123,8 @@ class CustomerView(QWidget):
     def disconnect_signals(self):
         """Safely disconnect all signals."""
         for signal, slot in self._connections:
-            try:
+            with contextlib.suppress(Exception):
                 signal.disconnect(slot)
-            except Exception:
-                pass
         self._connections.clear()
 
     def cleanup(self):
@@ -235,7 +233,7 @@ class CustomerView(QWidget):
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(UIException, show_dialog=True)
-    def populate_customer_table(self, customers: List[Customer]) -> None:
+    def populate_customer_table(self, customers: list[Customer]) -> None:
         """
         Populate the customer table with a list of Customer objects,
         ensuring stable row→customer_id mapping and preserving any pre-existing sort.
@@ -363,7 +361,7 @@ class CustomerView(QWidget):
 
         except Exception as e:
             logger.error(f"Error populating customer table: {str(e)}")
-            raise UIException(f"Failed to populate customer table: {str(e)}")
+            raise UIException(f"Failed to populate customer table: {str(e)}") from e
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(
@@ -491,7 +489,7 @@ class CustomerView(QWidget):
     @handle_exceptions(
         ValidationException, DatabaseException, UIException, show_dialog=True
     )
-    def edit_customer(self, customer: Optional[Customer]):
+    def edit_customer(self, customer: Customer | None):
         """
         Edit a customer's info (9-digit, 3/4-digit, name).
         Updates DB, then reloads the table.
@@ -540,7 +538,7 @@ class CustomerView(QWidget):
     @handle_exceptions(
         ValidationException, DatabaseException, UIException, show_dialog=True
     )
-    def delete_customer(self, customer: Optional[Customer]):
+    def delete_customer(self, customer: Customer | None):
         if customer is None:
             raise ValidationException("Ningún cliente seleccionado para eliminar.")
 

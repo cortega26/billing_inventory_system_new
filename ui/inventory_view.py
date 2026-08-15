@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
@@ -31,7 +31,7 @@ from utils.ui.table_items import NumericTableWidgetItem
 
 
 class EditInventoryDialog(QDialog):
-    def __init__(self, item: Dict[str, Any], parent=None):
+    def __init__(self, item: dict[str, Any], parent=None):
         super().__init__(parent)
         self.item = item
         self.setWindowTitle(f"Editar {item['product_name']}")
@@ -218,12 +218,11 @@ class InventoryView(QWidget):
                     continue
 
                 # Search Filter
-                if search_query:
-                    if (
-                        search_query not in item["product_name"].lower()
-                        and search_query not in str(item.get("barcode", "")).lower()
-                    ):
-                        continue
+                if search_query and (
+                    search_query not in item["product_name"].lower()
+                    and search_query not in str(item.get("barcode", "")).lower()
+                ):
+                    continue
 
                 filtered_items.append(item)
 
@@ -233,7 +232,7 @@ class InventoryView(QWidget):
         finally:
             QApplication.restoreOverrideCursor()
 
-    def update_table(self, items: List[Dict[str, Any]]):
+    def update_table(self, items: list[dict[str, Any]]):
         self.inventory_table.setRowCount(len(items))
         for row, item in enumerate(items):
             self.inventory_table.setItem(
@@ -270,7 +269,7 @@ class InventoryView(QWidget):
     @handle_exceptions(
         ValidationException, DatabaseException, UIException, show_dialog=True
     )
-    def edit_inventory(self, item: Dict[str, Any]):
+    def edit_inventory(self, item: dict[str, Any]):
         dialog = EditInventoryDialog(item, self)
         if dialog.exec():
             data = dialog.get_data()

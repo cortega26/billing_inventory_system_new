@@ -19,9 +19,8 @@ def test_manual():
     print("Initializing DB...")
     DatabaseManager.initialize(":memory:")
     # Load schema
-    with open("schema.sql", "r") as f:
-        with DatabaseManager.get_db_connection() as conn:
-            conn.executescript(f.read())
+    with open("schema.sql") as f, DatabaseManager.get_db_connection() as conn:
+        conn.executescript(f.read())
 
     print("Setup Services...")
     inventory_service = InventoryService()

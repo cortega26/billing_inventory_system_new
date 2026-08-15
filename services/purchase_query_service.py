@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from database.database_manager import DatabaseManager
 from models.enums import TimeInterval
@@ -18,7 +18,7 @@ class PurchaseQueryService:
     @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_purchase(purchase_id: int) -> Optional[Purchase]:
+    def get_purchase(purchase_id: int) -> Purchase | None:
         purchase_id = validate_integer(purchase_id, min_value=1)
         row = DatabaseManager.fetch_one(
             "SELECT * FROM purchases WHERE id = ?", (purchase_id,)
@@ -36,7 +36,7 @@ class PurchaseQueryService:
     @lru_cache(maxsize=1)
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_all_purchases() -> List[Purchase]:
+    def get_all_purchases() -> list[Purchase]:
         rows = DatabaseManager.fetch_all("SELECT * FROM purchases ORDER BY date DESC")
         purchases = PurchaseQueryService._hydrate_purchases(rows)
         logger.info("All purchases retrieved", extra={"count": len(purchases)})
@@ -45,7 +45,7 @@ class PurchaseQueryService:
     @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_purchase_items(purchase_id: int) -> List[PurchaseItem]:
+    def get_purchase_items(purchase_id: int) -> list[PurchaseItem]:
         purchase_id = validate_integer(purchase_id, min_value=1)
         query = "SELECT * FROM purchase_items WHERE purchase_id = ?"
         rows = DatabaseManager.fetch_all(query, (purchase_id,))
@@ -55,7 +55,7 @@ class PurchaseQueryService:
     @lru_cache(maxsize=1)
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_suppliers() -> List[str]:
+    def get_suppliers() -> list[str]:
         rows = DatabaseManager.fetch_all("SELECT DISTINCT supplier FROM purchases")
         suppliers = [row["supplier"] for row in rows]
         logger.info("Suppliers retrieved", extra={"count": len(suppliers)})
@@ -66,7 +66,7 @@ class PurchaseQueryService:
     @handle_exceptions(DatabaseException, show_dialog=True)
     def get_purchases_by_supplier(
         supplier: str, start_date: str, end_date: str
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         supplier = validate_string(supplier, max_length=100)
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
@@ -97,7 +97,7 @@ class PurchaseQueryService:
     @handle_exceptions(DatabaseException, show_dialog=True)
     def get_purchase_trends(
         start_date: str, end_date: str, interval: str = "month"
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         interval = validate_string(interval, max_length=10)
@@ -149,7 +149,7 @@ class PurchaseQueryService:
     @handle_exceptions(DatabaseException, show_dialog=True)
     def get_top_suppliers(
         start_date: str, end_date: str, limit: int = 10
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         limit = validate_integer(limit, min_value=1, max_value=1000)
@@ -187,7 +187,7 @@ class PurchaseQueryService:
 
     @staticmethod
     @db_operation(show_dialog=True)
-    def get_supplier_purchases(supplier: str) -> List[Purchase]:
+    def get_supplier_purchases(supplier: str) -> list[Purchase]:
         supplier = validate_string(supplier, min_length=1, max_length=100)
         rows = DatabaseManager.fetch_all(
             "SELECT * FROM purchases WHERE supplier = ? ORDER BY date DESC",
@@ -197,7 +197,7 @@ class PurchaseQueryService:
 
     @staticmethod
     @db_operation(show_dialog=True)
-    def get_purchase_statistics(start_date: str, end_date: str) -> Dict[str, Any]:
+    def get_purchase_statistics(start_date: str, end_date: str) -> dict[str, Any]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         row = DatabaseManager.fetch_one(
@@ -225,7 +225,7 @@ class PurchaseQueryService:
 
     @staticmethod
     @db_operation(show_dialog=True)
-    def get_purchase_history(start_date: str, end_date: str) -> List[Purchase]:
+    def get_purchase_history(start_date: str, end_date: str) -> list[Purchase]:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)
         if start_date > end_date:
@@ -243,22 +243,22 @@ class PurchaseQueryService:
         logger.debug("Purchase query cache cleared")
 
     @staticmethod
-    def _hydrate_purchases(rows: List[Any]) -> List[Purchase]:
+    def _hydrate_purchases(rows: list[Any]) -> list[Purchase]:
         if not rows:
             return []
 
         purchases = [Purchase.from_db_row(row) for row in rows]
         items_by_purchase = PurchaseQueryService._load_items_by_purchase(
-            [purchase.id for purchase in purchases]
+            [purchase.id or 0 for purchase in purchases]
         )
         for purchase in purchases:
-            purchase.items = items_by_purchase.get(purchase.id, [])
+            purchase.items = items_by_purchase.get(purchase.id or 0, [])
         return purchases
 
     @staticmethod
     def _load_items_by_purchase(
-        purchase_ids: List[int],
-    ) -> Dict[int, List[PurchaseItem]]:
+        purchase_ids: list[int],
+    ) -> dict[int, list[PurchaseItem]]:
         if not purchase_ids:
             return {}
 
@@ -268,7 +268,7 @@ class PurchaseQueryService:
             tuple(purchase_ids),
         )
 
-        items_by_purchase: Dict[int, List[PurchaseItem]] = {}
+        items_by_purchase: dict[int, list[PurchaseItem]] = {}
         for item_row in rows:
             purchase_id = item_row["purchase_id"]
             if purchase_id not in items_by_purchase:

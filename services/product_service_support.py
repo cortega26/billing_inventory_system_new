@@ -1,4 +1,5 @@
-from typing import Any, Callable, Dict, List
+from collections.abc import Callable
+from typing import Any
 
 from utils.validation.validators import (
     validate_integer,
@@ -7,7 +8,7 @@ from utils.validation.validators import (
 )
 
 
-def normalize_create_product_data(validated_data: Dict[str, Any]) -> Dict[str, Any]:
+def normalize_create_product_data(validated_data: dict[str, Any]) -> dict[str, Any]:
     normalized_data = dict(validated_data)
     normalized_data.setdefault("barcode", None)
     normalized_data.setdefault("category_id", None)
@@ -16,8 +17,8 @@ def normalize_create_product_data(validated_data: Dict[str, Any]) -> Dict[str, A
 
 
 def build_product_update_statement(
-    product_id: int, validated_data: Dict[str, Any]
-) -> tuple[str, Dict[str, Any], List[str]]:
+    product_id: int, validated_data: dict[str, Any]
+) -> tuple[str, dict[str, Any], list[str]]:
     updated_fields = list(validated_data.keys())
     params = dict(validated_data)
     params["product_id"] = product_id
@@ -27,7 +28,7 @@ def build_product_update_statement(
 
 
 def validate_name_field(
-    data: Dict[str, Any], validated: Dict[str, Any], is_create: bool
+    data: dict[str, Any], validated: dict[str, Any], is_create: bool
 ) -> None:
     if "name" not in data and not is_create:
         return
@@ -36,7 +37,7 @@ def validate_name_field(
     )
 
 
-def validate_description_field(data: Dict[str, Any], validated: Dict[str, Any]) -> None:
+def validate_description_field(data: dict[str, Any], validated: dict[str, Any]) -> None:
     if "description" not in data:
         return
     validated["description"] = validate_string(
@@ -44,7 +45,7 @@ def validate_description_field(data: Dict[str, Any], validated: Dict[str, Any]) 
     )
 
 
-def validate_category_field(data: Dict[str, Any], validated: Dict[str, Any]) -> None:
+def validate_category_field(data: dict[str, Any], validated: dict[str, Any]) -> None:
     if "category_id" not in data:
         return
     category_id = data.get("category_id")
@@ -54,7 +55,7 @@ def validate_category_field(data: Dict[str, Any], validated: Dict[str, Any]) -> 
 
 
 def validate_money_field(
-    data: Dict[str, Any], validated: Dict[str, Any], field: str, label: str
+    data: dict[str, Any], validated: dict[str, Any], field: str, label: str
 ) -> None:
     if field not in data:
         return
@@ -64,8 +65,8 @@ def validate_money_field(
 
 
 def validate_barcode_field(
-    data: Dict[str, Any],
-    validated: Dict[str, Any],
+    data: dict[str, Any],
+    validated: dict[str, Any],
     barcode_validator: Callable[[str], None],
 ) -> None:
     if "barcode" not in data:

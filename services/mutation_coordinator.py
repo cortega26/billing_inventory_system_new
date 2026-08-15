@@ -1,4 +1,5 @@
-from typing import Any, Callable, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 from services.analytics_service import AnalyticsService
 from services.inventory_service import InventoryService
@@ -10,9 +11,9 @@ class MutationCoordinator:
     @staticmethod
     def finalize_mutation(
         entity_id: int,
-        items: List[Any],
+        items: list[Any],
         signal: Any,
-        service_cache_clear_fn: Optional[Callable[[], None]] = None,
+        service_cache_clear_fn: Callable[[], None] | None = None,
     ) -> None:
         """
         Unified post-commit finalization for data mutations (sales, purchases, adjustments).
@@ -46,8 +47,8 @@ class MutationCoordinator:
             logger.error(f"Error emitting signal {signal}: {e}")
 
     @staticmethod
-    def _get_product_ids(items: List[Any]) -> List[int]:
-        product_ids: List[int] = []
+    def _get_product_ids(items: list[Any]) -> list[int]:
+        product_ids: list[int] = []
         for item in items:
             product_id = (
                 item["product_id"]

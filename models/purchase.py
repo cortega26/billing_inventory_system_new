@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import sqlalchemy as sa
 from pydantic import model_validator
@@ -13,9 +13,9 @@ from utils.validation.validators import validate_money, validate_money_multiplic
 class PurchaseItem(SQLModel, table=True):
     """Purchase item entity with SQLModel implementation."""
 
-    __tablename__ = "purchase_items"
+    __tablename__: str = "purchase_items"
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     purchase_id: int = Field(
         sa_column=sa.Column(
             sa.Integer,
@@ -43,7 +43,7 @@ class PurchaseItem(SQLModel, table=True):
         return self
 
     @classmethod
-    def from_db_row(cls, row: Dict[str, Any]) -> "PurchaseItem":
+    def from_db_row(cls, row: dict[str, Any]) -> "PurchaseItem":
         return cls(
             id=int(row["id"]),
             purchase_id=int(row["purchase_id"]),
@@ -79,7 +79,7 @@ class PurchaseItem(SQLModel, table=True):
         """Calculate total price ensuring proper CLP rounding."""
         return validate_money_multiplication(self.price, self.quantity, "Total price")
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "purchase_id": self.purchase_id,
@@ -93,11 +93,11 @@ class PurchaseItem(SQLModel, table=True):
 class Purchase(SQLModel, table=True):
     """Purchase entity with SQLModel implementation."""
 
-    __tablename__ = "purchases"
+    __tablename__: str = "purchases"
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     supplier: str
-    date: Optional[datetime] = Field(
+    date: datetime | None = Field(
         default_factory=datetime.now,
         sa_column=sa.Column(sa.DateTime, nullable=True, server_default=sa.func.now()),
     )
@@ -105,23 +105,25 @@ class Purchase(SQLModel, table=True):
         default=0,
         sa_column=sa.Column(sa.Integer, nullable=False, server_default=sa.text("0")),
     )
-    created_at: Optional[datetime] = Field(
+    created_at: datetime | None = Field(
         default_factory=datetime.now,
         sa_column=sa.Column(sa.DateTime, nullable=True, server_default=sa.func.now()),
     )
 
     # Relationship to PurchaseItems
-    items: List[PurchaseItem] = Relationship(back_populates="purchase")
+    items: list[PurchaseItem] = Relationship(back_populates="purchase")
 
     @model_validator(mode="after")
     def post_init_validation(self) -> "Purchase":
         self.validate_supplier(self.supplier)
+        if self.date is None:
+            raise ValidationException("Purchase date is required")
         self.validate_date(self.date)
         self.recalculate_total()
         return self
 
     @classmethod
-    def from_db_row(cls, row: Dict[str, Any]) -> "Purchase":
+    def from_db_row(cls, row: dict[str, Any]) -> "Purchase":
         try:
             # Parse date string
             try:
@@ -191,7 +193,7 @@ class Purchase(SQLModel, table=True):
             self.total_amount = validate_money(total, "Total amount", max_value=None)
         except Exception as e:
             logger.error(f"Error calculating total: {str(e)}")
-            raise ValidationException("Error calculating total amount")
+            raise ValidationException("Error calculating total amount") from e
 
     def update_supplier(self, new_supplier: str) -> None:
         """
@@ -207,14 +209,14 @@ class Purchase(SQLModel, table=True):
         self.validate_date(new_date)
         self.date = new_date
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert purchase to dictionary representation.
         """
         return {
             "id": self.id,
             "supplier": self.supplier,
-            "date": self.date.strftime("%Y-%m-%d"),
+            "date": self.date.strftime("%Y-%m-%d") if self.date is not None else "",
             "total_amount": self.total_amount,
             "items": [item.to_dict() for item in self.items],
         }
@@ -223,14 +225,15 @@ class Purchase(SQLModel, table=True):
         """
         String representation of the purchase.
         """
+        date_str = self.date.strftime("%Y-%m-%d") if self.date is not None else ""
         return (
             f"Purchase(id={self.id}, supplier='{self.supplier}', "
-            f"date='{self.date.strftime('%Y-%m-%d')}', "
+            f"date='{date_str}', "
             f"total_amount={self.total_amount})"
         )
 
     @staticmethod
-    def validate_items(items: List[PurchaseItem]) -> None:
+    def validate_items(items: list[PurchaseItem]) -> None:
         """
         Validate all items in a purchase.
         """
@@ -249,7 +252,7 @@ class Purchase(SQLModel, table=True):
         expected_total = sum(item.total_price() for item in self.items)
         return self.total_amount == expected_total
 
-    def add_items(self, items: List[PurchaseItem]) -> None:
+    def add_items(self, items: list[PurchaseItem]) -> None:
         """
         Add multiple items at once.
         """

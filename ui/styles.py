@@ -66,7 +66,7 @@ def get_global_stylesheet() -> str:
         border: 2px solid {DesignTokens.COLOR_PRIMARY};
         padding: 3px 7px; /* Adjust padding to prevent size jump from border width change */
     }}
-    
+
     QLineEdit:disabled, QDateEdit:disabled, QSpinBox:disabled, QDoubleSpinBox:disabled {{
         background-color: {DesignTokens.COLOR_BG_ALT};
         color: {DesignTokens.COLOR_TEXT_DISABLED};
@@ -96,7 +96,7 @@ def get_global_stylesheet() -> str:
         border: none;
         font-weight: bold;
     }}
-    
+
     QPushButton[class="primary"]:hover, QPushButton[class="success"]:hover {{
         background-color: #388E3C; /* Darker Green */
     }}
@@ -129,13 +129,13 @@ def get_global_stylesheet() -> str:
         font-weight: bold;
         font-size: 12px;
     }}
-    
+
     /* Tabs */
     QTabWidget::pane {{
         border: 1px solid {DesignTokens.COLOR_BORDER};
         top: -1px;
     }}
-    
+
     QTabBar::tab {{
         background: {DesignTokens.COLOR_BG_ALT};
         border: 1px solid {DesignTokens.COLOR_BORDER};
@@ -144,7 +144,7 @@ def get_global_stylesheet() -> str:
         border-top-left-radius: 4px;
         border-top-right-radius: 4px;
     }}
-    
+
     QTabBar::tab:selected {{
         background: {DesignTokens.COLOR_BG_BASE};
         border-bottom-color: {DesignTokens.COLOR_BG_BASE};

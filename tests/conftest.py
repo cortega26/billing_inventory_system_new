@@ -1,5 +1,7 @@
+import contextlib
 import shutil
 import tempfile
+from contextlib import suppress
 from pathlib import Path
 
 import pytest
@@ -26,13 +28,14 @@ def db_manager():
 
     # Create tables via SQLModel
     from sqlmodel import SQLModel
+
+    from models.audit_log import AuditLog  # noqa: F401
     from models.category import Category  # noqa: F401
-    from models.product import Product  # noqa: F401
     from models.customer import Customer  # noqa: F401
     from models.inventory import Inventory, InventoryAdjustment  # noqa: F401
-    from models.sale import Sale, SaleItem  # noqa: F401
+    from models.product import Product  # noqa: F401
     from models.purchase import Purchase, PurchaseItem  # noqa: F401
-    from models.audit_log import AuditLog  # noqa: F401
+    from models.sale import Sale, SaleItem  # noqa: F401
 
     SQLModel.metadata.create_all(DatabaseManager._engine)
 
@@ -40,10 +43,8 @@ def db_manager():
 
     # Cleanup connection
     if DatabaseManager._connection:
-        try:
+        with contextlib.suppress(Exception):
             DatabaseManager._connection.close()
-        except Exception:
-            pass
         DatabaseManager._connection = None
 
 
@@ -87,11 +88,8 @@ def clear_test_data(db_manager):
             ]
             db_manager.execute_query("PRAGMA foreign_keys = OFF")
             for table in tables:
-                try:
+                with suppress(Exception):
                     db_manager.execute_query(f"DELETE FROM {table}")
-                except Exception:
-                    # Table might not exist or error
-                    pass
             db_manager.execute_query("PRAGMA foreign_keys = ON")
     except Exception:
         pass
@@ -172,8 +170,6 @@ def clean_logs(temp_log_dir):
             logger.removeHandler(handler)
 
     for file in temp_log_dir.glob("*.log"):
-        try:
+        with contextlib.suppress(PermissionError, FileNotFoundError):
             file.unlink()
-        except (PermissionError, FileNotFoundError):
-            pass
     yield

@@ -1,8 +1,7 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from PySide6.QtCore import QDate, QEvent, QPoint, QSettings, Qt, QTimer, Signal
+from PySide6.QtCore import QDate, QEvent, QPoint, QSettings, Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
-from config import APP_NAME, COMPANY_NAME
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -27,6 +26,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from config import APP_NAME, COMPANY_NAME
 from models.customer import Customer
 from models.product import Product
 from models.sale import Sale
@@ -34,7 +34,6 @@ from services.customer_service import CustomerService
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
 from services.sale_service import SaleService
-from ui.styles import DesignTokens
 from ui.sale_view_support import (
     build_customer_display,
     build_customer_selection_text,
@@ -49,6 +48,7 @@ from ui.sale_view_tables import (
     render_sale_item_row,
     update_sale_total_label,
 )
+from ui.styles import DesignTokens
 from utils.decorators import handle_exceptions, ui_operation
 from utils.exceptions import DatabaseException, UIException, ValidationException
 from utils.helpers import (
@@ -264,7 +264,7 @@ class EditSaleDialog(QDialog):
             logger.error(f"Error searching products: {str(e)}")
             show_error_message("Error", str(e))
 
-    def add_item(self, item_data: Dict[str, Any]):
+    def add_item(self, item_data: dict[str, Any]):
         """Add an item to the sale."""
         self.sale_items.append(item_data)
         self.update_items_table()
@@ -275,9 +275,7 @@ class EditSaleDialog(QDialog):
             del self.sale_items[row]
             self.update_items_table()
 
-    def show_product_selection_dialog(
-        self, products: List[Product]
-    ) -> Optional[Product]:
+    def show_product_selection_dialog(self, products: list[Product]) -> Product | None:
         """Show dialog for selecting from multiple matching products."""
         dialog = QDialog(self)
         dialog.setWindowTitle("Seleccionar Producto")
@@ -453,9 +451,9 @@ class SaleItemDialog(QDialog):
             self.accept()
 
         except (ValueError, TypeError) as e:
-            raise ValidationException(f"Entrada inválida: {str(e)}")
+            raise ValidationException(f"Entrada inválida: {str(e)}") from e
 
-    def get_item_data(self) -> Dict[str, Any]:
+    def get_item_data(self) -> dict[str, Any]:
         """Get the sale item data with proper types."""
         try:
             quantity = round(self.quantity_input.value(), 3)
@@ -478,7 +476,7 @@ class SaleItemDialog(QDialog):
             }
         except (ValueError, TypeError) as e:
             logger.error(f"Error preparing item data: {str(e)}")
-            raise ValidationException("Invalid item data")
+            raise ValidationException("Invalid item data") from e
 
     def setup_product_details(self, product: Product):
         """Set up product details in the form."""
@@ -764,13 +762,17 @@ class SaleView(QWidget):
                                 f"⚠️ ¡Advertencia! El producto '{product.name}' tiene stock bajo. Disponible: {current_stock} unidades"
                             )
                             self.scan_warning_label.setVisible(True)
-                            QTimer.singleShot(5000, lambda: self.scan_warning_label.setVisible(False))
+                            QTimer.singleShot(
+                                5000, lambda: self.scan_warning_label.setVisible(False)
+                            )
 
                             main_window = self.window()
-                            if main_window and hasattr(main_window, "show_status_message"):
+                            if main_window and hasattr(
+                                main_window, "show_status_message"
+                            ):
                                 main_window.show_status_message(
                                     f"⚠️ ¡Advertencia! El producto '{product.name}' tiene stock bajo. Disponible: {current_stock} unidades",
-                                    10000
+                                    10000,
                                 )
                     except Exception as e:
                         logger.error(f"Error checking stock in quick scan: {e}")
@@ -840,8 +842,8 @@ class SaleView(QWidget):
             show_error_message("Error", str(e))
 
     def show_customer_selection_dialog(
-        self, customers: List[Customer]
-    ) -> Optional[Customer]:
+        self, customers: list[Customer]
+    ) -> Customer | None:
         """Show dialog for selecting from multiple matching customers."""
         dialog = QDialog(self)
         dialog.setWindowTitle("Seleccionar Cliente")
@@ -904,7 +906,7 @@ class SaleView(QWidget):
                 self.sale_items_table.selectRow(row)
         self.barcode_input.setFocus()
 
-    def add_sale_item(self, item_data: Dict[str, Any]):
+    def add_sale_item(self, item_data: dict[str, Any]):
         """Add an item to the sale."""
         self.sale_items.append(item_data)
         self.update_sale_items_table()
@@ -956,9 +958,7 @@ class SaleView(QWidget):
             logger.error(f"Error searching products: {str(e)}")
             show_error_message("Error", str(e))
 
-    def show_product_selection_dialog(
-        self, products: List[Product]
-    ) -> Optional[Product]:
+    def show_product_selection_dialog(self, products: list[Product]) -> Product | None:
         """Show dialog for selecting from multiple matching products."""
         dialog = QDialog(self)
         dialog.setWindowTitle("Seleccionar Producto")
@@ -1028,11 +1028,11 @@ class SaleView(QWidget):
             logger.info(f"Loaded {len(sales)} sales")
         except Exception as e:
             logger.error(f"Error loading sales: {str(e)}")
-            raise DatabaseException(f"Error al cargar las ventas: {str(e)}")
+            raise DatabaseException(f"Error al cargar las ventas: {str(e)}") from e
         finally:
             QApplication.restoreOverrideCursor()
 
-    def update_sale_table(self, sales: List[Sale]):
+    def update_sale_table(self, sales: list[Sale]):
         """Update the sales history table with proper formatting."""
         self.sale_table.setRowCount(len(sales))
         for row, sale in enumerate(sales):
@@ -1095,28 +1095,28 @@ class SaleView(QWidget):
             logger.error(f"Error editing sale: {str(e)}")
             raise
 
-    def _safe_edit_sale(self, sale: Optional[Sale]) -> None:
+    def _safe_edit_sale(self, sale: Sale | None) -> None:
         """Safely handle edit sale action with null check."""
         if sale is None:
             show_error_message("Error", "Ninguna venta seleccionada")
             return
         self.edit_sale(sale)
 
-    def _safe_view_sale(self, sale: Optional[Sale]) -> None:
+    def _safe_view_sale(self, sale: Sale | None) -> None:
         """Safely handle view sale action with null check."""
         if sale is None:
             show_error_message("Error", "Ninguna venta seleccionada")
             return
         self.view_sale(sale)
 
-    def _safe_print_receipt(self, sale: Optional[Sale]) -> None:
+    def _safe_print_receipt(self, sale: Sale | None) -> None:
         """Safely handle print receipt action with null check."""
         if sale is None:
             show_error_message("Error", "Ninguna venta seleccionada")
             return
         self.print_receipt(sale)
 
-    def _safe_delete_sale(self, sale: Optional[Sale]) -> None:
+    def _safe_delete_sale(self, sale: Sale | None) -> None:
         """Safely handle delete sale action with null check."""
         if sale is None:
             show_error_message("Error", "Ninguna venta seleccionada")
@@ -1127,7 +1127,7 @@ class SaleView(QWidget):
     @handle_exceptions(
         ValidationException, DatabaseException, UIException, show_dialog=True
     )
-    def delete_sale(self, sale: Optional[Sale]) -> None:
+    def delete_sale(self, sale: Sale | None) -> None:
         """Delete a sale with validation."""
         if sale is None:
             raise ValidationException("Ninguna venta seleccionada para eliminar")
@@ -1275,7 +1275,7 @@ class SaleView(QWidget):
 
         except Exception as e:
             logger.error(f"Error viewing sale: {str(e)}")
-            raise UIException(f"Error al ver venta: {str(e)}")
+            raise UIException(f"Error al ver venta: {str(e)}") from e
 
     def generate_receipt_preview(self, sale: Sale) -> str:
         """Generate a text preview of the receipt with proper formatting."""
@@ -1310,12 +1310,7 @@ class SaleView(QWidget):
             # Items with proper formatting
             for item in items:
                 name = item.product_name if item.product_name else "Unknown Product"
-                line = "{:<30}{:>10.3f}{:>12}{:>12}".format(
-                    name[:30],
-                    item.quantity,
-                    format_price(item.unit_price),
-                    format_price(item.total_price()),
-                )
+                line = f"{name[:30]:<30}{item.quantity:>10.3f}{format_price(item.unit_price):>12}{format_price(item.total_price()):>12}"
                 receipt.append(line)
 
             # Totals

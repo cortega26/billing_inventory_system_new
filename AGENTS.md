@@ -209,7 +209,7 @@ Exact commands (prefer `.venv/bin/...`):
 - pre-commit: `uvx pre-commit run --all-files` (ruff, black, trailing whitespace)
 
 CI enforces `ruff check .`, `black --check .`, `pyright`, the schema drift check, and the full pytest suite under xvfb (`.github/workflows/ci.yml`).
-`pytest-xdist` is installed but the UI tests crash workers under `-n auto` (Qt); keep CI serial.
+CI runs `pytest -n auto` under xvfb; the Qt crash that forced serial mode is fixed (plan 006). New UI tests must request the `qtbot`/`qapp` fixture.
 
 Dependencies are pinned in `requirements.lock` (compiled with `uv pip compile`).
 After changing `requirements.txt` or `requirements-dev.txt`, regenerate the lockfile:

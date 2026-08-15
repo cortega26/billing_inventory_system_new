@@ -1,5 +1,6 @@
 """Database manager implementation."""
 
+import os
 import sqlite3
 import threading
 import time
@@ -74,6 +75,8 @@ class DatabaseManager:
             connection.row_factory = sqlite3.Row
             cls._transaction_state.depth = 0
             cls.apply_startup_pragmas()
+            if db_path != ":memory:" and os.path.exists(db_path):
+                os.chmod(db_path, 0o600)
 
     @classmethod
     def get_session(cls) -> Session:

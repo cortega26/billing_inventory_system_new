@@ -174,6 +174,14 @@ class Config:
         }
 
     @classmethod
+    def _restrict_permissions(cls, path: Path) -> None:
+        """Restrict a file to owner-only read/write (0600)."""
+        try:
+            os.chmod(path, 0o600)
+        except OSError as e:
+            logging.error(f"Failed to restrict permissions on {path}: {e}")
+
+    @classmethod
     def _save_config(cls) -> None:
         """Save current configuration to file."""
         if cls._config is None:
@@ -184,6 +192,7 @@ class Config:
         try:
             with open(config_file, "w") as f:
                 json.dump(cls._config, f, indent=4)
+            cls._restrict_permissions(config_file)
         except OSError as e:
             logging.error(f"Error saving configuration: {e}")
             raise ConfigLoadError(f"Failed to save config: {e}") from e

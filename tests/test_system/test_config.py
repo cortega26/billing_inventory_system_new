@@ -1,4 +1,5 @@
 import json
+import stat
 from pathlib import Path
 
 import pytest
@@ -179,3 +180,12 @@ class TestConfig:
         with open(primary) as f:
             saved = json.load(f)
         assert saved["theme"] == "light"
+
+    def test_config_file_permissions_restricted(self, tmp_path):
+        """Config file is written with owner-only permissions (0600)."""
+        config_file = tmp_path / "app_config.json"
+        Config._reset_for_testing(config_file)
+
+        Config.set("theme", "dark")
+
+        assert stat.S_IMODE(config_file.stat().st_mode) == 0o600

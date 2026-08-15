@@ -24,18 +24,13 @@ def hash_pin(pin: str, salt: bytes | None = None) -> str:
     """Hash the PIN with PBKDF2-SHA256 and a fresh per-install salt."""
     if salt is None:
         salt = os.urandom(16)
-    digest = hashlib.pbkdf2_hmac(
-        "sha256", pin.encode("utf-8"), salt, PBKDF2_ITERATIONS
-    )
+    digest = hashlib.pbkdf2_hmac("sha256", pin.encode("utf-8"), salt, PBKDF2_ITERATIONS)
     return f"pbkdf2${PBKDF2_ITERATIONS}${salt.hex()}${digest.hex()}"
 
 
 def is_legacy_hash(stored: str) -> bool:
     """Detect the pre-PBKDF2 single-round SHA-256 format."""
-    return (
-        len(stored) == 64
-        and all(c in "0123456789abcdef" for c in stored.lower())
-    )
+    return len(stored) == 64 and all(c in "0123456789abcdef" for c in stored.lower())
 
 
 def verify_pin(stored: str, pin: str) -> bool:
@@ -46,9 +41,7 @@ def verify_pin(stored: str, pin: str) -> bool:
         _, iterations_s, salt_hex, digest_hex = stored.split("$")
         iterations = int(iterations_s)
         salt = bytes.fromhex(salt_hex)
-        digest = hashlib.pbkdf2_hmac(
-            "sha256", pin.encode("utf-8"), salt, iterations
-        )
+        digest = hashlib.pbkdf2_hmac("sha256", pin.encode("utf-8"), salt, iterations)
         return hmac.compare_digest(digest.hex(), digest_hex)
     except (ValueError, TypeError, AttributeError):
         return False
@@ -210,9 +203,7 @@ class LoginDialog(QDialog):
                     self.reject()
                     return
             if is_legacy_hash(stored):
-                logger.warning(
-                    "Legacy PIN hash detected; operator must re-set the PIN"
-                )
+                logger.warning("Legacy PIN hash detected; operator must re-set the PIN")
                 self.msg_label.setText(
                     "El PIN usa el formato antiguo. Elimine la clave pin_hash de "
                     "~/.config/billing-inventory/app_config.json y reinicie."

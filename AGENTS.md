@@ -239,3 +239,5 @@ Before finishing:
 - New or modified UI strings must be in Spanish to maintain consistency.
 - pytest configuration lives only in `pyproject.toml` (the old `pytest.ini` was removed);
   `--strict-markers` means new markers must be registered there too.
+- Runtime config now lives outside the repo in `~/.config/billing-inventory/app_config.json`;
+  the repo's `app_config.json` is a default template only (untracked, loaded as fallback).

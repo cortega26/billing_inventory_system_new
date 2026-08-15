@@ -38,12 +38,27 @@ See `requirements.txt` for Python package dependencies.
 
 2. **Configuration**:
    - The system uses `app_config.json` for application settings.
+   - Runtime settings live in `~/.config/billing-inventory/app_config.json`
+     (outside the repo); the repo copy of `app_config.json` is a default
+     template only and is not tracked by git.
    - Database is auto-initialized on first run at `billing_inventory.db`.
 
 3. **Run the Application**:
    ```bash
    python main.py
    ```
+
+## Seguridad
+
+- On first launch the application asks to set an access PIN (4-6 digits).
+- The PIN is stored as a PBKDF2-SHA256 hash with a random per-install salt in
+  `~/.config/billing-inventory/app_config.json` (outside the repo).
+- If the PIN is forgotten: delete the `pin_hash` key from that file (or delete
+  the whole file) and relaunch to re-arm first-run setup.
+- After upgrading from an older install that stored a legacy hash, set a new
+  PIN as described above; the legacy hash is rejected on purpose.
+- Change the PIN after installing on a new machine or if the config file may
+  have been exposed.
 
 ## Development
 

@@ -408,6 +408,72 @@ class TestCancelSale:
         assert sale.id == sale_id
         assert len(sale.items) == 1
 
+    def test_delete_cancelled_sale_raises_and_keeps_inventory(
+        self, sale_service, sample_sale_data, inventory_service, sample_product
+    ):
+        """Deleting a cancelled sale raises and does not restore inventory twice."""
+        inventory_service.update_quantity(sample_product.id, 10.0)
+        sale_id = sale_service.create_sale(**sample_sale_data)
+
+        # After create: 10 - 2 = 8
+        assert inventory_service.get_inventory(sample_product.id).quantity == 8.0
+
+        sale_service.cancel_sale(sale_id)
+
+        # After cancel: 8 + 2 = 10 (restored)
+        assert inventory_service.get_inventory(sample_product.id).quantity == 10.0
+
+        with pytest.raises(ValidationException):
+            sale_service.delete_sale(sale_id)
+
+        # Inventory must NOT be restored a second time (still 10, not 12)
+        assert inventory_service.get_inventory(sample_product.id).quantity == 10.0
+
+        # The sale row must still exist
+        sale = sale_service.get_sale(sale_id)
+        assert sale is not None
+        assert sale.status == "cancelled"
+
+    def test_update_cancelled_sale_raises(
+        self, sale_service, sample_sale_data, inventory_service, sample_product
+    ):
+        """Updating a cancelled sale raises and keeps inventory and status intact."""
+        inventory_service.update_quantity(sample_product.id, 10.0)
+        sale_id = sale_service.create_sale(**sample_sale_data)
+
+        # After create: 10 - 2 = 8
+        assert inventory_service.get_inventory(sample_product.id).quantity == 8.0
+
+        sale_service.cancel_sale(sale_id)
+
+        # After cancel: 8 + 2 = 10 (restored)
+        assert inventory_service.get_inventory(sample_product.id).quantity == 10.0
+
+        updated_items = [
+            {
+                "product_id": sample_product.id,
+                "quantity": 1,
+                "sell_price": sample_product.sell_price,
+                "profit": sample_product.sell_price - sample_product.cost_price,
+            }
+        ]
+
+        with pytest.raises(ValidationException):
+            sale_service.update_sale(
+                sale_id,
+                sample_sale_data["customer_id"],
+                sample_sale_data["date"],
+                updated_items,
+            )
+
+        # Inventory unchanged (still 10, no re-restore and no new deduction)
+        assert inventory_service.get_inventory(sample_product.id).quantity == 10.0
+
+        # The sale row must still exist and remain cancelled
+        sale = sale_service.get_sale(sale_id)
+        assert sale is not None
+        assert sale.status == "cancelled"
+
 
 class TestGetAllSalesPagination:
     def test_pagination_limit(

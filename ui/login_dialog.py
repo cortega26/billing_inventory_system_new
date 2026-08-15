@@ -1,4 +1,6 @@
 import hashlib
+import hmac
+import os
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -14,11 +16,41 @@ from PySide6.QtWidgets import (
 from config import config
 from utils.system.logger import logger
 
+PBKDF2_ITERATIONS = 600_000
 
-def hash_pin(pin: str) -> str:
-    """Hash the PIN with a hardcoded salt."""
-    salt = b"billing_inventory_system_salt_2026"
-    return hashlib.sha256(salt + pin.encode("utf-8")).hexdigest()
+
+def hash_pin(pin: str, salt: bytes | None = None) -> str:
+    """Hash the PIN with PBKDF2-SHA256 and a fresh per-install salt."""
+    if salt is None:
+        salt = os.urandom(16)
+    digest = hashlib.pbkdf2_hmac(
+        "sha256", pin.encode("utf-8"), salt, PBKDF2_ITERATIONS
+    )
+    return f"pbkdf2${PBKDF2_ITERATIONS}${salt.hex()}${digest.hex()}"
+
+
+def is_legacy_hash(stored: str) -> bool:
+    """Detect the pre-PBKDF2 single-round SHA-256 format."""
+    return (
+        len(stored) == 64
+        and all(c in "0123456789abcdef" for c in stored.lower())
+    )
+
+
+def verify_pin(stored: str, pin: str) -> bool:
+    """Verify a PIN against a stored pbkdf2$iterations$salt$digest hash."""
+    if is_legacy_hash(stored):
+        return False
+    try:
+        _, iterations_s, salt_hex, digest_hex = stored.split("$")
+        iterations = int(iterations_s)
+        salt = bytes.fromhex(salt_hex)
+        digest = hashlib.pbkdf2_hmac(
+            "sha256", pin.encode("utf-8"), salt, iterations
+        )
+        return hmac.compare_digest(digest.hex(), digest_hex)
+    except (ValueError, TypeError, AttributeError):
+        return False
 
 
 class LoginDialog(QDialog):
@@ -157,8 +189,18 @@ class LoginDialog(QDialog):
         else:
             # Login validation
             pin = self.pin_input.text()
-            hashed = hash_pin(pin)
-            if hashed == self.pin_hash:
+            stored = self.pin_hash
+            if is_legacy_hash(stored):
+                logger.warning(
+                    "Legacy PIN hash detected; operator must re-set the PIN"
+                )
+                self.msg_label.setText(
+                    "El PIN usa el formato antiguo. Elimine la clave pin_hash de "
+                    "~/.config/billing-inventory/app_config.json y reinicie."
+                )
+                self.reject()
+                return
+            if verify_pin(stored, pin):
                 logger.info("PIN authentication successful")
                 self.accept()
             else:

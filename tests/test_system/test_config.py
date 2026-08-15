@@ -153,3 +153,29 @@ class TestConfig:
         config.reset_to_defaults()
 
         assert config.get("theme") == original_theme
+
+    def test_config_prefers_user_local_path(self, tmp_path, monkeypatch):
+        """User-local config is preferred when no config file is injected."""
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+        primary = tmp_path / ".config" / "billing-inventory" / "app_config.json"
+        primary.parent.mkdir(parents=True, exist_ok=True)
+        with open(primary, "w") as f:
+            json.dump({"version": "1.0", "theme": "light"}, f)
+
+        Config._reset_for_testing()
+
+        assert Config().get("theme") == "light"
+
+    def test_config_migrates_to_user_local_on_first_save(self, tmp_path, monkeypatch):
+        """First save after fallback loads the repo copy lands in the user-local path."""
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+        Config._reset_for_testing()
+
+        assert Config().get("backup_interval") == 24
+        Config.set("theme", "light")
+
+        primary = tmp_path / ".config" / "billing-inventory" / "app_config.json"
+        assert primary.exists()
+        with open(primary) as f:
+            saved = json.load(f)
+        assert saved["theme"] == "light"

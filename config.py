@@ -105,14 +105,36 @@ class Config:
         )
 
     @classmethod
+    def _get_config_file(cls) -> Path:
+        """Resolve the config file to read from.
+
+        Prefers a user-local path outside the repo; falls back to the repo
+        copy for backward compatibility with existing installs.
+        """
+        if cls._config_file is not None:
+            return cls._config_file
+        primary = Path.home() / ".config" / "billing-inventory" / "app_config.json"
+        if primary.exists():
+            return primary
+        repo_copy = Path(__file__).parent / "app_config.json"
+        if repo_copy.exists():
+            return repo_copy
+        return primary
+
+    @classmethod
+    def _get_save_target(cls) -> Path:
+        """Resolve where config writes land (user-local, migrated on save)."""
+        if cls._config_file is not None:
+            return cls._config_file
+        return Path.home() / ".config" / "billing-inventory" / "app_config.json"
+
+    @classmethod
     def _load_config(cls) -> None:
         """Load configuration from file or create default if not exists."""
         if not cls._is_cache_valid():
             with cls._lock:
                 if not cls._is_cache_valid():
-                    config_file = cls._config_file or (
-                        Path(__file__).parent / "app_config.json"
-                    )
+                    config_file = cls._get_config_file()
                     if config_file.exists():
                         try:
                             with open(config_file) as f:
@@ -155,7 +177,8 @@ class Config:
         if cls._config is None:
             cls._config = cls._get_default_config()
 
-        config_file = cls._config_file or (Path(__file__).parent / "app_config.json")
+        config_file = cls._get_save_target()
+        config_file.parent.mkdir(parents=True, exist_ok=True)
         try:
             with open(config_file, "w") as f:
                 json.dump(cls._config, f, indent=4)

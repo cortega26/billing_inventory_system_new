@@ -1,4 +1,6 @@
 import pytest
+from datetime import datetime, timedelta
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QMessageBox
 
@@ -93,6 +95,8 @@ def test_login_dialog_login_mode_success(qtbot):
     # Accept
     qtbot.mouseClick(dialog.btn_accept, Qt.MouseButton.LeftButton)
     assert dialog.result() == 1  # Accepted
+    assert config.get("pin_failed_attempts") == 0
+    assert config.get("pin_locked_until") == ""
 
 
 def test_login_dialog_rejects_legacy_hash(qtbot):
@@ -139,3 +143,54 @@ def test_login_dialog_login_mode_failed_attempts(qtbot, mocker):
     assert dialog.attempts == 5
     assert dialog.result() == 0  # Rejected
     QMessageBox.critical.assert_called_once()
+    assert config.get("pin_failed_attempts") == 5
+    locked_until = config.get("pin_locked_until")
+    assert locked_until != ""
+    assert datetime.fromisoformat(locked_until) > datetime.now()
+
+
+def test_login_dialog_persistent_lockout_blocks_new_instance(qtbot, mocker):
+    config.set("pin_hash", hash_pin("9876", salt=TEST_SALT))
+    config.save()
+    mocker.patch.object(
+        QMessageBox, "critical", return_value=QMessageBox.StandardButton.Ok
+    )
+
+    dialog1 = LoginDialog()
+    qtbot.addWidget(dialog1)
+    for _ in range(5):
+        dialog1.pin_input.setText("1111")
+        qtbot.mouseClick(dialog1.btn_accept, Qt.MouseButton.LeftButton)
+    assert dialog1.result() == 0  # Locked and rejected
+    assert config.get("pin_failed_attempts") == 5
+    assert datetime.fromisoformat(config.get("pin_locked_until")) > datetime.now()
+
+    # A brand-new dialog instance is still blocked by the persisted lockout
+    dialog2 = LoginDialog()
+    qtbot.addWidget(dialog2)
+    assert dialog2.attempts == 5
+    dialog2.pin_input.setText("9876")
+    qtbot.mouseClick(dialog2.btn_accept, Qt.MouseButton.LeftButton)
+    assert dialog2.result() == 0  # Rejected without incrementing
+    assert "bloqueado" in dialog2.msg_label.text().lower()
+    assert config.get("pin_failed_attempts") == 5
+
+
+def test_login_dialog_lockout_expires(qtbot):
+    config.set("pin_hash", hash_pin("9876", salt=TEST_SALT))
+    config.set("pin_failed_attempts", 5)
+    config.set(
+        "pin_locked_until",
+        (datetime.now() - timedelta(minutes=1)).isoformat(),
+    )
+    config.save()
+
+    dialog = LoginDialog()
+    qtbot.addWidget(dialog)
+    assert dialog.attempts == 5
+
+    dialog.pin_input.setText("9876")
+    qtbot.mouseClick(dialog.btn_accept, Qt.MouseButton.LeftButton)
+    assert dialog.result() == 1  # Accepted
+    assert config.get("pin_failed_attempts") == 0
+    assert config.get("pin_locked_until") == ""

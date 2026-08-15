@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import os
+from datetime import datetime, timedelta
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -59,8 +60,9 @@ class LoginDialog(QDialog):
         self.setWindowTitle("Autenticación de Acceso")
         self.setModal(True)
         self.resize(320, 200)
-        self.attempts = 0
+        self.attempts = int(config.get("pin_failed_attempts", 0) or 0)
         self.max_attempts = 5
+        self.lockout_window = timedelta(minutes=5)
         self.setup_ui()
 
     def setup_ui(self):
@@ -190,6 +192,23 @@ class LoginDialog(QDialog):
             # Login validation
             pin = self.pin_input.text()
             stored = self.pin_hash
+            locked_until_raw = config.get("pin_locked_until", "")
+            if locked_until_raw:
+                try:
+                    locked_until = datetime.fromisoformat(locked_until_raw)
+                except ValueError:
+                    locked_until = None
+                if locked_until is not None and locked_until > datetime.now():
+                    remaining = locked_until - datetime.now()
+                    seconds = int(remaining.total_seconds())
+                    minutes, seconds = divmod(seconds, 60)
+                    logger.warning("PIN login blocked by persistent lockout")
+                    self.msg_label.setText(
+                        "Acceso bloqueado. Intente nuevamente en "
+                        f"{minutes} min {seconds} s"
+                    )
+                    self.reject()
+                    return
             if is_legacy_hash(stored):
                 logger.warning(
                     "Legacy PIN hash detected; operator must re-set the PIN"
@@ -202,15 +221,24 @@ class LoginDialog(QDialog):
                 return
             if verify_pin(stored, pin):
                 logger.info("PIN authentication successful")
+                config.set("pin_failed_attempts", 0)
+                config.set("pin_locked_until", "")
+                config.save()
                 self.accept()
             else:
                 self.attempts += 1
+                config.set("pin_failed_attempts", self.attempts)
                 remaining = self.max_attempts - self.attempts
                 logger.warning(
                     f"Failed PIN login attempt {self.attempts}/{self.max_attempts}"
                 )
 
                 if self.attempts >= self.max_attempts:
+                    config.set(
+                        "pin_locked_until",
+                        (datetime.now() + self.lockout_window).isoformat(),
+                    )
+                    config.save()
                     QMessageBox.critical(
                         self,
                         "Acceso Bloqueado",

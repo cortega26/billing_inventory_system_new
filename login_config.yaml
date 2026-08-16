@@ -15,7 +15,7 @@ handlers:
         stream: ext://sys.stdout
 
     file_handler:
-        class: logging.handlers.RotatingFileHandler
+        class: utils.system.handlers.OwnerOnlyRotatingFileHandler
         level: DEBUG
         formatter: standard
         filename: inventory_system.log
@@ -24,7 +24,7 @@ handlers:
         encoding: utf8
 
     error_file_handler:
-        class: logging.handlers.RotatingFileHandler
+        class: utils.system.handlers.OwnerOnlyRotatingFileHandler
         level: ERROR
         formatter: error
         filename: inventory_system_error.log

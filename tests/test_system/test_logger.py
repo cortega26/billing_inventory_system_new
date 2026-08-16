@@ -336,7 +336,7 @@ class TestLogger:
             assert os.stat(log_file).st_mode & 0o777 == 0o600
 
     def test_rotated_log_files_are_owner_only(self, configured_logger, logger_test_dir):
-        """Rotated log backups must remain readable/writable only by the owner."""
+        """Rotated log files must remain readable/writable only by the owner."""
         import os
 
         configured_logger.info("Test message before rotation")
@@ -351,3 +351,9 @@ class TestLogger:
         backup = logger_test_dir / "app.log.1"
         assert backup.exists()
         assert os.stat(backup).st_mode & 0o777 == 0o600
+
+        # The rotation recreated the active file; it must not fall back to the
+        # process umask (plan-016 deferral, closed by OwnerOnlyRotatingFileHandler).
+        active = logger_test_dir / "app.log"
+        assert active.exists()
+        assert os.stat(active).st_mode & 0o777 == 0o600

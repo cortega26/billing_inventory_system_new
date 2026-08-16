@@ -10,6 +10,7 @@ from typing import Any
 import yaml
 
 from config import DEBUG_LEVEL
+from utils.system.handlers import OwnerOnlyRotatingFileHandler
 
 # Must match the `loggers:` key in login_config.yaml exactly, so records reach
 # the configured handlers instead of being dropped.
@@ -139,7 +140,7 @@ def setup_logger(config: LoggerConfig) -> StructuredLogger:
         # Ensure log directory exists
         config.log_file.parent.mkdir(parents=True, exist_ok=True)
 
-        handler = logging.handlers.RotatingFileHandler(
+        handler = OwnerOnlyRotatingFileHandler(
             config.log_file,
             maxBytes=config.max_size,
             backupCount=config.backup_count,

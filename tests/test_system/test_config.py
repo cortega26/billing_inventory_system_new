@@ -7,27 +7,28 @@ import pytest
 from config import Config, ConfigLoadError, ConfigValidationError
 
 
-class TestConfig:
-    @pytest.fixture
-    def temp_config_file(self, tmp_path):
-        """Create a temporary config file for testing."""
-        config_file = tmp_path / "app_config.json"
-        with open(config_file, "w") as f:
-            json.dump(
-                {
-                    "version": "1.0",
-                    "theme": "default",
-                    "language": "en",
-                    "backup_interval": 24,
-                    "database.path": "test.db",
-                    "database.backup_path": "backups/",
-                    "logging.level": "INFO",
-                    "logging.file": "app.log",
-                },
-                f,
-            )
-        return config_file
+@pytest.fixture
+def temp_config_file(tmp_path):
+    """Create a temporary config file for testing."""
+    config_file = tmp_path / "app_config.json"
+    with open(config_file, "w") as f:
+        json.dump(
+            {
+                "version": "1.0",
+                "theme": "default",
+                "language": "en",
+                "backup_interval": 24,
+                "database.path": "test.db",
+                "database.backup_path": "backups/",
+                "logging.level": "INFO",
+                "logging.file": "app.log",
+            },
+            f,
+        )
+    return config_file
 
+
+class TestConfig:
     @pytest.fixture
     def config(self, temp_config_file):
         """Create a Config instance with the temporary config file."""
@@ -189,3 +190,73 @@ class TestConfig:
         Config.set("theme", "dark")
 
         assert stat.S_IMODE(config_file.stat().st_mode) == 0o600
+
+
+class TestBusinessRegistryValidation:
+    def test_invalid_business_id_rejected(self):
+        with pytest.raises(ConfigValidationError):
+            Config.set(
+                "businesses",
+                [
+                    {
+                        "id": "Bad ID!",
+                        "name": "Principal",
+                        "db_filename": "billing_inventory.db",
+                    }
+                ],
+            )
+
+    def test_invalid_db_filename_with_separator_rejected(self):
+        with pytest.raises(ConfigValidationError):
+            Config.set(
+                "businesses",
+                [
+                    {
+                        "id": "default",
+                        "name": "Principal",
+                        "db_filename": "../evil.db",
+                    }
+                ],
+            )
+        with pytest.raises(ConfigValidationError):
+            Config.set(
+                "businesses",
+                [
+                    {"id": "default", "name": "Principal", "db_filename": "a/b.db"},
+                ],
+            )
+
+    def test_empty_businesses_rejected(self):
+        with pytest.raises(ConfigValidationError):
+            Config.set("businesses", [])
+
+    def test_duplicate_business_ids_rejected(self):
+        with pytest.raises(ConfigValidationError):
+            Config.set(
+                "businesses",
+                [
+                    {"id": "default", "name": "Principal", "db_filename": "a.db"},
+                    {"id": "default", "name": "Otro", "db_filename": "b.db"},
+                ],
+            )
+
+    def test_unknown_active_business_falls_back_to_first(self):
+        Config.set(
+            "businesses",
+            [
+                {"id": "default", "name": "Principal", "db_filename": "billing_inventory.db"},
+                {"id": "casabea", "name": "CasaBea", "db_filename": "casabea.db"},
+            ],
+        )
+        Config.set("active_business", "does-not-exist")
+
+        assert Config.get_active_business()["id"] == "default"
+        assert Config.get_active_database_path() == Config.get_business_db_path("default")
+
+    def test_legacy_config_without_registry_loads_and_keeps_defaults(self, temp_config_file):
+        """Config files without a businesses key behave exactly as before."""
+        Config._reset_for_testing(temp_config_file)
+        Config.reload()
+
+        assert Config.get_active_business()["id"] == "default"
+        assert Config.get_businesses()[0]["db_filename"] == "billing_inventory.db"

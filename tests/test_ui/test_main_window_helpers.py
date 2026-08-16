@@ -4,8 +4,10 @@ pytest.importorskip("PySide6", reason="PySide6 not installed")
 
 from types import SimpleNamespace
 
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
+from config import config
+from ui.business_selector_dialog import BusinessSelectorDialog
 from ui.main_window import (
     AUDIT_TAB,
     CUSTOMER_REFRESH_TARGETS,
@@ -25,6 +27,92 @@ def allow_main_window_close(mocker):
         "ui.main_window.QMessageBox.question",
         return_value=QMessageBox.StandardButton.Yes,
     )
+
+
+@pytest.fixture
+def two_businesses():
+    config.set(
+        "businesses",
+        [
+            {
+                "id": "default",
+                "name": "Principal",
+                "db_filename": "billing_inventory.db",
+            },
+            {"id": "casabea", "name": "CasaBea", "db_filename": "casabea.db"},
+        ],
+    )
+    config.set("active_business", "default")
+    yield
+
+
+def build_window_without_tabs(mocker, qtbot, allow_main_window_close):
+    """Build MainWindow skipping the DB-bound tab creation.
+
+    Tab creation opens the business database; in CI/worktrees that path can
+    fail on sqlite file resolution, and the menu tests don't need the tabs.
+    """
+    mocker.patch.object(MainWindow, "create_tabs")
+    window = MainWindow()
+    qtbot.addWidget(window)
+    return window
+
+
+def file_menu_actions(window):
+    file_menu = window.menuBar().actions()[0].menu()
+    return [action.text() for action in file_menu.actions()]
+
+
+def test_change_business_action_present_with_two_businesses(
+    qtbot, db_manager, mocker, allow_main_window_close, two_businesses
+):
+    window = build_window_without_tabs(mocker, qtbot, allow_main_window_close)
+
+    assert any(
+        "Cambiar de negocio" in text for text in file_menu_actions(window)
+    )
+
+
+def test_change_business_action_hidden_with_single_business(
+    qtbot, db_manager, mocker, allow_main_window_close
+):
+    window = build_window_without_tabs(mocker, qtbot, allow_main_window_close)
+
+    assert not any(
+        "Cambiar de negocio" in text for text in file_menu_actions(window)
+    )
+
+
+def test_change_business_handler_shows_restart_message(
+    qtbot, db_manager, mocker, allow_main_window_close, two_businesses
+):
+    window = build_window_without_tabs(mocker, qtbot, allow_main_window_close)
+    info_spy = mocker.patch("ui.main_window.show_info_message")
+    exec_mock = mocker.patch.object(
+        BusinessSelectorDialog, "exec", return_value=QDialog.DialogCode.Accepted
+    )
+
+    window.change_business()
+
+    exec_mock.assert_called_once()
+    info_spy.assert_called_once_with(
+        "Negocio", "El cambio de negocio se aplicará al reiniciar la aplicación."
+    )
+
+
+def test_change_business_handler_informs_single_business_install(
+    qtbot, db_manager, mocker, allow_main_window_close
+):
+    window = build_window_without_tabs(mocker, qtbot, allow_main_window_close)
+    info_spy = mocker.patch("ui.main_window.show_info_message")
+    exec_mock = mocker.patch.object(
+        BusinessSelectorDialog, "exec", return_value=QDialog.DialogCode.Accepted
+    )
+
+    window.change_business()
+
+    exec_mock.assert_not_called()
+    info_spy.assert_called_once_with("Información", "Solo hay un negocio configurado.")
 
 
 def test_build_backup_skipped_status_message_low_disk_space():

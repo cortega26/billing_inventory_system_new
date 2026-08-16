@@ -4,7 +4,11 @@ from reportlab.pdfgen import canvas
 from models.sale import Sale
 from utils.exceptions import ValidationException
 from utils.system.logger import logger
-from utils.validation.validators import validate_integer, validate_string
+from utils.validation.validators import (
+    validate_filepath,
+    validate_integer,
+    validate_string,
+)
 
 
 class ReceiptService:
@@ -23,7 +27,7 @@ class ReceiptService:
             items: List of SaleItem objects.
             filepath: Destination path for the PDF.
         """
-        filepath = validate_string(filepath, max_length=255)
+        filepath = validate_filepath(filepath)
 
         try:
             c = canvas.Canvas(filepath, pagesize=letter)

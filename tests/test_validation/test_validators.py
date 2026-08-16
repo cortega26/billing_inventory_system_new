@@ -9,6 +9,7 @@ from utils.validation.validators import (
     validate_and_sanitize,
     validate_date,
     validate_dict,
+    validate_filepath,
     validate_float,
     validate_float_non_negative,
     validate_integer,
@@ -219,3 +220,27 @@ class TestValidators:
         assert validate_with_pattern("test", r"^[a-z]+$") == "test"
         with pytest.raises(ValidationException):
             validate_with_pattern("test123", r"^[a-z]+$")
+
+    def test_filepath_validation(self):
+        """Test filesystem path validation."""
+        # Valid cases
+        assert validate_filepath("/tmp/receipt_1.pdf") == "/tmp/receipt_1.pdf"
+        assert validate_filepath("receipt_260815001.pdf") == "receipt_260815001.pdf"
+        assert (
+            validate_filepath("/home/usuario/Mis Recibos/recibo_ñandú.pdf")
+            == "/home/usuario/Mis Recibos/recibo_ñandú.pdf"
+        )
+        assert (
+            validate_filepath("C:\\Documentos\\recibo_1.pdf")
+            == "C:\\Documentos\\recibo_1.pdf"
+        )
+
+        # Invalid cases
+        with pytest.raises(ValidationException):
+            validate_filepath("x" * 256)  # Over-length
+        with pytest.raises(ValidationException):
+            validate_filepath("/tmp/receipt*1.pdf")  # Invalid character
+        with pytest.raises(ValidationException):
+            validate_filepath("/tmp/receipt?1.pdf")  # Invalid character
+        with pytest.raises(ValidationException):
+            validate_filepath(12345)  # Not a string

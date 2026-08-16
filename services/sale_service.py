@@ -18,6 +18,7 @@ from utils.system.event_system import event_system
 from utils.system.logger import logger
 from utils.validation.validators import (
     validate_date,
+    validate_filepath,
     validate_float,
     validate_integer,
     validate_string,
@@ -444,7 +445,7 @@ class SaleService:
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def save_receipt_as_pdf(self, sale_id: int, filepath: str) -> None:
         sale_id = validate_integer(sale_id, min_value=1)
-        filepath = validate_string(filepath, max_length=255)
+        filepath = validate_filepath(filepath)
 
         sale = self._require_sale(sale_id)
 

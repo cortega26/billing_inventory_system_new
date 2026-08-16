@@ -302,3 +302,26 @@ class TestCustomerService:
             assert payloads == [customer_id]
         finally:
             event_system.customer_updated.disconnect(handler)
+
+    def test_customer_logs_contain_no_identifiers(self, customer_service):
+        """Customer identifiers and search terms must never reach the logs."""
+        import logging
+
+        from utils.system.logger import logger as structured_logger
+
+        records: list[logging.LogRecord] = []
+        handler = logging.Handler()
+        handler.emit = lambda record: records.append(record)
+        structured_logger._logger.addHandler(handler)
+        try:
+            customer_service.create_customer(
+                identifier_9="912345678", identifier_3or4="123", name="Jane Doe"
+            )
+            customer_service.search_customers("Jane")
+        finally:
+            structured_logger._logger.removeHandler(handler)
+
+        combined = "\n".join(r.getMessage() for r in records)
+        assert "912345678" not in combined
+        assert "123" not in combined
+        assert "Jane Doe" not in combined

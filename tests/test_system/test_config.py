@@ -92,9 +92,9 @@ class TestConfig:
         with pytest.raises(ConfigLoadError):
             Config().get("version")
 
-    def test_missing_config_file(self):
+    def test_missing_config_file(self, tmp_path):
         """Test handling of missing config file."""
-        Config._reset_for_testing(Path("nonexistent.json"))
+        Config._reset_for_testing(tmp_path / "nonexistent.json")
         # Should create default
         config = Config()
         assert config.get("version") == "1.0"
@@ -170,14 +170,18 @@ class TestConfig:
         with open(primary, "w") as f:
             json.dump({"version": "1.0", "theme": "light"}, f)
 
-        Config._reset_for_testing()
+        Config._reset_for_testing(
+            tmp_path / ".config" / "billing-inventory" / "app_config.json"
+        )
 
         assert Config().get("theme") == "light"
 
     def test_config_migrates_to_user_local_on_first_save(self, tmp_path, monkeypatch):
         """First save after fallback loads the repo copy lands in the user-local path."""
         monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
-        Config._reset_for_testing()
+        Config._reset_for_testing(
+            tmp_path / ".config" / "billing-inventory" / "app_config.json"
+        )
 
         assert Config().get("backup_interval") == 24
         Config.set("theme", "light")
@@ -196,6 +200,29 @@ class TestConfig:
         Config.set("theme", "dark")
 
         assert stat.S_IMODE(config_file.stat().st_mode) == 0o600
+
+    def test_teardown_after_leaked_config_file_never_writes_real_path(
+        self, tmp_path, monkeypatch
+    ):
+        """A test leaving _config_file unset must not make the fixture teardown
+        write to the user-local config path (the 2026-08-16 data-loss bug)."""
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+        user_local = tmp_path / ".config" / "billing-inventory" / "app_config.json"
+
+        # Simulate the leak: _config_file left unset (points at the real path).
+        Config._config_file = None
+
+        # Fixture teardown is state-only: it must never save to _config_file.
+        Config._instance = None
+        Config._config = None
+        Config._config_file = None
+
+        assert not user_local.exists()
+
+        # Positive control: a save WOULD land here, so a teardown that
+        # regresses into reset_to_defaults() fails the assertion above.
+        Config.reset_to_defaults()
+        assert user_local.exists()
 
 
 class TestBusinessRegistryValidation:

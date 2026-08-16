@@ -190,7 +190,7 @@ class InventoryAgingMetric(Metric):
             FROM products p
             JOIN inventory i ON p.id = i.product_id
             LEFT JOIN sale_items si ON p.id = si.product_id
-            LEFT JOIN sales s ON si.sale_id = s.id
+            LEFT JOIN sales s ON si.sale_id = s.id AND s.status = 'confirmed'
             WHERE i.quantity > 0
             GROUP BY p.id
             HAVING last_sold_date IS NULL

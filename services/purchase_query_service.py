@@ -264,7 +264,7 @@ class PurchaseQueryService:
 
         placeholders = ",".join("?" * len(purchase_ids))
         rows = DatabaseManager.fetch_all(
-            f"SELECT * FROM purchase_items WHERE purchase_id IN ({placeholders}) ORDER BY purchase_id, id",
+            f"SELECT * FROM purchase_items WHERE purchase_id IN ({placeholders}) ORDER BY purchase_id, id",  # nosec B608
             tuple(purchase_ids),
         )
 

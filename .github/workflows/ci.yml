@@ -39,6 +39,9 @@ jobs:
     - name: Check formatting with Black
       run: black --check .
 
+    - name: Security scan with Bandit
+      run: bandit -q -r database services utils --skip B101
+
     - name: Type check with Pyright
       run: pyright --project .
 

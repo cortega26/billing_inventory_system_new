@@ -199,7 +199,7 @@ class SaleService:
                 LEFT JOIN products p ON si.product_id = p.id
                 WHERE si.sale_id IN ({placeholders})
                 ORDER BY si.sale_id, si.id
-            """
+            """  # nosec B608
             items_rows = DatabaseManager.fetch_all(items_query, tuple(sale_ids))
 
             items_by_sale: dict[int, list[SaleItem]] = {}
@@ -584,7 +584,7 @@ class SaleService:
             LEFT JOIN products p ON si.product_id = p.id
             WHERE si.sale_id IN ({placeholders})
             ORDER BY si.sale_id, si.id
-        """
+        """  # nosec B608
         items_rows = DatabaseManager.fetch_all(items_query, tuple(sale_ids))
 
         items_by_sale: dict[int, list[SaleItem]] = {}

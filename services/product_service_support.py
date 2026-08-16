@@ -23,7 +23,7 @@ def build_product_update_statement(
     params = dict(validated_data)
     params["product_id"] = product_id
     set_clause = ", ".join(f"{key} = :{key}" for key in updated_fields)
-    query = f"UPDATE products SET {set_clause} WHERE id = :product_id"
+    query = f"UPDATE products SET {set_clause} WHERE id = :product_id"  # nosec B608
     return query, params, updated_fields
 
 

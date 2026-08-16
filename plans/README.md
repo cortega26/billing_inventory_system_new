@@ -23,7 +23,7 @@ reflect the working tree, not `HEAD`.
 | 002  | Unify model validation: service-layer enforcement, no load-time crashes | P1 | M | — | DONE (executed 2026-08-15, commit e701f73, merged, reviewed APPROVED) |
 | 003  | PIN security: rotate, relocate config, PBKDF2, persistent lockout | P1 | M | — | TODO |
 | 004  | Reconcile index sources + cleanup migration + legacy-DB upgrade test | P1 | M | — | DONE (executed 2026-08-15, 5 commits 13c7b92..144b6e3, merged, reviewed APPROVED) |
-| 005  | Sales-table batching + refresh-wave coalescing | P2 | M | — | TODO |
+| 005  | Sales-table batching + refresh-wave coalescing | P2 | M | — | DONE (executed 2026-08-15, commits 941c8ef/8d445f1, merged, reviewed APPROVED) |
 | 006  | Fix xdist crash + enable parallel CI + bump CI actions | P1 | S | — | DONE (executed 2026-08-15, commits dcaf970/ad347a3/d7fd8cf, branch advisor/006-xdist-ci, reviewed APPROVED) |
 | 007  | Unify cache protocol; fix false clear_cache pairing | P2 | M | — | DONE (executed 2026-08-15, commits 0981f5a/e0116a2, merged f4937c3, reviewed APPROVED) |
 | 008  | Sale-domain test hardening + purchase-delete reversal + suite cleanup | P1 | S-M | 007 | DONE (executed 2026-08-15, commits c1ebf4b/41c0041, merged 02a97e5, reviewed APPROVED) |

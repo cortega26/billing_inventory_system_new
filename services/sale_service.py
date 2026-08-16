@@ -795,7 +795,6 @@ class SaleService:
         )
         return distribution
 
-    @lru_cache(maxsize=100)  # noqa: B019 (intentional: paired with clear_cache)
     def get_product_details(self, product_id: int) -> dict[str, Any] | None:
         product = self.product_service.get_product(product_id)
         return product.to_dict() if product else None

@@ -219,3 +219,33 @@ lineage). Deliverable: `plans/024-customer-credit-columns.md` (planned at
 - `check_schema_drift.py` exit 0; 3 migration tests + model test pass; full
   suite green (modulo pre-existing worktree UI exceptions); ruff/black/pyright
   clean. Post-merge: manual app boot on the live DB to confirm the no-op.
+
+# Feature 5 — In-app business switch + config self-healing (plan 025)
+
+Requested 2026-08-16 (user twice: no in-app way to switch business). Two parts:
+
+## Spec summary
+
+1. **In-app switch**: `ui/main_window.py` "&Archivo" menu gains "&Cambiar de
+   negocio…" (only when >1 business configured, mirroring
+   `BusinessSelectorDialog.should_show()`). Handler opens the existing
+   `BusinessSelectorDialog` (persistence already inside it), then shows the
+   info message "El cambio de negocio se aplicará al reiniciar la aplicación"
+   via the repo's `show_info_message` helper. No auto-restart (documented
+   constraint; DatabaseManager lifecycle is High-Risk).
+2. **Config self-healing**: `_get_default_config()` in `config.py` gains
+   `"businesses": [dict(b) for b in DEFAULT_BUSINESSES]` and
+   `"active_business": DEFAULT_ACTIVE_BUSINESS` (widen the return annotation
+   to `dict[str, Any]`). Because `_load_config` merges file-over-defaults,
+   any config written by the current build now ALWAYS contains the registry —
+   a stripped config (e.g. by a legacy build) self-heals on the next save.
+3. Tests: config self-heal (load stripped file → `Config.set(...)` → file
+   re-seeded); menu action present/absent by business count; click opens
+   dialog; accept → info message. SPECIFICATIONS.md multi-business section
+   updated.
+
+## Verification (plan 025)
+
+- Config test files green (existing "defaults" assertions updated to the new
+  shape); UI tests under xvfb; full suite; ruff/black/pyright. Post-merge:
+  manual launch — selector at startup + Archivo → Cambiar de negocio works.

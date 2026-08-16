@@ -97,3 +97,11 @@ Consult before every change. Check off as work completes.
 - [x] Executor: model + schema.sql + migration + tests (no STOP)
 - [x] Reviewed (APPROVE), merged 955e4c2, pushed, cleaned, archived, DONE
 - [x] No-op verified against a COPY of the live DB (127 customers intact, head 652b05c0c11e)
+
+## Plan 025 (in-app business switch + config self-healing)
+
+- [x] Recon: main_window menu structure (create_menu list), config default-shape tests located
+- [x] Plan 025 written + spec.md section
+- [ ] Executor: menu action + config defaults + tests in worktree
+- [ ] Review, merge, push, clean, archive, mark DONE
+- [ ] Manual launch check: selector at startup + in-app switch

@@ -69,7 +69,10 @@ def test_switch_to_new_business_gets_fresh_schema(tmp_path):
     connection = sqlite3.connect(db_b)
     try:
         for table in PRIMARY_TABLES:
-            count = connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            # table ∈ a hardcoded test tuple — not user input
+            count = connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[
+                0
+            ]  # nosec B608
             assert count == 0
     finally:
         connection.close()

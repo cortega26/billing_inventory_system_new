@@ -296,7 +296,7 @@ class AnalyticsService:
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
-    def get_low_stock(threshold: int = 10) -> list[dict[str, Any]]:
+    def get_low_stock(threshold: float = 10) -> list[dict[str, Any]]:
         threshold = validate_float_non_negative(threshold)
         metric_result = AnalyticsEngine().execute_metric(
             LowStockMetric(), threshold=threshold

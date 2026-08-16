@@ -29,7 +29,7 @@ reflect the working tree, not `HEAD`.
 | 008  | Sale-domain test hardening + purchase-delete reversal + suite cleanup | P1 | S-M | 007 | DONE (executed 2026-08-15, commits c1ebf4b/41c0041, merged 02a97e5, reviewed APPROVED) |
 | 009  | Inventory + analytics real-DB guard tests | P2 | M | — | DONE (executed 2026-08-15, commits 943c0b4/9ea88fa/d4dc040, merged 7e3ed71, reviewed APPROVED; included root-cause fix for event_system reload fixture flake) |
 | 010  | Receipt + purchase_query characterization tests | P2 | M | — | DONE (executed 2026-08-15, commits 733f128/4d30c83/81d2fd7, merged, reviewed APPROVED; incl. production fix: validate_filepath for receipt PDFs) |
-| 011  | Dead code sweep with zero-reference guard | P2 | M | 008, 009, 010 | TODO |
+| 011  | Dead code sweep with zero-reference guard | P2 | M | 008, 009, 010 | DONE (executed 2026-08-15, commits d179e7d/1acdba2/6c6e3f4, merged, reviewed APPROVED; 2045 deletions; follow-up: get_sale_statistics + handle_external_service + ReceiptService.send_via_whatsapp orphans) |
 | 012  | DX: runnable README, pre-commit install + drift hook, logging paths, editorconfig | P2 | S-M | — | TODO |
 | 013  | Reconcile docs/backlogs with reality; language decision; bandit wire-or-drop | P2 | S-M | — | TODO |
 | 014  | Extend pyright scope into ui/ incrementally | P3 | M | — | TODO |

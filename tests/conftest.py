@@ -62,8 +62,11 @@ def isolate_config(tmp_path):
 
     yield
 
-    # Reset to defaults / cleanup
-    Config.reset_to_defaults()
+    # State-only reset — NEVER save here: a test that left _config_file
+    # unset (pointing at the real config path) would make reset_to_defaults()
+    # overwrite the user's real config with defaults.
+    Config._instance = None
+    Config._config = None
     Config._config_file = None
 
 

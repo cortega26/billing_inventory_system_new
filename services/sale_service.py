@@ -26,7 +26,7 @@ from utils.validation.validators import (
 )
 
 
-def _hydrate_sale_items(sales: list[Sale], sale_ids: list[int]) -> None:
+def _hydrate_sale_items(sales: list[Sale], sale_ids: list[int | None]) -> None:
     """Batch-load items for the given sales and attach them in place."""
     placeholders = ",".join("?" * len(sale_ids))
     items_query = f"""

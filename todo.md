@@ -118,6 +118,6 @@ Consult before every change. Check off as work completes.
 
 - [x] Recon: MetricWidget composition, dashboard date-range methods, no dashboard UI test yet, no units-total method
 - [x] Plan 027 written + spec.md section
-- [ ] Executor: registry field + card profiles + get_total_units_sold + tests in worktree
-- [ ] Review, merge, push, clean, archive, mark DONE
-- [ ] User action: set dashboard profile for casabea in real config
+- [x] Executor: registry field + profiles + units method + tests (5 commits)
+- [x] Reviewed (APPROVE), merged 4027e03, pushed, cleaned, archived, DONE
+- [ ] User action: set dashboard profile for casabea in real config (instructions in final report)

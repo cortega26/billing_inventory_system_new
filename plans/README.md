@@ -14,7 +14,7 @@ merge), move its file to `plans/archive/` in the same change that marks it done.
 The index below keeps the historical record; the archived files are the record
 of what was executed. Do not delete archived plans.
 
-## Status (26 plans; 001-026 all DONE — files archived)
+## Status (27 plans; 001-027 all DONE — files archived)
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
@@ -44,6 +44,7 @@ of what was executed. Do not delete archived plans.
 | 024  | Reconcile customer schema drift (current_balance/credit_limit in repo sources) | P2 | S | — | DONE (executed 2026-08-16, commits 1939f9e..d1f16dd, merged 955e4c2, reviewed APPROVED; no-op verified against a copy of the live DB; remaining COLLATE NOCASE/name-CHECK drift moved to backlog) |
 | 025  | In-app business switch + config registry self-healing | P1 | S | — | DONE (executed 2026-08-16, 8 commits, merged 00acf5d, reviewed APPROVED; executor STOPPED on engine.py legacy-seam interaction → amendment: registry-explicitness flag; second STOP caught order-dependent flag staleness → one-line Config.set fix) |
 | 026  | `isolate_config` teardown must never save (config-nuking test bug) | P1 | S | — | DONE (executed 2026-08-16, commits 5ce9b7d..870bda2, merged, reviewed APPROVED; real config nuked by suite at 12:55 → restored from backup; post-merge full suite leaves real config untouched — verified mtime+content) |
+| 027  | Per-business dashboard KPI profiles (reseller vs production) | P2 | S-M | — | DONE (executed 2026-08-16, 5 commits, merged 4027e03, reviewed APPROVED; post-merge suite 395 passed; one un-reproduced 75-fail/29-error first run in the worktree — never recurred in 5 runs, monitor if it resurfaces) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 

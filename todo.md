@@ -24,7 +24,7 @@ Consult before every change. Check off as work completes.
 - [x] Plan 020 reviewed
 - [x] Plan 020 merged (c815fd4), pushed, cleaned, index updated
 - [x] Midpoint gap review done 2026-08-15 (fresh agent): nothing blocks 017/018/020; found InventoryAgingMetric status gap -> follow-up micro-plan
-- [ ] Final full-suite integration run on main
+- [x] Final full-suite integration run on main (349 passed, 1 skipped)
 - [ ] All plans archived; todo.md complete; `git push origin main` final
 
 ## Plan 015 — cancelled sales excluded from reports

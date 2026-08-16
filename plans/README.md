@@ -14,7 +14,7 @@ merge), move its file to `plans/archive/` in the same change that marks it done.
 The index below keeps the historical record; the archived files are the record
 of what was executed. Do not delete archived plans.
 
-## Status (17 plans; 001-020 all DONE — files archived)
+## Status (21 plans; 001-021 all DONE — files archived)
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
@@ -38,6 +38,7 @@ of what was executed. Do not delete archived plans.
 | 018  | Route manual UI inventory edits through the adjustment ledger | P2 | S | — | DONE (executed 2026-08-15, commits c2b15f9..fdf5eec, merged 950085b, reviewed APPROVED; reason literal amended to validator-safe "manual set"; backlog: CURRENT_TIMESTAMP vs date-only movement bound) |
 | 019  | Make analytics date-range queries index-usable | P2 | M | 015 | DONE (executed 2026-08-15, commits 8e5ccac/9901453, merged 8b34c81, reviewed APPROVED; boundary test fixed next-day-midnight semantics) |
 | 020  | Sad-path test coverage for the update-sale workflow and MutationCoordinator | P2 | S | — | DONE (executed 2026-08-15, commit 25b506c, merged c815fd4, reviewed APPROVED) |
+| 021  | InventoryAgingMetric must not count cancelled sales as "last sold" | P2 | S | — | DONE (executed 2026-08-15, commits 7d446d3\/36ee211\/864d292, merged, reviewed APPROVED) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 

@@ -5,6 +5,8 @@ from typing import Any
 from services.analytics.engine import AnalyticsEngine
 from services.analytics.metrics import (
     DepartmentSalesMetric,
+    InventoryAgingMetric,
+    LowStockMetric,
     ProductProfitMetric,
     ProfitMarginDistributionMetric,
     ProfitTrendMetric,
@@ -17,7 +19,11 @@ from services.analytics.metrics import (
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import DatabaseException, ValidationException
 from utils.system.logger import logger
-from utils.validation.validators import validate_date, validate_integer
+from utils.validation.validators import (
+    validate_date,
+    validate_float_non_negative,
+    validate_integer,
+)
 
 
 class AnalyticsService:
@@ -287,6 +293,47 @@ class AnalyticsService:
         return result
 
     @staticmethod
+    @lru_cache(maxsize=32)
+    @db_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
+    def get_low_stock(threshold: float = 10) -> list[dict[str, Any]]:
+        threshold = validate_float_non_negative(threshold)
+        metric_result = AnalyticsEngine().execute_metric(
+            LowStockMetric(), threshold=threshold
+        )
+        result = [
+            {
+                "id": row["product_id"],
+                "name": row["name"],
+                "quantity": row["quantity"],
+            }
+            for row in metric_result.data
+        ]
+        logger.info(f"Retrieved low stock products: {len(result)}")
+        return result
+
+    @staticmethod
+    @lru_cache(maxsize=32)
+    @db_operation(show_dialog=True)
+    @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
+    def get_inventory_aging(days: int = 30) -> list[dict[str, Any]]:
+        days = validate_integer(days, min_value=0)
+        metric_result = AnalyticsEngine().execute_metric(
+            InventoryAgingMetric(), days=days
+        )
+        result = [
+            {
+                "id": row["product_id"],
+                "name": row["name"],
+                "stock_quantity": row["stock_quantity"],
+                "last_sold_date": row["last_sold_date"],
+            }
+            for row in metric_result.data
+        ]
+        logger.info(f"Retrieved inventory aging: {len(result)} products")
+        return result
+
+    @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def get_sales_summary(start_date: str, end_date: str) -> dict[str, Any]:
@@ -328,6 +375,8 @@ class AnalyticsService:
         AnalyticsService.get_profit_by_product.cache_clear()
         AnalyticsService.get_profit_trend.cache_clear()
         AnalyticsService.get_profit_margin_distribution.cache_clear()
+        AnalyticsService.get_low_stock.cache_clear()
+        AnalyticsService.get_inventory_aging.cache_clear()
         logger.debug("Analytics cache cleared")
 
     @staticmethod

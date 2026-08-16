@@ -4,6 +4,7 @@ from typing import Any
 from database.database_manager import DatabaseManager
 from models.enums import QUANTITY_PRECISION, InventoryAction
 from models.inventory import Inventory
+from services.analytics_service import AnalyticsService
 from services.audit_service import AuditService
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import (
@@ -246,6 +247,7 @@ class InventoryService:
             )
 
         InventoryService.clear_cache()
+        AnalyticsService.clear_cache()
         event_system.inventory_changed.emit(product_id)
         logger.info(
             "Inventory quantity set",
@@ -310,6 +312,7 @@ class InventoryService:
             )
 
         InventoryService.clear_cache()
+        AnalyticsService.clear_cache()
         event_system.inventory_changed.emit(product_id)
         logger.info(
             "Inventory adjusted",

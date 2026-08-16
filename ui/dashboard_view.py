@@ -343,9 +343,7 @@ class DashboardView(QWidget):
     @ui_operation()
     def update_low_stock(self):
         try:
-            low_stock_items = self.inventory_service.get_low_stock_products(
-                threshold=10
-            )
+            low_stock_items = AnalyticsService.get_low_stock(threshold=10)
             self.low_stock_table.setRowCount(0)
             self.low_stock_table.setRowCount(len(low_stock_items))
 

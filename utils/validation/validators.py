@@ -94,6 +94,21 @@ def validate_string(
     return value
 
 
+def validate_filepath(value: str, max_length: int | None = 255) -> str:
+    """Validate a filesystem path (alphanumerics, spaces, and path punctuation)."""
+    if not isinstance(value, str):
+        raise ValidationException("Path must be a string")
+    if max_length is not None and len(value) > max_length:
+        raise ValidationException(f"Path cannot exceed {max_length} characters")
+
+    allowed_extra = set("-.,;:()'/&%#+_\\")
+    if not all(
+        c.isalpha() or c.isdigit() or c.isspace() or c in allowed_extra for c in value
+    ):
+        raise ValidationException("Path contains invalid characters")
+    return value
+
+
 def validate_integer(
     value: Any, min_value: int | None = None, max_value: int | None = None
 ) -> int:

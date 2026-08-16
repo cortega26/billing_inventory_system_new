@@ -8,7 +8,7 @@ from contextlib import contextmanager, suppress
 from typing import Any
 
 from sqlalchemy.pool import StaticPool
-from sqlmodel import Session, create_engine
+from sqlmodel import create_engine
 
 from utils.exceptions import DatabaseException
 from utils.system.logger import logger
@@ -77,13 +77,6 @@ class DatabaseManager:
             cls.apply_startup_pragmas()
             if db_path != ":memory:" and os.path.exists(db_path):
                 os.chmod(db_path, 0o600)
-
-    @classmethod
-    def get_session(cls) -> Session:
-        """Get a SQLModel Session."""
-        if cls._engine is None:
-            cls.initialize()
-        return Session(cls._engine)
 
     @classmethod
     def _get_transaction_depth(cls) -> int:

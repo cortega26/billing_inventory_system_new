@@ -647,20 +647,6 @@ class ProductView(QWidget):
             logger.error(f"Error showing context menu: {str(e)}")
             show_error_message("Error", "Error al mostrar el menú contextual")
 
-    @ui_operation(show_dialog=True)
-    def export_products(self):
-        show_info_message(
-            "Info", "La funcionalidad de exportación aún no está implementada."
-        )
-        logger.info("Export products functionality not implemented")
-
-    @ui_operation(show_dialog=True)
-    def import_products(self):
-        show_info_message(
-            "Info", "La funcionalidad de importación aún no está implementada."
-        )
-        logger.info("Import products functionality not implemented")
-
     def keyPressEvent(self, event):
         """Handle keyboard events."""
         try:

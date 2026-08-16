@@ -6,7 +6,6 @@ from utils.system.logger import logger
 
 from .exceptions import (
     DatabaseException,
-    ExternalServiceException,
     NotFoundException,
     UIException,
 )
@@ -91,13 +90,6 @@ def db_operation(
     return handle_exceptions(
         DatabaseException, NotFoundException, show_dialog=show_dialog
     )
-
-
-def handle_external_service(
-    show_dialog: bool = False,
-) -> Callable[[Callable[P, T]], Callable[P, T]]:
-    """Decorator for external service interactions."""
-    return handle_exceptions(ExternalServiceException, show_dialog=show_dialog)
 
 
 def ui_operation(

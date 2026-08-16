@@ -1,11 +1,9 @@
-import datetime
 from collections.abc import Callable
 from decimal import Decimal
 from typing import Any, TypeVar
 
 from PySide6.QtWidgets import QHeaderView, QMessageBox, QTableWidget, QWidget
 
-from utils.exceptions import ValidationException
 from utils.system.logger import logger
 
 T = TypeVar("T")
@@ -86,38 +84,6 @@ def show_info_message(title: str, message: str) -> None:
     logger.info(f"Info message shown: {title} - {message}")
 
 
-def validate_integer_input(
-    value: str,
-    field_name: str,
-    min_value: int | None = None,
-    max_value: int | None = None,
-) -> int:
-    """
-    Validate and convert a string input to an integer within an optional range.
-
-    Args:
-        value (str): The string value to be converted.
-        field_name (str): The name of the field for error reporting.
-        min_value (Optional[int]): The minimum allowed value (inclusive).
-        max_value (Optional[int]): The maximum allowed value (inclusive).
-
-    Returns:
-        int: The converted integer value.
-
-    Raises:
-        ValidationException: If the input cannot be converted to a valid integer or is out of the specified range.
-    """
-    try:
-        int_value = int(value)
-        if min_value is not None and int_value < min_value:
-            raise ValidationException(f"{field_name} must be at least {min_value}.")
-        if max_value is not None and int_value > max_value:
-            raise ValidationException(f"{field_name} must not exceed {max_value}.")
-        return int_value
-    except ValueError:
-        raise ValidationException(f"{field_name} must be a valid integer.") from None
-
-
 def safe_convert[T](value: Any, target_type: Callable[[Any], T], default: T) -> T:
     """
     Safely convert a value to a target type, returning a default value if conversion fails.
@@ -137,20 +103,6 @@ def safe_convert[T](value: Any, target_type: Callable[[Any], T], default: T) -> 
             f"Conversion failed for value: {value}. Using default: {default}"
         )
         return default
-
-
-def format_date(date: datetime.date, format_str: str = "%Y-%m-%d") -> str:
-    """
-    Format a date object as a string.
-
-    Args:
-        date (datetime.date): The date to be formatted.
-        format_str (str, optional): The format string to use. Defaults to "%Y-%m-%d".
-
-    Returns:
-        str: The formatted date string.
-    """
-    return date.strftime(format_str)
 
 
 def truncate_string(text: str, max_length: int, ellipsis: str = "...") -> str:

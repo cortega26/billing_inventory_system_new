@@ -26,9 +26,10 @@ def backup_service(tmp_path):
             return default
 
         mock_config.get.side_effect = get_side_effect
+        mock_config.get_active_database_path.return_value = Path("unused.db")
 
         service = BackupService()
-        yield service
+        yield service, mock_config
 
     BackupService._instance = None
 
@@ -45,51 +46,70 @@ def source_db(tmp_path):
 
 
 def test_get_backup_dir_creates_directory(backup_service):
-    backup_dir = backup_service.get_backup_dir()
+    service, _ = backup_service
+    backup_dir = service.get_backup_dir()
     assert backup_dir.exists()
     assert backup_dir.is_dir()
 
 
-def test_create_backup_success(backup_service, source_db, tmp_path):
-    with patch("services.backup_service.DATABASE_PATH", source_db):
-        backup_path = backup_service.create_backup()
+def test_get_backup_dir_scoped_to_business(backup_service):
+    service, mock_config = backup_service
+    mock_config.get.side_effect = lambda key, default=None: (
+        str(Path.cwd() / "backups") if key == "backup_dir" else default
+    )
 
-        assert backup_path is not None
-        assert Path(backup_path).exists()
-        assert Path(backup_path).name.startswith("backup_")
-        assert Path(backup_path).name.endswith(source_db.name)
-        assert Path(backup_path).stat().st_size > 0
+    backup_dir = service.get_backup_dir()
+    assert backup_dir.name == "default"
 
 
-def test_create_backup_no_db(backup_service, tmp_path):
-    non_existent_db = tmp_path / "non_existent.db"
-    with patch("services.backup_service.DATABASE_PATH", non_existent_db):
-        backup_path = backup_service.create_backup()
-        assert backup_path is None
+def test_create_backup_success(backup_service, source_db):
+    service, mock_config = backup_service
+    mock_config.get_active_database_path.return_value = source_db
+
+    backup_path = service.create_backup()
+
+    assert backup_path is not None
+    assert Path(backup_path).exists()
+    assert Path(backup_path).name.startswith("backup_")
+    assert Path(backup_path).name.endswith(source_db.name)
+    assert Path(backup_path).stat().st_size > 0
+    # Backup lands in backups/<business_id>/
+    assert Path(backup_path).parent == service.get_backup_dir()
+
+
+def test_create_backup_no_db(backup_service):
+    service, mock_config = backup_service
+    non_existent_db = Path("non_existent.db")
+    mock_config.get_active_database_path.return_value = non_existent_db
+
+    backup_path = service.create_backup()
+    assert backup_path is None
 
 
 def test_create_backup_skips_when_disk_space_low(backup_service, source_db):
-    with (
-        patch("services.backup_service.DATABASE_PATH", source_db),
-        patch(
-            "services.backup_service.shutil.disk_usage",
-            return_value=SimpleNamespace(total=100, used=100, free=0),
-        ),
+    service, mock_config = backup_service
+    mock_config.get_active_database_path.return_value = source_db
+
+    with patch(
+        "services.backup_service.shutil.disk_usage",
+        return_value=SimpleNamespace(total=100, used=100, free=0),
     ):
-        backup_path = backup_service.create_backup()
+        backup_path = service.create_backup()
         assert backup_path is None
 
 
 def test_create_backup_emits_event_when_disk_space_low(backup_service, source_db):
+    service, mock_config = backup_service
+    mock_config.get_active_database_path.return_value = source_db
+
     with (
-        patch("services.backup_service.DATABASE_PATH", source_db),
         patch(
             "services.backup_service.shutil.disk_usage",
             return_value=SimpleNamespace(total=100, used=100, free=0),
         ),
         patch("services.backup_service.event_system") as mock_event_system,
     ):
-        backup_path = backup_service.create_backup()
+        backup_path = service.create_backup()
 
         assert backup_path is None
         mock_event_system.emit_event.assert_called_once()
@@ -99,7 +119,10 @@ def test_create_backup_emits_event_when_disk_space_low(backup_service, source_db
 
 
 def test_cleanup_old_backups(backup_service, source_db):
-    backup_dir = backup_service.get_backup_dir()
+    service, mock_config = backup_service
+    mock_config.get_active_database_path.return_value = source_db
+
+    backup_dir = service.get_backup_dir()
 
     # Create a fresh backup
     fresh_backup = backup_dir / "backup_fresh.db"
@@ -119,9 +142,8 @@ def test_cleanup_old_backups(backup_service, source_db):
         # Fallback if os.utime fails (e.g. permission), skip test part
         pass
 
-    with patch("services.backup_service.DATABASE_PATH", source_db):
-        # Trigger cleanup via create_backup or call directly
-        backup_service.cleanup_old_backups()
+    # Trigger cleanup via create_backup or call directly
+    service.cleanup_old_backups()
 
-        assert fresh_backup.exists()
-        assert not old_backup.exists()
+    assert fresh_backup.exists()
+    assert not old_backup.exists()

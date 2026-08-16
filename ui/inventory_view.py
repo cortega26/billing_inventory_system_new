@@ -254,7 +254,7 @@ class InventoryView(QWidget):
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(0, 0, 0, 0)
             actions_layout.setSpacing(6)
-            actions_layout.setAlignment(Qt.AlignCenter)
+            actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
             edit_btn = QPushButton("Editar")
             edit_btn.setFixedWidth(80)
@@ -325,7 +325,10 @@ class InventoryView(QWidget):
         action = menu.exec(self.inventory_table.mapToGlobal(position))
 
         if action == edit_action and row >= 0:
-            product_id = int(self.inventory_table.item(row, 0).text())
+            row_item = self.inventory_table.item(row, 0)
+            if row_item is None:
+                return
+            product_id = int(row_item.text())
             item = next(
                 (i for i in self.current_inventory if i["product_id"] == product_id),
                 None,
@@ -352,7 +355,10 @@ class InventoryView(QWidget):
         selected_rows = self.inventory_table.selectionModel().selectedRows()
         if selected_rows:
             row = selected_rows[0].row()
-            product_id = int(self.inventory_table.item(row, 0).text())
+            row_item = self.inventory_table.item(row, 0)
+            if row_item is None:
+                return
+            product_id = int(row_item.text())
             item = next(
                 (i for i in self.current_inventory if i["product_id"] == product_id),
                 None,

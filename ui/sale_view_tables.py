@@ -65,6 +65,7 @@ def render_sale_history_row(
     on_delete: SaleActionHandler,
 ) -> None:
     """Render one historical sale row and its action buttons."""
+    assert sale.id is not None
     table.setItem(row, 0, NumericTableWidgetItem(sale.id))
 
     if customer is not None:
@@ -76,7 +77,9 @@ def render_sale_history_row(
         table.setItem(row, 2, QTableWidgetItem("N/A"))
         table.setItem(row, 3, QTableWidgetItem("Cliente eliminado"))
 
-    date_item = QTableWidgetItem(sale.date.strftime("%Y-%m-%d"))
+    date_item = QTableWidgetItem(
+        sale.date.strftime("%Y-%m-%d") if sale.date is not None else ""
+    )
     date_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
     table.setItem(row, 4, date_item)
     table.setItem(row, 5, PriceTableWidgetItem(sale.total_amount, format_price))

@@ -208,7 +208,8 @@ Exact commands (prefer `.venv/bin/...`):
 - full suite: `.venv/bin/python -m pytest`
 - lint: `.venv/bin/ruff check .`
 - format check: `.venv/bin/black --check .`
-- type check: `.venv/bin/pyright` (scoped to backend via `pyrightconfig.json`; `ui/` and `tests/` are excluded)
+- type check: `.venv/bin/pyright` (backend + `ui/` via `pyrightconfig.json`;
+  `tests/` stays excluded: mock-heavy fixtures, no runtime value)
 - security scan: `.venv/bin/bandit -q -r database services utils --skip B101`
   (B101 = assert is skipped deliberately; the only accepted suppressions are
   `# nosec B608` on parameterized string-built queries — do not add bare `# nosec`)

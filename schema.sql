@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS inventory (
 CREATE TABLE IF NOT EXISTS customers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     identifier_9 TEXT NOT NULL UNIQUE,
-    name TEXT,
+    name TEXT CHECK (name IS NULL OR LENGTH(name) <= 50),
     current_balance INTEGER NOT NULL DEFAULT 0,
     credit_limit INTEGER NOT NULL DEFAULT 50000 CHECK (credit_limit >= 0),
     is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),

@@ -230,7 +230,7 @@ class InventoryService:
                 product_id, new_quantity, action=InventoryAction.UPDATE
             )
             DatabaseManager.execute_query(
-                "INSERT INTO inventory_adjustments (product_id, quantity_change, reason, date) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+                "INSERT INTO inventory_adjustments (product_id, quantity_change, reason, date) VALUES (?, ?, ?, datetime('now', 'localtime'))",
                 (product_id, quantity_change, "manual_set"),
             )
             AuditService.log_operation(
@@ -296,7 +296,7 @@ class InventoryService:
                 product_id, quantity_change, emit_events=False
             )
             DatabaseManager.execute_query(
-                "INSERT INTO inventory_adjustments (product_id, quantity_change, reason, date) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+                "INSERT INTO inventory_adjustments (product_id, quantity_change, reason, date) VALUES (?, ?, ?, datetime('now', 'localtime'))",
                 (product_id, quantity_change, reason),
             )
             AuditService.log_operation(
@@ -340,19 +340,20 @@ class InventoryService:
         query = """
             SELECT 'adjustment' as type, date, quantity_change, reason
             FROM inventory_adjustments
-            WHERE product_id = ? AND date BETWEEN ? AND ?
+            WHERE product_id = ? AND date >= ? AND date < date(?, '+1 day')
             UNION ALL
             SELECT 'sale' as type, s.date, -si.quantity as quantity_change,
                    'Sale' as reason
             FROM sale_items si
             JOIN sales s ON si.sale_id = s.id
-            WHERE si.product_id = ? AND s.date BETWEEN ? AND ? AND s.status = 'confirmed'
+            WHERE si.product_id = ? AND s.date >= ? AND s.date < date(?, '+1 day')
+            AND s.status = 'confirmed'
             UNION ALL
             SELECT 'purchase' as type, p.date, pi.quantity as quantity_change,
                    'Purchase' as reason
             FROM purchase_items pi
             JOIN purchases p ON pi.purchase_id = p.id
-            WHERE pi.product_id = ? AND p.date BETWEEN ? AND ?
+            WHERE pi.product_id = ? AND p.date >= ? AND p.date < date(?, '+1 day')
             ORDER BY date
         """
         params = (product_id, start_date, end_date) * 3

@@ -121,3 +121,10 @@ Consult before every change. Check off as work completes.
 - [x] Executor: registry field + profiles + units method + tests (5 commits)
 - [x] Reviewed (APPROVE), merged 4027e03, pushed, cleaned, archived, DONE
 - [ ] User action: set dashboard profile for casabea in real config (instructions in final report)
+
+## Plan 028 (Codacy SQLi warnings on scripts)
+
+- [x] Analysis: all 6 sites interpolate internal constants (false positives); 4 convertible to bound pragma functions, 2 need documented nosec B608
+- [x] Plan 028 written + spec.md section; casabea dashboard profile set to production in real config (backed up)
+- [ ] Executor: pragma-function conversions + nosec sites in worktree
+- [ ] Review, merge, push, clean, archive, mark DONE

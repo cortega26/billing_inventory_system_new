@@ -305,3 +305,30 @@ emphasizes margin % and units for production. Planned at commit `ad20acc`.
   green (modulo known worktree UI exceptions); ruff/black/pyright clean.
 - Post-merge: set `"dashboard": "production"` on casabea in the real config
   and eyeball the card row (user action).
+
+# Bugfix 8 — Codacy SQL-injection warnings on scripts/ + test (plan 028)
+
+Requested 2026-08-16. Six CRITICAL Codacy findings on `f"PRAGMA ...({table})"`
+/ `f"SELECT COUNT(*) FROM {table}"` sites. All interpolate INTERNAL constants
+(hardcoded tuples, SQLModel.metadata, dict keys) — no user input; false
+positives, but treatable: 4 PRAGMA sites convert to SQLite's table-valued
+functions (`SELECT * FROM pragma_table_info(?)` / `pragma_index_list(?)`,
+bound parameter, no f-string); 2 COUNT sites can't bind identifiers →
+documented `# nosec B608` (repo convention per AGENTS.md; note: bandit's
+scope excludes scripts/, Codacy covers it). Planned at `44c2fa5`.
+
+## Spec summary
+
+- `scripts/check_schema_drift.py` (2 sites): bound pragma functions.
+- `scripts/check_legacy_upgrade.py` (3 sites): 2 bound pragma functions +
+  1 nosec B608 with comment (COUNT typeof query).
+- `tests/test_services/test_business_switch.py:72` (1 site): nosec B608 +
+  comment (closed test tuple).
+- Verification: scripts still behave identically (drift check exit 0;
+  legacy-upgrade tests green); full suite; ruff/black/pyright.
+
+## Verification (plan 028)
+
+- `grep -rn 'f"PRAGMA\|f"SELECT COUNT' scripts/ tests/` → only the nosec
+  sites remain; `check_schema_drift.py` exit 0; `pytest tests/test_database`
+  (legacy upgrade tests) green; full suite; ruff/black/pyright clean.

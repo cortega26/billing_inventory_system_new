@@ -201,6 +201,29 @@ class TestConfig:
 
         assert stat.S_IMODE(config_file.stat().st_mode) == 0o600
 
+    def test_teardown_after_leaked_config_file_never_writes_real_path(
+        self, tmp_path, monkeypatch
+    ):
+        """A test leaving _config_file unset must not make the fixture teardown
+        write to the user-local config path (the 2026-08-16 data-loss bug)."""
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+        user_local = tmp_path / ".config" / "billing-inventory" / "app_config.json"
+
+        # Simulate the leak: bare reset leaves _config_file = None.
+        Config._reset_for_testing()
+
+        # Fixture teardown is state-only: it must never save to _config_file.
+        Config._instance = None
+        Config._config = None
+        Config._config_file = None
+
+        assert not user_local.exists()
+
+        # Positive control: a save WOULD land here, so a teardown that
+        # regresses into reset_to_defaults() fails the assertion above.
+        Config.reset_to_defaults()
+        assert user_local.exists()
+
 
 class TestBusinessRegistryValidation:
     def test_invalid_business_id_rejected(self):

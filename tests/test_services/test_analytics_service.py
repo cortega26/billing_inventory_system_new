@@ -692,3 +692,15 @@ class TestAnalyticsServiceRealDb:
 
         assert self._row_counts() == before
         AnalyticsService.clear_cache()
+
+    def test_sales_summary_excludes_cancelled_sales(self):
+        summary_before = AnalyticsService.get_sales_summary(*self.DATE_RANGE)
+        assert summary_before["total_sales"] == 1
+
+        sale_row = DatabaseManager.fetch_one("SELECT id FROM sales ORDER BY id")
+        self.sale_service.cancel_sale(sale_row["id"])
+
+        summary = AnalyticsService.get_sales_summary(*self.DATE_RANGE)
+        assert summary["total_sales"] == 0
+        assert summary["total_revenue"] == 0
+        assert summary["total_profit"] == 0

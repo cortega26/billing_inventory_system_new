@@ -261,3 +261,47 @@ class TestInventoryServiceRealDb:
         assert self.inventory_service.get_inventory_turnover(
             "2026-07-01", "2026-07-31"
         ) == {self.prod_id: 0.25}
+
+    def test_movements_exclude_cancelled_sales(self):
+        self.inventory_service.set_quantity(self.prod_id, 10.0)
+        cust_id = self.customer_service.create_customer("923456789", "Test Customer")
+        sale_id = self.sale_service.create_sale(
+            cust_id,
+            "2026-07-10",
+            [
+                {
+                    "product_id": self.prod_id,
+                    "quantity": 2.0,
+                    "sell_price": 2000,
+                    "profit": 2000,
+                }
+            ],
+        )
+        self.sale_service.cancel_sale(sale_id)
+
+        movements = self.inventory_service.get_inventory_movements(
+            self.prod_id, "2026-07-01", "2026-07-31"
+        )
+        assert all(m["type"] != "sale" for m in movements)
+
+    def test_turnover_excludes_cancelled_sales(self):
+        self.inventory_service.set_quantity(self.prod_id, 10.0)
+        cust_id = self.customer_service.create_customer("923456789", "Test Customer")
+        sale_id = self.sale_service.create_sale(
+            cust_id,
+            "2026-07-15",
+            [
+                {
+                    "product_id": self.prod_id,
+                    "quantity": 2.0,
+                    "sell_price": 2000,
+                    "profit": 2000,
+                }
+            ],
+        )
+        self.sale_service.cancel_sale(sale_id)
+
+        assert (
+            self.inventory_service.get_inventory_turnover("2026-07-01", "2026-07-31")
+            == {}
+        )

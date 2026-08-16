@@ -4,7 +4,13 @@ from pathlib import Path
 
 import pytest
 
-from config import Config, ConfigLoadError, ConfigValidationError
+from config import (
+    DEFAULT_ACTIVE_BUSINESS,
+    DEFAULT_BUSINESSES,
+    Config,
+    ConfigLoadError,
+    ConfigValidationError,
+)
 
 
 @pytest.fixture
@@ -278,3 +284,15 @@ class TestBusinessRegistryValidation:
             }
         ]
         assert Config.get("active_business") == "default"
+
+    def test_save_self_heals_missing_business_registry(self, temp_config_file):
+        """A registry stripped by a legacy build is re-seeded on the next save."""
+        Config._reset_for_testing(temp_config_file)
+
+        Config.set("theme", "light")
+
+        with open(temp_config_file) as f:
+            saved = json.load(f)
+        assert saved["businesses"] == DEFAULT_BUSINESSES
+        assert saved["active_business"] == DEFAULT_ACTIVE_BUSINESS
+        assert saved["theme"] == "light"

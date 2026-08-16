@@ -265,11 +265,11 @@ class PurchaseService:
                 INSERT INTO purchase_items (purchase_id, product_id, quantity, price)
                 VALUES (?, ?, ?, ?)
             """
-            # Store quantity with precision
-            quantity_str = str(round(float(item["quantity"]), QUANTITY_PRECISION))
+            # Store quantity as a number (not a string) for consistent typing
+            quantity = round(float(item["quantity"]), QUANTITY_PRECISION)
             DatabaseManager.execute_query(
                 query,
-                (purchase_id, item["product_id"], quantity_str, item["cost_price"]),
+                (purchase_id, item["product_id"], quantity, item["cost_price"]),
             )
 
     # _update_inventory and _revert_inventory removed in favor of InventoryService.apply_batch_updates

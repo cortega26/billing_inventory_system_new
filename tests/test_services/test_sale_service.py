@@ -235,6 +235,37 @@ class TestSaleService:
         assert sale.items[0].quantity == 1.0
         assert inventory.quantity == 9.0
 
+    def test_update_sale_stores_quantity_as_number(
+        self, sale_service, sample_sale_data, inventory_service, sample_product
+    ):
+        inventory_service.update_quantity(sample_product.id, 10.0)
+        sale_id = sale_service.create_sale(
+            sample_sale_data["customer_id"],
+            sample_sale_data["date"],
+            sample_sale_data["items"],
+        )
+
+        updated_items = [
+            {
+                "product_id": sample_product.id,
+                "quantity": 1,
+                "sell_price": sample_product.sell_price,
+                "profit": sample_product.sell_price - sample_product.cost_price,
+            }
+        ]
+        sale_service.update_sale(
+            sale_id,
+            sample_sale_data["customer_id"],
+            sample_sale_data["date"],
+            updated_items,
+        )
+
+        row = DatabaseManager.fetch_one(
+            "SELECT typeof(quantity) as type FROM sale_items WHERE sale_id = ?",
+            (sale_id,),
+        )
+        assert row["type"] == "real"
+
     def test_update_sale_rolls_back_on_insufficient_inventory(
         self, sale_service, sample_sale_data, inventory_service, sample_product
     ):

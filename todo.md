@@ -5,9 +5,9 @@ Consult before every change. Check off as work completes.
 ## Program state
 
 - [x] spec.md written (execution spec for plans 015–020)
-- [ ] Plan 015 implemented + verified in worktree
-- [ ] Plan 015 reviewed (done criteria, scope, diff)
-- [ ] Plan 015 merged, pushed, worktree cleaned, plans/README + archive updated
+- [x] Plan 015 implemented + verified in worktree
+- [x] Plan 015 reviewed (done criteria, scope, diff)
+- [x] Plan 015 merged (094d15f), pushed, worktree cleaned, plans/README + archive updated
 - [ ] Plan 019 implemented + verified in worktree
 - [ ] Plan 019 reviewed
 - [ ] Plan 019 merged, pushed, cleaned, index updated

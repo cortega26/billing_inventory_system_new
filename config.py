@@ -96,6 +96,7 @@ class Config:
     _cache_ttl: int = 300  # 5 minutes
     _last_load_time: float = 0
     _config_file: Path | None = None
+    _registry_is_explicit: bool = False
 
     def __new__(cls) -> "Config":
         """Ensure singleton instance."""
@@ -152,6 +153,7 @@ class Config:
                             merged_config.update(loaded_config)
                             cls._validate_config(merged_config)
                             cls._config = merged_config
+                            cls._registry_is_explicit = "businesses" in loaded_config
                             cls._last_load_time = time.time()
                         except (OSError, JSONDecodeError) as e:
                             logging.error(f"Error loading configuration: {e}")
@@ -161,11 +163,12 @@ class Config:
                             raise ConfigValidationError(f"Invalid config: {e}") from e
                     else:
                         cls._config = cls._get_default_config()
+                        cls._registry_is_explicit = False
                         cls._save_config()
                         cls._last_load_time = time.time()
 
     @classmethod
-    def _get_default_config(cls) -> dict[str, str | int]:
+    def _get_default_config(cls) -> dict[str, Any]:
         """Return the default configuration."""
         return {
             "version": CONFIG_VERSION,
@@ -180,6 +183,8 @@ class Config:
             "last_backup_success": "",
             "last_backup_skipped_time": "",
             "last_backup_skipped_reason": "",
+            "businesses": [dict(business) for business in DEFAULT_BUSINESSES],
+            "active_business": DEFAULT_ACTIVE_BUSINESS,
         }
 
     @classmethod
@@ -348,6 +353,9 @@ class Config:
             # Use the validated (and potentially cast) value
             cls._config[key] = temp_config[key]
             cls._save_config()
+            # The save persisted the (possibly self-healed) registry, so the
+            # explicitness flag must track the file again without a reload.
+            cls._registry_is_explicit = "businesses" in temp_config
 
     @classmethod
     def reload(cls) -> None:
@@ -367,6 +375,13 @@ class Config:
         """Reset configuration to defaults."""
         cls._config = cls._get_default_config()
         cls._save_config()
+
+    @classmethod
+    def has_explicit_business_registry(cls) -> bool:
+        """True when the loaded config FILE contained a ``businesses`` key
+        (a persisted multi-business registry), False for implicit
+        single-business defaults."""
+        return cls._registry_is_explicit
 
     @classmethod
     def get_businesses(cls) -> list[dict]:
@@ -448,6 +463,7 @@ class Config:
         cls._instance = None
         cls._config = None
         cls._config_file = config_file
+        cls._registry_is_explicit = False
 
 
 # Global instance of Config

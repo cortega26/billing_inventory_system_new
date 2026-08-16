@@ -16,9 +16,9 @@ class AnalyticsEngine:
     def __init__(self, db_path: Path | None = None):
         if db_path is not None:
             self.db_path = db_path
-        elif config.get("businesses") is None:
-            # Single-business installs (no registry) keep the import-time
-            # default, honoring the DATABASE_NAME env override.
+        elif not config.has_explicit_business_registry():
+            # Single-business installs (implicit registry) keep the
+            # import-time default, honoring the DATABASE_NAME env override.
             self.db_path = DATABASE_PATH
         else:
             self.db_path = config.get_active_database_path()

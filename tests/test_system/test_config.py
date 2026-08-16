@@ -4,7 +4,13 @@ from pathlib import Path
 
 import pytest
 
-from config import Config, ConfigLoadError, ConfigValidationError
+from config import (
+    DEFAULT_ACTIVE_BUSINESS,
+    DEFAULT_BUSINESSES,
+    Config,
+    ConfigLoadError,
+    ConfigValidationError,
+)
 
 
 @pytest.fixture
@@ -268,3 +274,37 @@ class TestBusinessRegistryValidation:
 
         assert Config.get_active_business()["id"] == "default"
         assert Config.get_businesses()[0]["db_filename"] == "billing_inventory.db"
+        # The registry defaults are now carried by the config itself, so a
+        # stripped file heals on the next load/save cycle.
+        assert Config.get("businesses") == [
+            {
+                "id": "default",
+                "name": "Principal",
+                "db_filename": "billing_inventory.db",
+            }
+        ]
+        assert Config.get("active_business") == "default"
+
+    def test_save_self_heals_missing_business_registry(self, temp_config_file):
+        """A registry stripped by a legacy build is re-seeded on the next save."""
+        Config._reset_for_testing(temp_config_file)
+        Config.reload()
+
+        # The stripped file carries no explicit registry.
+        assert Config.has_explicit_business_registry() is False
+
+        Config.set("theme", "light")
+
+        with open(temp_config_file) as f:
+            saved = json.load(f)
+        assert saved["businesses"] == DEFAULT_BUSINESSES
+        assert saved["active_business"] == DEFAULT_ACTIVE_BUSINESS
+        assert saved["theme"] == "light"
+
+    def test_explicit_registry_file_yields_explicit_flag(self, temp_config_file):
+        """A config file that persists a businesses key is explicit."""
+        Config._reset_for_testing(temp_config_file)
+        Config.set("businesses", DEFAULT_BUSINESSES)
+        Config.reload()
+
+        assert Config.has_explicit_business_registry() is True

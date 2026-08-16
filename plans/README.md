@@ -14,7 +14,7 @@ merge), move its file to `plans/archive/` in the same change that marks it done.
 The index below keeps the historical record; the archived files are the record
 of what was executed. Do not delete archived plans.
 
-## Status (29 plans; 001-029 all DONE — files archived)
+## Status (30 plans; 001-030 all DONE — files archived)
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
@@ -47,6 +47,7 @@ of what was executed. Do not delete archived plans.
 | 027  | Per-business dashboard KPI profiles (reseller vs production) | P2 | S-M | — | DONE (executed 2026-08-16, 5 commits, merged 4027e03, reviewed APPROVED; post-merge suite 395 passed; one un-reproduced 75-fail/29-error first run in the worktree — never recurred in 5 runs, monitor if it resurfaces) |
 | 028  | Resolve Codacy SQLi findings on scripts/ + test | P2 | S | — | DONE (executed 2026-08-16, 4 commits, merged a90e8fe, reviewed APPROVED; 4 PRAGMA sites → bound pragma_table_info/index_list functions; 2 COUNT sites → documented nosec B608; no direct test exists for check_legacy_upgrade.py — verified standalone) |
 | 029  | Dead-code sweep: 33 fully-dead symbols (zero-reference guard) | P2 | S-M | — | DONE (executed 2026-08-16, commit 535672e, merged ceb9c16, reviewed APPROVED; -420 lines; 15 test-only symbols kept; follow-up: LogLevel unreferenced after log_method deletion → folded into plan 030) |
+| 030  | Consolidate duplication: product_ids ×3, hydration ×2, receipt text ×2, scan sound ×2 | P2 | M | 029 | DONE (executed 2026-08-16, 6 commits, merged 2ddeff1, reviewed APPROVED; 7 call sites → shared helper; receipt preview now identical to printed form; LogLevel deleted; test updated that pinned the old copy; -199/+134 lines) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 

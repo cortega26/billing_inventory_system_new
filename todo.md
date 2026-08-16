@@ -135,5 +135,5 @@ Consult before every change. Check off as work completes.
 - [x] Plans 029/030 written + spec.md section
 - [x] Executor 029: deleted 33 symbols + orphaned imports (-420 lines, guard clean)
 - [x] Reviewed (APPROVE), merged ceb9c16, pushed, cleaned, archived, DONE
-- [ ] Executor 030: shared helpers (product_ids, hydration, receipt text, sound)
-- [ ] Review/merge/push/archive 030
+- [x] Executor 030: 4 blocks consolidated + LogLevel deleted (6 commits)
+- [x] Reviewed (APPROVE), merged 2ddeff1, pushed, cleaned, archived, DONE

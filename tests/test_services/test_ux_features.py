@@ -5,8 +5,20 @@ import pytest
 from services.category_service import CategoryService
 from services.customer_service import CustomerService
 from services.inventory_service import InventoryService
+from services.mutation_coordinator import MutationCoordinator
 from services.product_service import ProductService
 from services.sale_service import SaleService
+from utils.system.event_system import event_system
+
+
+def capture_signal(signal):
+    payloads = []
+
+    def handler(payload=None):
+        payloads.append(payload)
+
+    signal.connect(handler)
+    return payloads, handler
 
 
 class TestUXFeatures:
@@ -88,3 +100,27 @@ class TestUXFeatures:
         # Get total sales for today
         todays_sales = self.sale_service.get_total_sales(today, today)
         assert todays_sales == 2000
+
+    def test_finalize_mutation_emits_one_inventory_event_per_distinct_product(self):
+        inventory_payloads, inventory_handler = capture_signal(
+            event_system.inventory_changed
+        )
+        sale_payloads, sale_handler = capture_signal(event_system.sale_added)
+
+        try:
+            MutationCoordinator.finalize_mutation(
+                entity_id=42,
+                items=[
+                    {"product_id": 1},
+                    {"product_id": 1},
+                    {"product_id": 2},
+                    {"product_id": 3},
+                ],
+                signal=event_system.sale_added,
+            )
+
+            assert inventory_payloads == [1, 2, 3]
+            assert sale_payloads == [42]
+        finally:
+            event_system.inventory_changed.disconnect(inventory_handler)
+            event_system.sale_added.disconnect(sale_handler)

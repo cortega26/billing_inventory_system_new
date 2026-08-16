@@ -1035,9 +1035,17 @@ class SaleView(QWidget):
     def update_sale_table(self, sales: list[Sale]):
         """Update the sales history table with proper formatting."""
         self.sale_table.setRowCount(len(sales))
+        customer_ids = [
+            sale.customer_id for sale in sales if sale.customer_id is not None
+        ]
+        customers = (
+            self.customer_service.get_customers_by_ids(customer_ids)
+            if customer_ids
+            else {}
+        )
         for row, sale in enumerate(sales):
             customer = (
-                self.customer_service.get_customer(sale.customer_id)
+                customers.get(sale.customer_id)
                 if sale.customer_id is not None
                 else None
             )
@@ -1226,7 +1234,9 @@ class SaleView(QWidget):
         try:
             items = self.sale_service.get_sale_items(sale.id)
             customer = (
-                self.customer_service.get_customer(sale.customer_id)
+                self.customer_service.get_customers_by_ids([sale.customer_id]).get(
+                    sale.customer_id
+                )
                 if sale.customer_id is not None
                 else None
             )
@@ -1281,7 +1291,9 @@ class SaleView(QWidget):
         """Generate a text preview of the receipt with proper formatting."""
         try:
             customer = (
-                self.customer_service.get_customer(sale.customer_id)
+                self.customer_service.get_customers_by_ids([sale.customer_id]).get(
+                    sale.customer_id
+                )
                 if sale.customer_id is not None
                 else None
             )

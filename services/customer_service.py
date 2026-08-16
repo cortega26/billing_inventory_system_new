@@ -194,6 +194,30 @@ class CustomerService:
         logger.debug("Customer retrieved", extra={"customer_id": customer_id})
         return Customer.from_db_row(row)
 
+    @db_operation(show_dialog=True)
+    def get_customers_by_ids(self, customer_ids: list[int]) -> dict[int, Customer]:
+        """
+        Get multiple customers by their IDs in a single query.
+
+        Args:
+            customer_ids (list[int]): The customer IDs.
+
+        Returns:
+            dict[int, Customer]: Mapping of customer ID to Customer.
+                IDs that do not exist are simply absent from the mapping.
+        """
+        if not customer_ids:
+            return {}
+        placeholders = ",".join("?" * len(customer_ids))
+        query = f"""
+        SELECT c.*, ci.identifier_3or4
+        FROM customers c
+        LEFT JOIN customer_identifiers ci ON c.id = ci.customer_id
+        WHERE c.id IN ({placeholders})
+        """
+        rows = DatabaseManager.fetch_all(query, tuple(customer_ids))
+        return {row["id"]: Customer.from_db_row(row) for row in rows}
+
     def _require_customer(self, customer_id: int) -> Customer:
         customer = self.get_customer(customer_id)
         if customer is not None:

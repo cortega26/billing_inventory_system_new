@@ -59,6 +59,45 @@ class TestCustomerService:
     def test_get_customer_missing_returns_none(self, customer_service):
         assert customer_service.get_customer(999999) is None
 
+    def test_get_customers_by_ids_issues_one_query_and_returns_map(
+        self, customer_service, mocker, sample_customer_data
+    ):
+        first_id = customer_service.create_customer(
+            identifier_9=sample_customer_data["identifier_9"],
+            name=sample_customer_data["name"],
+        )
+        second_id = customer_service.create_customer(
+            identifier_9="923456780",
+            name="Second Customer",
+        )
+        real_fetch_all = DatabaseManager.fetch_all
+        calls = []
+
+        def counting_fetch_all(query, params):
+            calls.append(query)
+            return real_fetch_all(query, params)
+
+        mocker.patch.object(
+            DatabaseManager, "fetch_all", side_effect=counting_fetch_all
+        )
+
+        result = customer_service.get_customers_by_ids([first_id, second_id, 999999])
+
+        assert len(calls) == 1
+        assert "WHERE c.id IN (?,?,?)" in calls[0]
+        assert set(result.keys()) == {first_id, second_id}
+        assert result[first_id].identifier_9 == sample_customer_data["identifier_9"]
+        assert result[second_id].name == "Second Customer"
+
+    def test_get_customers_by_ids_empty_list_returns_empty_without_query(
+        self, customer_service, mocker
+    ):
+        fetch_all_mock = mocker.patch.object(DatabaseManager, "fetch_all")
+
+        assert customer_service.get_customers_by_ids([]) == {}
+
+        fetch_all_mock.assert_not_called()
+
     def test_create_customer_invalid_identifier(self, customer_service):
         with pytest.raises(ValidationException):
             customer_service.create_customer(

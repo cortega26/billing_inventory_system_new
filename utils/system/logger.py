@@ -9,7 +9,14 @@ from typing import Any
 
 import yaml
 
-from config import APP_NAME, DEBUG_LEVEL
+from config import DEBUG_LEVEL
+
+# Must match the `loggers:` key in login_config.yaml exactly, so records reach
+# the configured handlers instead of being dropped.
+LOGGER_NAME = "inventory_system"
+
+# utils/system/logger.py -> repo root is three parents up
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 class LogLevel:
@@ -136,7 +143,7 @@ def setup_logger(config: LoggerConfig) -> StructuredLogger:
     if config.format not in ("json", "text"):
         raise ConfigurationException(f"Invalid log format: {config.format}")
 
-    logger = StructuredLogger(APP_NAME, config.log_file)
+    logger = StructuredLogger(LOGGER_NAME, config.log_file)
 
     try:
         # Ensure log directory exists
@@ -181,24 +188,35 @@ def setup_structured_logger() -> StructuredLogger:
     # Set root logger level first
     logging.getLogger().setLevel(DEBUG_LEVEL)
 
-    config_path = Path("login_config.yaml")
+    config_path = _PROJECT_ROOT / "login_config.yaml"
 
     if config_path.exists():
         with open(config_path) as f:
             config = yaml.safe_load(f)
+            # Resolve relative log filenames against the repo root so logs do
+            # not scatter by launch directory.
+            for handler in (config.get("handlers") or {}).values():
+                if "filename" in handler:
+                    filename = Path(handler["filename"])
+                    if not filename.is_absolute():
+                        handler["filename"] = str(_PROJECT_ROOT / filename)
             logging.config.dictConfig(config)
     else:
         # Fallback configuration if YAML doesn't exist
+        logging.warning(
+            "login_config.yaml not found at %s; using fallback configuration",
+            config_path,
+        )
         logging.basicConfig(
             level=DEBUG_LEVEL,
             format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
             handlers=[
                 logging.StreamHandler(),
-                logging.FileHandler(f"{APP_NAME.lower()}.log"),
+                logging.FileHandler(f"{LOGGER_NAME}.log"),
             ],
         )
 
-    logger = StructuredLogger(APP_NAME)
+    logger = StructuredLogger(LOGGER_NAME)
     logger._logger.setLevel(DEBUG_LEVEL)  # Ensure logger level is set
     return logger
 

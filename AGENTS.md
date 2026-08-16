@@ -210,7 +210,8 @@ Exact commands (prefer `.venv/bin/...`):
 - format check: `.venv/bin/black --check .`
 - type check: `.venv/bin/pyright` (scoped to backend via `pyrightconfig.json`; `ui/` and `tests/` are excluded)
 - schema drift check: `.venv/bin/python scripts/check_schema_drift.py` (fresh `init_db()` vs `SQLModel.metadata`)
-- pre-commit: `uvx pre-commit run --all-files` (ruff, black, trailing whitespace)
+- pre-commit: `uvx pre-commit run --all-files` (ruff, black, trailing whitespace, schema drift check)
+- install pre-commit hooks (one-time, writes to `.git/hooks`): `uvx pre-commit install`
 
 CI enforces `ruff check .`, `black --check .`, `pyright`, the schema drift check, and the full pytest suite under xvfb (`.github/workflows/ci.yml`).
 CI runs `pytest -n auto` under xvfb; the Qt crash that forced serial mode is fixed (plan 006). New UI tests must request the `qtbot`/`qapp` fixture.
@@ -245,3 +246,4 @@ Before finishing:
   `--strict-markers` means new markers must be registered there too.
 - Runtime config now lives outside the repo in `~/.config/billing-inventory/app_config.json`;
   the repo's `app_config.json` is a default template only (untracked, loaded as fallback).
+- `USE_MOCK_EVENT_SYSTEM=1` forces the Qt-free mock event system, for headless tests without a display.

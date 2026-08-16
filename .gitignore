@@ -71,3 +71,8 @@ nonexistent.json
 
 # CodeGraph files
 .codegraph/
+
+# Test/cache dirs
+.pytest_cache/
+.ruff_cache/
+htmlcov/

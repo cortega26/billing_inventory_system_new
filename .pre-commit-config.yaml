@@ -13,3 +13,10 @@ repos:
     rev: 26.5.1
     hooks:
       - id: black
+  - repo: local
+    hooks:
+      - id: schema-drift
+        name: schema drift check
+        entry: .venv/bin/python scripts/check_schema_drift.py
+        language: system
+        pass_filenames: false

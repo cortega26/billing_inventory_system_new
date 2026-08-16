@@ -4,7 +4,8 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from config import DATABASE_PATH
+from config import DATABASE_PATH  # noqa: F401 -- kept for tests that patch main.DATABASE_PATH
+from config import config
 from database import init_db
 from database.database_manager import DatabaseManager
 from ui.main_window import MainWindow
@@ -73,7 +74,13 @@ def _count_records_in_database_file(db_path: Path) -> int:
 def _iter_recovery_candidate_paths(active_db_path: Path):
     seen_paths = set()
     active_resolved = active_db_path.resolve()
-    for search_root in (active_db_path.parent, active_db_path.parent / "backups"):
+    business_id = config.get_active_business()["id"]
+    search_roots = (
+        active_db_path.parent,
+        active_db_path.parent / "backups" / business_id,
+        active_db_path.parent / "backups",
+    )
+    for search_root in search_roots:
         if not search_root.exists():
             continue
         for candidate in search_root.glob("*.db"):
@@ -108,7 +115,7 @@ def _build_empty_database_warning(db_already_existed: bool) -> str | None:
     if sum(current_counts.values()) > 0:
         return None
 
-    active_db_path = Path(DATABASE_PATH)
+    active_db_path = config.get_active_database_path()
     recovery_candidate = _find_recovery_candidate(active_db_path)
     if recovery_candidate is None:
         return (
@@ -148,11 +155,14 @@ def _warn_if_active_database_looks_empty(db_already_existed: bool) -> None:
 class Application:
     @staticmethod
     @handle_exceptions(AppException, show_dialog=True)
-    def initialize():
+    def initialize(db_path: str | None = None):
         logger.info("Initializing the application")
         try:
-            db_already_existed = DATABASE_PATH.exists()
-            init_db()
+            active_db_path = (
+                Path(db_path) if db_path else config.get_active_database_path()
+            )
+            db_already_existed = active_db_path.exists()
+            init_db(str(active_db_path))
             _warn_if_active_database_looks_empty(db_already_existed)
             from services.backup_service import backup_service
 
@@ -176,11 +186,19 @@ if __name__ == "__main__":
     apply_theme(app)
 
     try:
+        from PySide6.QtWidgets import QDialog
+
+        from ui.business_selector_dialog import BusinessSelectorDialog
+
+        if BusinessSelectorDialog.should_show():
+            selector = BusinessSelectorDialog()
+            if selector.exec() != QDialog.DialogCode.Accepted:
+                logger.info("Application closed: no business selected")
+                sys.exit(0)
+
         Application.initialize()
 
         # Intercept with PIN authentication dialog
-        from PySide6.QtWidgets import QDialog
-
         from ui.login_dialog import LoginDialog
 
         login = LoginDialog()

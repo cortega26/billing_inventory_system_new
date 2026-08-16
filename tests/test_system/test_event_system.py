@@ -13,6 +13,7 @@ class TestEventSystem:
     @pytest.fixture
     def event_system(self):
         """Create a fresh event system instance for each test, forcing Mock implementation."""
+        original_instance = event_system_module.event_system
         # Force mock
         os.environ["USE_MOCK_EVENT_SYSTEM"] = "1"
         importlib.reload(event_system_module)
@@ -29,6 +30,7 @@ class TestEventSystem:
         # Reset to normal
         del os.environ["USE_MOCK_EVENT_SYSTEM"]
         importlib.reload(event_system_module)
+        event_system_module.event_system = original_instance
 
     def test_signal_creation(self, event_system):
         """Test that signals are properly created"""

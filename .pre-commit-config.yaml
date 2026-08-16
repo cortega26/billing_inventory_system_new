@@ -13,5 +13,3 @@ repos:
     rev: 26.5.1
     hooks:
       - id: black
-
-exclude: ^(search\.py|file_extractor\.py)$

@@ -26,6 +26,33 @@ from utils.validation.validators import (
 )
 
 
+def _hydrate_sale_items(sales: list[Sale], sale_ids: list[int]) -> None:
+    """Batch-load items for the given sales and attach them in place."""
+    placeholders = ",".join("?" * len(sale_ids))
+    items_query = f"""
+        SELECT si.*,
+            p.name as product_name,
+            COALESCE(si.quantity, 0) as quantity,
+            COALESCE(si.price, 0) as price,
+            COALESCE(si.profit, 0) as profit
+        FROM sale_items si
+        LEFT JOIN products p ON si.product_id = p.id
+        WHERE si.sale_id IN ({placeholders})
+        ORDER BY si.sale_id, si.id
+    """  # nosec B608
+    items_rows = DatabaseManager.fetch_all(items_query, tuple(sale_ids))
+
+    items_by_sale: dict[int, list[SaleItem]] = {}
+    for item_row in items_rows:
+        sid = item_row["sale_id"]
+        if sid not in items_by_sale:
+            items_by_sale[sid] = []
+        items_by_sale[sid].append(SaleItem.from_db_row(item_row))
+
+    for sale in sales:
+        sale.items = items_by_sale.get(sale.id or 0, [])
+
+
 class SaleService:
     def __init__(self):
         self.inventory_service = InventoryService()
@@ -189,29 +216,7 @@ class SaleService:
             sale_ids = [sale.id for sale in sales]
 
             # Fetch items only for this page's sales — avoids loading the full table
-            placeholders = ",".join("?" * len(sale_ids))
-            items_query = f"""
-                SELECT si.*,
-                    p.name as product_name,
-                    COALESCE(si.quantity, 0) as quantity,
-                    COALESCE(si.price, 0) as price,
-                    COALESCE(si.profit, 0) as profit
-                FROM sale_items si
-                LEFT JOIN products p ON si.product_id = p.id
-                WHERE si.sale_id IN ({placeholders})
-                ORDER BY si.sale_id, si.id
-            """  # nosec B608
-            items_rows = DatabaseManager.fetch_all(items_query, tuple(sale_ids))
-
-            items_by_sale: dict[int, list[SaleItem]] = {}
-            for item_row in items_rows:
-                sid = item_row["sale_id"]
-                if sid not in items_by_sale:
-                    items_by_sale[sid] = []
-                items_by_sale[sid].append(SaleItem.from_db_row(item_row))
-
-            for sale in sales:
-                sale.items = items_by_sale.get(sale.id or 0, [])
+            _hydrate_sale_items(sales, sale_ids)
 
             logger.info(
                 f"Retrieved {len(sales)} sales",
@@ -585,29 +590,7 @@ class SaleService:
         sale_ids = [sale.id for sale in sales]
 
         # Batch-load items for this page — eliminates N+1
-        placeholders = ",".join("?" * len(sale_ids))
-        items_query = f"""
-            SELECT si.*,
-                p.name as product_name,
-                COALESCE(si.quantity, 0) as quantity,
-                COALESCE(si.price, 0) as price,
-                COALESCE(si.profit, 0) as profit
-            FROM sale_items si
-            LEFT JOIN products p ON si.product_id = p.id
-            WHERE si.sale_id IN ({placeholders})
-            ORDER BY si.sale_id, si.id
-        """  # nosec B608
-        items_rows = DatabaseManager.fetch_all(items_query, tuple(sale_ids))
-
-        items_by_sale: dict[int, list[SaleItem]] = {}
-        for item_row in items_rows:
-            sid = item_row["sale_id"]
-            if sid not in items_by_sale:
-                items_by_sale[sid] = []
-            items_by_sale[sid].append(SaleItem.from_db_row(item_row))
-
-        for sale in sales:
-            sale.items = items_by_sale.get(sale.id or 0, [])
+        _hydrate_sale_items(sales, sale_ids)
 
         logger.info(
             "Sales by date range retrieved",

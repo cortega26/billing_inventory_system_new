@@ -682,6 +682,31 @@ class TestAnalyticsServiceRealDb:
         # 2026-07-10 is a Friday; SQLite %w -> English weekday names.
         assert weekday == [{"weekday": "Friday", "total_sales": 4000, "sale_count": 1}]
 
+    def test_get_sales_summary_sums_sales_across_days(self):
+        # A second sale on a different day inside the range; the full-range
+        # summary must sum both days (end date inclusive).
+        self.sale_service.create_sale(
+            self.cust_id,
+            "2026-08-01",
+            [
+                {
+                    "product_id": self.prod_id,
+                    "quantity": 3.0,
+                    "sell_price": 2000,
+                    "profit": 3000,
+                }
+            ],
+        )
+
+        summary = AnalyticsService.get_sales_summary(*self.DATE_RANGE)
+        assert summary == {
+            "total_sales": 2,
+            "total_revenue": 10000,
+            "total_profit": 5000,
+            "average_sale_value": 5000.0,
+            "unique_customers": 1,
+        }
+
     def test_metric_calls_are_read_only_and_cache_clears(self):
         before = self._row_counts()
         assert before == (1, 1, 1, 1, 1)

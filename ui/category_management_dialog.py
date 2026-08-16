@@ -172,6 +172,7 @@ class CategoryManagementDialog(QDialog):
                     current_item.text()
                 )
                 if category:
+                    assert category.id is not None
                     self.category_service.delete_category(category.id)
                     self.load_categories()
                     show_info_message("Éxito", "Categoría eliminada exitosamente.")

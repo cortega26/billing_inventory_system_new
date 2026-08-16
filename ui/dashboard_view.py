@@ -263,6 +263,7 @@ class DashboardView(QWidget):
         if total_sales > 0:
             profit_margin = (total_profits / total_sales) * 100
             return f"{profit_margin:.2f}%"
+        return "0.00%"
 
     @ui_operation()
     def get_todays_sales(self) -> str:
@@ -345,6 +346,8 @@ class DashboardView(QWidget):
 
                     for col in range(3):
                         item_widget = self.low_stock_table.item(row, col)
+                        if item_widget is None:
+                            continue
                         item_widget.setBackground(QColor(DesignTokens.COLOR_ERROR))
                         item_widget.setForeground(QColor("white"))
 

@@ -8,6 +8,17 @@ from services.inventory_service import InventoryService
 from services.product_service import ProductService
 from services.sale_service import SaleService
 from utils.exceptions import NotFoundException, ValidationException
+from utils.system.event_system import event_system
+
+
+def capture_signal(signal):
+    payloads = []
+
+    def handler(payload=None):
+        payloads.append(payload)
+
+    signal.connect(handler)
+    return payloads, handler
 
 
 @pytest.fixture
@@ -128,25 +139,6 @@ class TestSaleService:
 
         with pytest.raises(ValidationException):
             sale_service.create_sale(**sample_sale_data)
-
-    @pytest.mark.skip(reason="Void sale functionality not fully implemented")
-    def test_void_sale(
-        self, sale_service, sample_sale_data, inventory_service, sample_product
-    ):
-        # Setup inventory and create sale
-        inventory_service.update_quantity(sample_product.id, 10.0)
-        sale_id = sale_service.create_sale(**sample_sale_data)
-
-        # Void the sale
-        sale_service.void_sale(sale_id)
-
-        # Verify sale is marked as voided
-        sale = sale_service.get_sale(sale_id)
-        assert sale.is_voided
-
-        # Verify inventory was restored
-        inventory = inventory_service.get_inventory(sample_product.id)
-        assert inventory.quantity == 10.0
 
     def test_get_sales_by_date_range(
         self, sale_service, sample_sale_data, inventory_service, sample_product
@@ -336,6 +328,76 @@ class TestSaleService:
                     }
                 ],
             )
+
+    def test_create_sale_emits_sale_added_and_inventory_events_once(
+        self, sale_service, sample_sale_data, inventory_service, sample_product
+    ):
+        inventory_service.update_quantity(sample_product.id, 10.0)
+        sale_payloads, sale_handler = capture_signal(event_system.sale_added)
+        inventory_payloads, inventory_handler = capture_signal(
+            event_system.inventory_changed
+        )
+
+        try:
+            sale_id = sale_service.create_sale(**sample_sale_data)
+
+            assert sale_payloads == [sale_id]
+            assert inventory_payloads == [sample_product.id]
+        finally:
+            event_system.sale_added.disconnect(sale_handler)
+            event_system.inventory_changed.disconnect(inventory_handler)
+
+    def test_delete_sale_emits_sale_deleted_and_inventory_events_once(
+        self, sale_service, sample_sale_data, inventory_service, sample_product
+    ):
+        inventory_service.update_quantity(sample_product.id, 10.0)
+        sale_id = sale_service.create_sale(**sample_sale_data)
+        sale_payloads, sale_handler = capture_signal(event_system.sale_deleted)
+        inventory_payloads, inventory_handler = capture_signal(
+            event_system.inventory_changed
+        )
+
+        try:
+            sale_service.delete_sale(sale_id)
+
+            assert sale_payloads == [sale_id]
+            assert inventory_payloads == [sample_product.id]
+        finally:
+            event_system.sale_deleted.disconnect(sale_handler)
+            event_system.inventory_changed.disconnect(inventory_handler)
+
+    def test_cancel_sale_emits_sale_updated_once(
+        self, sale_service, sample_sale_data, inventory_service, sample_product
+    ):
+        inventory_service.update_quantity(sample_product.id, 10.0)
+        sale_id = sale_service.create_sale(**sample_sale_data)
+        sale_payloads, sale_handler = capture_signal(event_system.sale_updated)
+
+        try:
+            sale_service.cancel_sale(sale_id)
+
+            assert sale_payloads == [sale_id]
+        finally:
+            event_system.sale_updated.disconnect(sale_handler)
+
+    def test_update_sale_emits_sale_updated_once(
+        self, sale_service, sample_sale_data, inventory_service, sample_product
+    ):
+        inventory_service.update_quantity(sample_product.id, 10.0)
+        sale_id = sale_service.create_sale(**sample_sale_data)
+        sale_payloads, sale_handler = capture_signal(event_system.sale_updated)
+
+        try:
+            sale_service.update_sale(
+                sale_id,
+                sample_sale_data["customer_id"],
+                sample_sale_data["date"],
+                sample_sale_data["items"],
+            )
+
+            assert sale_payloads == [sale_id]
+        finally:
+            event_system.sale_updated.disconnect(sale_handler)
 
 
 class TestCancelSale:

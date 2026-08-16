@@ -4,6 +4,7 @@ import shiboken6
 from PySide6.QtCore import QPoint, QSettings, QSize, QTimer
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
+    QDialog,
     QMainWindow,
     QMenu,
     QMenuBar,
@@ -17,6 +18,7 @@ from PySide6.QtWidgets import (
 from config import APP_NAME, APP_VERSION, COMPANY_NAME
 from ui.analytics_view import AnalyticsView
 from ui.audit_log_view import AuditLogView
+from ui.business_selector_dialog import BusinessSelectorDialog
 from ui.customer_view import CustomerView
 from ui.dashboard_view import DashboardView
 from ui.inventory_view import InventoryView
@@ -25,6 +27,7 @@ from ui.purchase_view import PurchaseView
 from ui.sale_view import SaleView
 from utils.decorators import handle_exceptions, ui_operation
 from utils.exceptions import UIException
+from utils.helpers import show_info_message
 from utils.system.event_system import event_system
 from utils.system.logger import logger
 
@@ -140,15 +143,15 @@ class MainWindow(QMainWindow):
         menu_bar = QMenuBar(self)
         self.setMenuBar(menu_bar)
 
-        file_menu = self.create_menu(
-            "&Archivo",
-            [
-                ("&Exportar Datos", "Ctrl+E", self.export_data),
-                ("&Importar Datos", "Ctrl+I", self.import_data),
-                ("&Crear Copia de Seguridad", None, self.backup_data),
-                ("&Salir", QKeySequence.StandardKey.Quit, self.close),
-            ],
-        )
+        file_actions = [
+            ("&Exportar Datos", "Ctrl+E", self.export_data),
+            ("&Importar Datos", "Ctrl+I", self.import_data),
+            ("&Crear Copia de Seguridad", None, self.backup_data),
+        ]
+        if BusinessSelectorDialog.should_show():
+            file_actions.append(("&Cambiar de negocio…", None, self.change_business))
+        file_actions.append(("&Salir", QKeySequence.StandardKey.Quit, self.close))
+        file_menu = self.create_menu("&Archivo", file_actions)
         view_menu = self.create_menu(
             "&Ver",
             [
@@ -441,6 +444,19 @@ class MainWindow(QMainWindow):
             logger.error(f"Manual backup error: {e}")
             QMessageBox.critical(
                 self, "Error en Copia de Seguridad", f"Ha ocurrido un error: {e}"
+            )
+
+    @ui_operation(show_dialog=True)
+    def change_business(self):
+        """Open the business selector; the change applies on restart."""
+        if not BusinessSelectorDialog.should_show():
+            show_info_message("Información", "Solo hay un negocio configurado.")
+            return
+        selector = BusinessSelectorDialog(self)
+        if selector.exec() == QDialog.DialogCode.Accepted:
+            show_info_message(
+                "Negocio",
+                "El cambio de negocio se aplicará al reiniciar la aplicación.",
             )
 
     @ui_operation(show_dialog=True)

@@ -427,3 +427,25 @@ class TestProductServiceContracts:
         updated = [p for p in products_after if p.id == product_id]
         assert len(updated) == 1
         assert updated[0].sell_price == new_price
+
+    def test_get_all_products_survives_out_of_range_legacy_row(self, product_service):
+        ProductService.clear_cache()
+        DatabaseManager.execute_query(
+            """
+            INSERT INTO products (name, description, cost_price, sell_price)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                "Legacy Out Of Range",
+                "Pre-existing row above MAX_PRICE_CLP",
+                100,
+                2_000_000,
+            ),
+        )
+
+        products = product_service.get_all_products()
+
+        assert any(
+            p.name == "Legacy Out Of Range" and p.sell_price == 2_000_000
+            for p in products
+        )

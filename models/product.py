@@ -1,3 +1,9 @@
+"""Models are data containers; business validation is enforced by services.
+
+Do not add ``@model_validator`` blocks expecting them to run at construction —
+SQLModel ``table=True`` skips them.
+"""
+
 from datetime import datetime
 from typing import Any
 
@@ -77,7 +83,6 @@ class Product(SQLModel, table=True):
         super().__init__(**data)
         if category_name is not None:
             self.category_name = category_name
-        self.validate()
 
     @model_validator(mode="after")
     def post_init_validation(self) -> "Product":

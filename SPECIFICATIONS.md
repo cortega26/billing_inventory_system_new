@@ -86,6 +86,8 @@ reports are fully isolated between businesses.
 - **Restart to switch.** The active business is chosen at startup; changing it
   in-app requires restarting the application. There is no runtime
   re-initialization of the database connection.
+- **In-app switch.** Cambio de negocio: en el arranque (selector) o desde
+  Archivo → Cambiar de negocio; se aplica al reiniciar la aplicación.
 - **Backups per business.** Backup files land in `backups/<business_id>/` and
   retention applies per business.
 - **Customers are per-business.** There is no customer sync between businesses

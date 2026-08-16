@@ -68,9 +68,7 @@ def test_change_business_action_present_with_two_businesses(
 ):
     window = build_window_without_tabs(mocker, qtbot, allow_main_window_close)
 
-    assert any(
-        "Cambiar de negocio" in text for text in file_menu_actions(window)
-    )
+    assert any("Cambiar de negocio" in text for text in file_menu_actions(window))
 
 
 def test_change_business_action_hidden_with_single_business(
@@ -78,9 +76,7 @@ def test_change_business_action_hidden_with_single_business(
 ):
     window = build_window_without_tabs(mocker, qtbot, allow_main_window_close)
 
-    assert not any(
-        "Cambiar de negocio" in text for text in file_menu_actions(window)
-    )
+    assert not any("Cambiar de negocio" in text for text in file_menu_actions(window))
 
 
 def test_change_business_handler_shows_restart_message(

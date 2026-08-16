@@ -318,6 +318,7 @@ class ProductView(QWidget):
                 logger.debug(f"Adding row {row}: Product ID={product.id}")
 
                 try:
+                    assert product.id is not None
                     self.product_table.setItem(
                         row, 0, NumericTableWidgetItem(product.id)
                     )
@@ -361,7 +362,7 @@ class ProductView(QWidget):
                     actions_layout = QHBoxLayout(actions_widget)
                     actions_layout.setContentsMargins(0, 0, 0, 0)
                     actions_layout.setSpacing(6)
-                    actions_layout.setAlignment(Qt.AlignCenter)
+                    actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
                     edit_button = QPushButton("Editar")
                     edit_button.setFixedWidth(80)
@@ -444,7 +445,12 @@ class ProductView(QWidget):
                     "No se seleccionó ningún producto para editar."
                 )
             row = selected_rows[0].row()
-            product_id = int(self.product_table.item(row, 0).text())
+            row_item = self.product_table.item(row, 0)
+            if row_item is None:
+                raise ValidationException(
+                    "No se pudo leer el producto seleccionado."
+                )
+            product_id = int(row_item.text())
             product = self.product_service.get_product(product_id)
 
         if product:
@@ -453,6 +459,7 @@ class ProductView(QWidget):
             if dialog.exec():
                 product_data = dialog.product_data
                 try:
+                    assert product.id is not None
                     self.product_service.update_product(product.id, product_data)
 
                     # Get fresh data but maintain current filter
@@ -491,6 +498,7 @@ class ProductView(QWidget):
             if reply == QMessageBox.StandardButton.Yes:
                 QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
                 try:
+                    assert product.id is not None
                     if is_active:
                         self.product_service.delete_product(product.id)
                         show_info_message("Éxito", "Producto archivado exitosamente.")
@@ -615,7 +623,10 @@ class ProductView(QWidget):
             if row < 0:  # No valid row selected
                 return
 
-            product_id = int(self.product_table.item(row, 0).text())
+            row_item = self.product_table.item(row, 0)
+            if row_item is None:
+                return
+            product_id = int(row_item.text())
             product = self.product_service.get_product(product_id)
             if product is None:
                 raise NotFoundException(f"Product with ID {product_id} not found.")
@@ -659,7 +670,10 @@ class ProductView(QWidget):
                 selected_rows = self.product_table.selectionModel().selectedRows()
                 if selected_rows:
                     row = selected_rows[0].row()
-                    product_id = int(self.product_table.item(row, 0).text())
+                    row_item = self.product_table.item(row, 0)
+                    if row_item is None:
+                        return
+                    product_id = int(row_item.text())
                     try:
                         product = self.product_service.get_product(product_id)
                         if product:

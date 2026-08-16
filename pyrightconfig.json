@@ -9,7 +9,8 @@
     "scripts/check_schema_drift.py",
     "ui/login_dialog.py",
     "ui/main_window.py",
-    "ui/customer_view.py"
+    "ui/customer_view.py",
+    "ui/product_view.py"
   ],
   "exclude": ["**/__pycache__", "**/.venv"],
   "pythonVersion": "3.13",

@@ -75,8 +75,9 @@ Consult before every change. Check off as work completes.
 
 - [x] Recon: bootstrap seams verified (init_db(db_path), DatabaseManager.initialize(path), backup_service.py:52, main.py flow)
 - [x] Plan 022 written (plans/022-casabea-multi-business.md) + spec.md section
-- [ ] Phase A: business registry in config (backward compat) + config tests
-- [ ] Phase B: startup selector dialog + main.py wiring + UI test
-- [ ] Phase C: per-business backups + backup test updates
-- [ ] Phase D: SPECIFICATIONS/readme docs + test_business_switch.py + full verification
-- [ ] Review, merge, push, clean, archive, mark DONE
+- [x] Phase A: business registry in config + tests
+- [x] Phase B: startup selector dialog + wiring + UI tests
+- [x] Phase C: per-business backups + tests
+- [x] Phase D: docs + business-switch tests + full verification
+- [x] Phase E: analytics engine active-business path + isolation test
+- [x] Reviewed (APPROVE), merged 5bbed86, pushed, cleaned, archived, DONE

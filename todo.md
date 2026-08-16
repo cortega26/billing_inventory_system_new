@@ -20,9 +20,9 @@ Consult before every change. Check off as work completes.
 - [x] Plan 018 implemented + verified in worktree
 - [x] Plan 018 reviewed
 - [x] Plan 018 merged (950085b), pushed, cleaned, index updated
-- [ ] Plan 020 implemented + verified in worktree
-- [ ] Plan 020 reviewed
-- [ ] Plan 020 merged, pushed, cleaned, index updated
+- [x] Plan 020 implemented + verified in worktree
+- [x] Plan 020 reviewed
+- [x] Plan 020 merged (c815fd4), pushed, cleaned, index updated
 - [x] Midpoint gap review done 2026-08-15 (fresh agent): nothing blocks 017/018/020; found InventoryAgingMetric status gap -> follow-up micro-plan
 - [ ] Final full-suite integration run on main
 - [ ] All plans archived; todo.md complete; `git push origin main` final

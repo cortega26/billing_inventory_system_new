@@ -66,6 +66,13 @@ class TestCustomerService:
                 name="Test Customer",
             )
 
+    def test_create_customer_rejects_name_longer_than_50_chars(self, customer_service):
+        with pytest.raises(ValidationException):
+            customer_service.create_customer(
+                identifier_9="923456781",
+                name="x" * 51,
+            )
+
     def test_update_customer(self, customer_service, sample_customer_data):
         customer_id = customer_service.create_customer(
             identifier_9=sample_customer_data["identifier_9"],

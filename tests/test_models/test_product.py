@@ -31,16 +31,17 @@ class TestProduct:
         assert sample_product.sell_price == 1500
 
     def test_invalid_price(self):
+        product = Product(
+            id=1,
+            name="Test Product",
+            description="Test",
+            category_id=1,
+            cost_price=-1000,
+            sell_price=1500,
+            barcode="12345678",
+        )
         with pytest.raises(ValidationException):
-            Product(
-                id=1,
-                name="Test Product",
-                description="Test",
-                category_id=1,
-                cost_price=-1000,
-                sell_price=1500,
-                barcode="12345678",
-            )
+            product.validate()
 
     def test_float_price_rejected(self):
         with pytest.raises(ValidationException):

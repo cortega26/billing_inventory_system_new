@@ -339,7 +339,7 @@ class PurchaseView(QWidget):
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(0, 0, 0, 0)
             actions_layout.setSpacing(6)
-            actions_layout.setAlignment(Qt.AlignCenter)
+            actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
             remove_button = QPushButton("Eliminar")
             remove_button.setFixedWidth(80)
@@ -399,10 +399,17 @@ class PurchaseView(QWidget):
         """Update the purchases history table."""
         self.purchase_table.setRowCount(len(purchases))
         for row, purchase in enumerate(purchases):
+            assert purchase.id is not None
             self.purchase_table.setItem(row, 0, NumericTableWidgetItem(purchase.id))
             self.purchase_table.setItem(row, 1, QTableWidgetItem(purchase.supplier))
             self.purchase_table.setItem(
-                row, 2, QTableWidgetItem(purchase.date.strftime("%Y-%m-%d"))
+                row,
+                2,
+                QTableWidgetItem(
+                    purchase.date.strftime("%Y-%m-%d")
+                    if purchase.date is not None
+                    else ""
+                ),
             )
             self.purchase_table.setItem(
                 row, 3, PriceTableWidgetItem(purchase.total_amount, format_price)
@@ -413,7 +420,7 @@ class PurchaseView(QWidget):
             actions_layout = QHBoxLayout(actions_widget)
             actions_layout.setContentsMargins(0, 0, 0, 0)
             actions_layout.setSpacing(6)
-            actions_layout.setAlignment(Qt.AlignCenter)
+            actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
             view_button = QPushButton("Ver")
             view_button.setFixedWidth(80)
@@ -520,7 +527,10 @@ class PurchaseView(QWidget):
         action = menu.exec(self.purchase_table.mapToGlobal(position))
         if action:
             row = self.purchase_table.rowAt(position.y())
-            purchase_id = int(self.purchase_table.item(row, 0).text())
+            row_item = self.purchase_table.item(row, 0)
+            if row_item is None:
+                return
+            purchase_id = int(row_item.text())
             purchase = self.purchase_service.get_purchase(purchase_id)
 
             if purchase is not None:
@@ -540,12 +550,17 @@ class PurchaseView(QWidget):
     def view_purchase(self, purchase: Purchase):
         """View purchase details."""
         try:
+            assert purchase.id is not None
             items = self.purchase_service.get_purchase_items(purchase.id)
 
             message = "<pre>"
             message += f"{' Detalles de Compra ':=^64}\n\n"
             message += f"Proveedor: {purchase.supplier}\n"
-            message += f"Fecha: {purchase.date.strftime('%d-%m-%Y')}\n"
+            message += (
+                f"Fecha: {purchase.date.strftime('%d-%m-%Y')}\n"
+                if purchase.date is not None
+                else "Fecha: -\n"
+            )
             message += f"{'':=^64}\n\n"
             message += (
                 f"{'Producto':<30}{'Cant.':>10}{'Costo Unit.':>12}{'Total':>12}\n"
@@ -584,6 +599,7 @@ class PurchaseView(QWidget):
 
         if reply == QMessageBox.StandardButton.Yes:
             try:
+                assert purchase.id is not None
                 self.purchase_service.delete_purchase(purchase.id)
                 self.load_purchases()
                 show_info_message("Éxito", "Compra eliminada exitosamente")
@@ -615,7 +631,10 @@ class PurchaseView(QWidget):
             selected_rows = self.purchase_table.selectionModel().selectedRows()
             if selected_rows:
                 row = selected_rows[0].row()
-                purchase_id = int(self.purchase_table.item(row, 0).text())
+                row_item = self.purchase_table.item(row, 0)
+                if row_item is None:
+                    return
+                purchase_id = int(row_item.text())
                 purchase = self.purchase_service.get_purchase(purchase_id)
                 if purchase:
                     self.delete_purchase(purchase)

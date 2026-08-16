@@ -209,8 +209,8 @@ class TestConfig:
         monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
         user_local = tmp_path / ".config" / "billing-inventory" / "app_config.json"
 
-        # Simulate the leak: bare reset leaves _config_file = None.
-        Config._reset_for_testing()
+        # Simulate the leak: _config_file left unset (points at the real path).
+        Config._config_file = None
 
         # Fixture teardown is state-only: it must never save to _config_file.
         Config._instance = None

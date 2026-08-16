@@ -274,9 +274,10 @@ class InventoryView(QWidget):
         if dialog.exec():
             data = dialog.get_data()
             if data["adjustment"] != 0:
-                self.inventory_service.update_quantity(
+                self.inventory_service.adjust_inventory(
                     product_id=item["product_id"],
                     quantity_change=data["adjustment"],
+                    reason="manual_set",
                 )
                 self.load_inventory()
                 show_info_message("Éxito", "Inventario actualizado correctamente")

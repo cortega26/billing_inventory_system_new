@@ -67,7 +67,7 @@ def test_edit_inventory_does_not_reemit_inventory_events(qtbot, db_manager, mock
         adjust_inventory_mock.assert_called_once_with(
             product_id=product_id,
             quantity_change=1.5,
-            reason="manual_set",
+            reason="manual set",
         )
         assert changed_payloads == [product_id]
         assert updated_payloads == []

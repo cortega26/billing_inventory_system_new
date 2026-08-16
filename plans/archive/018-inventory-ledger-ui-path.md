@@ -66,7 +66,7 @@ The three write paths in `services/inventory_service.py`:
 #     those are represented by their own union arms in get_inventory_movements)
 
 # :218-253  set_quantity(product_id, new_quantity)
-#   - sets an absolute value; writes adjustment row reason="manual_set" + audit
+#   - sets an absolute value; writes adjustment row reason="manual set" + audit
 #   - zero production callers (test-only)
 
 # :294-332  adjust_inventory(product_id, quantity_change, reason)
@@ -127,6 +127,16 @@ Repo conventions that apply:
 - `ui/inventory_view.py` barcode/edit dialog behavior beyond the one call.
 - Any change to `get_inventory_movements` or its `reason` strings.
 
+AMENDMENT (2026-08-15, after first execution attempt): the original
+reason `"manual_set"` is rejected by `adjust_inventory`'s reason validation
+(`validate_string` at `utils/validation/validators.py:29-33` forbids
+underscores). The plan now uses `reason="manual set"` everywhere (UI call,
+tests, done criteria), consistent with the existing validator-safe reason
+vocabulary (`"stock count"`, `"shrinkage"`). `set_quantity`'s hard-coded
+`"manual_set"` ledger value is untouched (it never passes through the
+validator). A future plan may centralize reason constants in
+`models/enums.py`.
+
 ## Git workflow
 
 - Branch: `advisor/018-inventory-ledger-ui-path`
@@ -162,12 +172,12 @@ with:
 self.inventory_service.adjust_inventory(
     product_id=item["product_id"],
     quantity_change=data["adjustment"],
-    reason="manual_set",
+    reason="manual set",
 )
 ```
 
 Notes:
-- `reason="manual_set"` matches the reason `set_quantity` already uses
+- `reason="manual set"` matches the reason `set_quantity` already uses
   (`inventory_service.py:233`), keeping the ledger vocabulary consistent.
 - The `if data["adjustment"] != 0` guard stays as-is (a 0 delta should not
   create a ledger row; `adjust_inventory` with 0 would write one — the guard
@@ -247,7 +257,7 @@ exact call signature.)
 Machine-checkable. ALL must hold:
 
 - [ ] `rg -n "update_quantity" ui/inventory_view.py` returns nothing
-- [ ] `rg -n "adjust_inventory" ui/inventory_view.py` shows exactly one call with `reason="manual_set"`
+- [ ] `rg -n "adjust_inventory" ui/inventory_view.py` shows exactly one call with `reason="manual set"`
 - [ ] `services/inventory_service.py` is byte-identical before/after (`git diff --stat services/inventory_service.py` empty)
 - [ ] `.venv/bin/python -m pytest` exits 0
 - [ ] No files outside the in-scope list are modified (`git status`)

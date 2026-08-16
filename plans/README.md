@@ -35,7 +35,7 @@ of what was executed. Do not delete archived plans.
 | 015  | Exclude cancelled sales from every revenue/profit/statistics/turnover/movement report | P1 | S | — | DONE (executed 2026-08-15, commits 5b924e2/02234d1, merged 094d15f, reviewed APPROVED; full suite 337 passed) |
 | 016  | Stop logging customer PII; make log files owner-only | P1 | S | — | DONE (executed 2026-08-15, commits e02bfb1/b15b614/6f38c4c, merged, reviewed APPROVED; rotation-time hardening deferred to next setup by design) |
 | 017  | `validate_money` must reject fractional values in string form | P1 | S | — | DONE (executed 2026-08-15, commits d9bacc5/43bdf46, merged, reviewed APPROVED) |
-| 018  | Route manual UI inventory edits through the adjustment ledger | P2 | S | — | TODO |
+| 018  | Route manual UI inventory edits through the adjustment ledger | P2 | S | — | DONE (executed 2026-08-15, commits c2b15f9..fdf5eec, merged 950085b, reviewed APPROVED; reason literal amended to validator-safe "manual set"; backlog: CURRENT_TIMESTAMP vs date-only movement bound) |
 | 019  | Make analytics date-range queries index-usable | P2 | M | 015 | DONE (executed 2026-08-15, commits 8e5ccac/9901453, merged 8b34c81, reviewed APPROVED; boundary test fixed next-day-midnight semantics) |
 | 020  | Sad-path test coverage for the update-sale workflow and MutationCoordinator | P2 | S | — | TODO |
 
@@ -127,6 +127,18 @@ if the maintainer asks.
   sale) — S/MED; batch via IN query, low frequency.
 - **`test_perf_backup` thread-leak on assertion failure** (no try/finally) — S/LOW.
 - **Both Alembic revisions have no-op `downgrade()`** — S/LOW; document as unsupported.
+
+## Follow-up backlog (found during execution of plans 015-020)
+
+- **InventoryAgingMetric counts cancelled sales as "last sold"**
+  (`services/analytics/metrics.py:193` — `MAX(s.date)` with no status filter;
+  plan 015 scoped only the 9 date-range metrics). One-line filter + test; S/LOW.
+- **`get_inventory_movements` can't see same-day late adjustments**
+  (adjustment rows stamped `CURRENT_TIMESTAMP` in UTC sort after a date-only
+  end bound, and tomorrow is rejected as future by `validate_date`; surfaced by
+  plan 018's test). Movement-query date semantics; S/MED.
+- **Per-plan drift checks show plan-015 diffs** for 018/020 — resolved via
+  dispatch-time drift notes; future plans should scope drift checks tighter.
 
 ## Direction candidates (not written as plans — maintainer's call)
 

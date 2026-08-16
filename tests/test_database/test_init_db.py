@@ -214,3 +214,37 @@ def test_init_db_migrates_legacy_soft_delete_columns_without_losing_data(tmp_pat
         assert product_index is not None
     finally:
         _close_db_connection()
+
+
+def test_init_db_cleanup_revision_is_idempotent(tmp_path):
+    """Running init_db twice on the same database must be a no-op."""
+    db_path = tmp_path / "idempotent.db"
+
+    try:
+        init_db(str(db_path))
+        first_indexes = {row["name"] for row in DatabaseManager.fetch_all("""
+                SELECT name
+                FROM sqlite_master
+                WHERE type = 'index' AND name NOT LIKE 'sqlite_autoindex_%'
+                """)}
+        alembic_version = DatabaseManager.fetch_one(
+            "SELECT version_num FROM alembic_version"
+        )
+        assert alembic_version["version_num"] == "72e1091bcd50"
+
+        init_db(str(db_path))
+
+        second_indexes = {row["name"] for row in DatabaseManager.fetch_all("""
+                SELECT name
+                FROM sqlite_master
+                WHERE type = 'index' AND name NOT LIKE 'sqlite_autoindex_%'
+                """)}
+        assert second_indexes == first_indexes
+        assert (
+            DatabaseManager.fetch_one("SELECT version_num FROM alembic_version")[
+                "version_num"
+            ]
+            == "72e1091bcd50"
+        )
+    finally:
+        _close_db_connection()

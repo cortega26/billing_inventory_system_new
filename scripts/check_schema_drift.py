@@ -1,9 +1,12 @@
 """Schema drift check: verifies that a fresh init_db() database matches SQLModel.metadata.
 
 Runs the exact app bootstrap (schema.sql + Alembic migrations) on a scratch database
-and compares table/column names against the model metadata. Fails with a diff report
-if they diverge, so CI catches model changes without a matching migration or
-schema.sql update.
+and compares table/column names in BOTH directions and index sets against the model
+metadata. Fails with a diff report if they diverge, so CI catches model changes
+without a matching migration or schema.sql update.
+
+Indexes are owned by Alembic migrations only (schema.sql is tables-only). The
+canonical set below is the post-cleanup set from the index deduplication revision.
 
 Usage:
     python scripts/check_schema_drift.py
@@ -36,6 +39,55 @@ EXCLUDED_TABLES = {
     "test_table",
     "customer_payments",
 }
+
+# Canonical index set per table (post deduplication). Indexes are migration-owned.
+# Revisit when models add/remove index=True or unique=True.
+CANONICAL_INDEXES: dict[str, set[str]] = {
+    "audit_log": {"idx_audit_log_entity", "idx_audit_log_timestamp"},
+    "customers": {"idx_customers_identifier_9", "idx_customers_is_active"},
+    "products": {
+        "idx_products_barcode",
+        "idx_products_category",
+        "idx_products_is_active",
+        "idx_products_name",
+    },
+    "purchase_items": {
+        "idx_purchase_items_purchase_product",
+        "idx_purchase_items_purchase",
+        "idx_purchase_items_product",
+    },
+    "sale_items": {
+        "idx_sale_items_composite",
+        "idx_sale_items_product",
+        "idx_sale_items_sale",
+    },
+    "sales": {
+        "idx_sales_covering",
+        "idx_sales_customer",
+        "idx_sales_customer_date",
+        "idx_sales_date",
+        "idx_sales_receipt_id",
+    },
+    "inventory": {"idx_inventory_product"},
+    "categories": set(),
+}
+
+# SQLModel-generated indexes (Field(index=True)); never part of the canonical set.
+EXCLUDED_INDEXES = {
+    "ix_categories_name",
+    "ix_customers_identifier_9",
+    "ix_inventory_product_id",
+}
+
+
+def _index_names(conn, table: str) -> set[str]:
+    rows = conn.execute(f"PRAGMA index_list({table})").fetchall()
+    return {
+        row["name"]
+        for row in rows
+        if not row["name"].startswith("sqlite_autoindex_")
+        and row["name"] not in EXCLUDED_INDEXES
+    }
 
 
 def main() -> int:
@@ -71,6 +123,19 @@ def main() -> int:
                 problems.append(
                     f"column in metadata but missing from database: {table}.{name}"
                 )
+            for name in sorted(db_columns - metadata_columns):
+                problems.append(
+                    f"column in database but missing from metadata: {table}.{name}"
+                )
+
+            canonical = CANONICAL_INDEXES.get(table)
+            if canonical is None:
+                continue
+            db_indexes = _index_names(conn, table)
+            for name in sorted(canonical - db_indexes):
+                problems.append(f"index missing from database: {table}.{name}")
+            for name in sorted(db_indexes - canonical):
+                problems.append(f"unexpected index in database: {table}.{name}")
 
     if problems:
         print("SCHEMA DRIFT DETECTED:")

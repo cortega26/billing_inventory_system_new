@@ -89,3 +89,11 @@ Consult before every change. Check off as work completes.
 - [x] Executor: implemented script + 6 tests (STOPPED once on schema drift → plan revised)
 - [x] Reviewed (APPROVE), merged 4bfaa74, pushed, cleaned, archived, DONE
 - [x] Dry-run + real seed executed 2026-08-16 (see session report)
+
+## Plan 024 (schema drift reconciliation) — customer credit columns
+
+- [x] Recon: live DDL vs repo sources verified (all rows at defaults; alembic stamped at head)
+- [x] Plan 024 written (plans/024-customer-credit-columns.md) + spec.md section
+- [ ] Executor: model + schema.sql + migration + tests in worktree
+- [ ] Review, merge, push, clean, archive, mark DONE
+- [ ] Manual app boot on live DB to confirm no-op migration

@@ -188,3 +188,34 @@ the same script; bidirectional sync explicitly out of scope. Deliverable:
 - Real-run boundary: executing against the production DBs (El Rincón → a
   fresh casabea.db) requires the operator's explicit approval; first run with
   `--dry-run`.
+
+# Feature 4 — Reconcile customer schema drift (plan 024)
+
+Requested 2026-08-16: reconcile the `customers.current_balance` /
+`customers.credit_limit` drift found by plan 023. Decision (confirmed):
+ADD the columns to the repo schema sources (`models/customer.py`,
+`schema.sql`, new Alembic revision) matching the live DB exactly — zero data
+risk (all live rows at defaults); the migration must be a no-op on the live
+DB (inspector-guarded). Rejected: dropping from the live DB (destroys legacy
+lineage). Deliverable: `plans/024-customer-credit-columns.md` (planned at
+`131c2d7`).
+
+## Spec summary
+
+- Model: `current_balance: int = Field(default=0, sa_column=...server_default
+  "0")`, `credit_limit: int = Field(default=50000, ...server_default "50000")`
+  + `check_customer_credit_limit` in `__table_args__` (no CHECK on balance —
+  live DB has none). No validation/from_db_row changes.
+- schema.sql: the two columns, matching live DDL.
+- Migration: `down_revision = "72e1091bcd50"`, inspector-guarded add/drop
+  (no-op on live; additive on fresh). Real downgrade (repo first).
+- Tests: fresh-DB defaults + CHECK; no-op on already-migrated DB (live
+  simulation); additive on pre-024 DB; model defaults.
+- Out of scope: `identifier_9 COLLATE NOCASE` + name-length CHECK drift
+  (backlog note), services/ui/config/copy script, live DB itself.
+
+## Verification (plan 024)
+
+- `check_schema_drift.py` exit 0; 3 migration tests + model test pass; full
+  suite green (modulo pre-existing worktree UI exceptions); ruff/black/pyright
+  clean. Post-merge: manual app boot on the live DB to confirm the no-op.

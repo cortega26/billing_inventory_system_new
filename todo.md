@@ -11,9 +11,9 @@ Consult before every change. Check off as work completes.
 - [x] Plan 019 implemented + verified in worktree
 - [x] Plan 019 reviewed
 - [x] Plan 019 merged (8b34c81), pushed, cleaned, index updated
-- [ ] Plan 016 implemented + verified in worktree
-- [ ] Plan 016 reviewed
-- [ ] Plan 016 merged, pushed, cleaned, index updated
+- [x] Plan 016 implemented + verified in worktree
+- [x] Plan 016 reviewed
+- [x] Plan 016 merged, pushed, cleaned, index updated
 - [ ] Plan 017 implemented + verified in worktree
 - [ ] Plan 017 reviewed
 - [ ] Plan 017 merged, pushed, cleaned, index updated

@@ -682,6 +682,36 @@ class TestAnalyticsServiceRealDb:
         # 2026-07-10 is a Friday; SQLite %w -> English weekday names.
         assert weekday == [{"weekday": "Friday", "total_sales": 4000, "sale_count": 1}]
 
+    def test_get_low_stock_wrapper(self):
+        AnalyticsService.clear_cache()
+        self.inventory_service.set_quantity(self.prod_id, 3.0)
+
+        result = AnalyticsService.get_low_stock(threshold=10)
+        row = next(item for item in result if item["id"] == self.prod_id)
+        assert row["name"] == "Arroz"
+        assert row["quantity"] == 3.0
+
+        restricted = AnalyticsService.get_low_stock(threshold=2)
+        assert all(item["id"] != self.prod_id for item in restricted)
+
+    def test_get_inventory_aging_wrapper(self):
+        AnalyticsService.clear_cache()
+        aging_prod_id = self.product_service.create_product(
+            {
+                "name": "Manteca",
+                "category_id": self.cat_id,
+                "cost_price": 800,
+                "sell_price": 1200,
+            }
+        )
+        self.inventory_service.set_quantity(aging_prod_id, 5.0)
+
+        result = AnalyticsService.get_inventory_aging(days=30)
+        row = next(item for item in result if item["id"] == aging_prod_id)
+        assert row["name"] == "Manteca"
+        assert row["stock_quantity"] == 5.0
+        assert row["last_sold_date"] is None
+
     def test_get_sales_summary_sums_sales_across_days(self):
         # A second sale on a different day inside the range; the full-range
         # summary must sum both days (end date inclusive).

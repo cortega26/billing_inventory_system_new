@@ -1,6 +1,7 @@
 import re
 from collections.abc import Callable
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from utils.exceptions import ValidationException
@@ -166,19 +167,16 @@ def validate_money(
         ValidationException: If value is invalid
     """
     try:
-        # Check for non-integer floats before rounding
-        if isinstance(value, float) and not value.is_integer():
+        decimal_value = Decimal(str(value))
+        if decimal_value != decimal_value.to_integral_value():
             raise ValidationException(f"{field_name} cannot have decimals")
-
-        money_value = int(round(float(value)))
-        if not isinstance(money_value, int):
-            raise ValidationException(f"{field_name} must be an integer")
+        money_value = int(decimal_value)
         if money_value < 0:
             raise ValidationException(f"{field_name} cannot be negative")
         if max_value is not None and money_value > max_value:
             raise ValidationException(f"{field_name} cannot exceed {max_value:,} CLP")
         return money_value
-    except (ValueError, TypeError):
+    except (InvalidOperation, ValueError, TypeError):
         raise ValidationException(f"Invalid {field_name.lower()} value") from None
 
 

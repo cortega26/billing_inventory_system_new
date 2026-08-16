@@ -6,7 +6,6 @@ from utils.exceptions import ValidationException
 from utils.validation.validators import (
     validate_3or4digit_identifier,
     validate_9digit_identifier,
-    validate_and_sanitize,
     validate_date,
     validate_dict,
     validate_filepath,
@@ -146,29 +145,6 @@ class TestValidators:
             validate_3or4digit_identifier("12345")  # Too long
         with pytest.raises(ValidationException):
             validate_3or4digit_identifier("0123")  # Cannot start with 0
-
-    def test_validate_and_sanitize(self):
-        """Test combined validation and sanitization."""
-
-        def sample_validator(value):
-            return len(value) >= 3
-
-        def sample_sanitizer(value):
-            return value.strip().lower()
-
-        # Valid cases
-        assert (
-            validate_and_sanitize(
-                "  Test  ", [sample_validator], sample_sanitizer, "Invalid value"
-            )
-            == "test"
-        )
-
-        # Invalid cases
-        with pytest.raises(ValidationException):
-            validate_and_sanitize(
-                "ab", [sample_validator], sample_sanitizer, "Invalid value"
-            )
 
     def test_list_validation(self):
         """Test list validation."""

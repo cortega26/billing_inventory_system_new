@@ -1,69 +1,9 @@
 import re
 from collections.abc import Callable
 from datetime import datetime
-from typing import Any, TypeVar
+from typing import Any
 
 from utils.exceptions import ValidationException
-
-T = TypeVar("T")
-
-
-def validate(value: Any, validators: list[Callable[[Any], bool]], error_message: str):
-    for validator in validators:
-        if not validator(value):
-            raise ValidationException(error_message)
-
-
-def validate_and_sanitize(
-    value: Any,
-    validators: list[Callable[[Any], bool]],
-    sanitizer: Callable[[Any], Any],
-    error_message: str,
-) -> Any:
-    if not all(validator(value) for validator in validators):
-        raise ValidationException(error_message)
-    return sanitizer(value)
-
-
-def is_instance_of(
-    class_or_tuple: type | tuple[type, ...],
-) -> Callable[[Any], bool]:
-    return lambda value: isinstance(value, class_or_tuple)
-
-
-def is_non_empty_string(value: Any) -> bool:
-    return is_instance_of(str)(value) and len(value.strip()) > 0
-
-
-def is_numeric(value: Any) -> bool:
-    return is_instance_of((int, float))(value)
-
-
-def is_positive(value: Any) -> bool:
-    return is_numeric(value) and value > 0
-
-
-def is_non_negative(value: Any) -> bool:
-    return is_numeric(value) and value >= 0
-
-
-def is_string(value: str, min_length: int = 1, max_length: int = 100) -> bool:
-    return isinstance(value, str) and min_length <= len(value) <= max_length
-
-
-def is_in_range(min_value: float, max_value: float) -> Callable[[Any], bool]:
-    return lambda value: is_numeric(value) and min_value <= value <= max_value
-
-
-def matches_pattern(pattern: str) -> Callable[[str], bool]:
-    compiled_pattern = re.compile(pattern)
-    return lambda value: (
-        is_instance_of(str)(value) and compiled_pattern.match(value) is not None
-    )
-
-
-def has_length(min_length: int, max_length: int) -> Callable[[Any], bool]:
-    return lambda value: min_length <= len(value) <= max_length
 
 
 def validate_string(

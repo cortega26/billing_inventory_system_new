@@ -9,7 +9,11 @@ from typing import Any
 
 import yaml
 
-from config import APP_NAME, DEBUG_LEVEL
+from config import DEBUG_LEVEL
+
+# Must match the `loggers:` key in login_config.yaml exactly, so records reach
+# the configured handlers instead of being dropped.
+LOGGER_NAME = "inventory_system"
 
 # utils/system/logger.py -> repo root is three parents up
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -139,7 +143,7 @@ def setup_logger(config: LoggerConfig) -> StructuredLogger:
     if config.format not in ("json", "text"):
         raise ConfigurationException(f"Invalid log format: {config.format}")
 
-    logger = StructuredLogger(APP_NAME, config.log_file)
+    logger = StructuredLogger(LOGGER_NAME, config.log_file)
 
     try:
         # Ensure log directory exists
@@ -208,11 +212,11 @@ def setup_structured_logger() -> StructuredLogger:
             format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
             handlers=[
                 logging.StreamHandler(),
-                logging.FileHandler(f"{APP_NAME.lower()}.log"),
+                logging.FileHandler(f"{LOGGER_NAME}.log"),
             ],
         )
 
-    logger = StructuredLogger(APP_NAME)
+    logger = StructuredLogger(LOGGER_NAME)
     logger._logger.setLevel(DEBUG_LEVEL)  # Ensure logger level is set
     return logger
 

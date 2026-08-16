@@ -50,13 +50,13 @@ def test_edit_inventory_does_not_reemit_inventory_events(qtbot, db_manager, mock
     mocker.patch("ui.inventory_view.EditInventoryDialog", return_value=FakeDialog())
     mocker.patch("ui.inventory_view.show_info_message")
 
-    def update_quantity(*_args, **_kwargs):
+    def adjust_inventory(*_args, **_kwargs):
         event_system.inventory_changed.emit(product_id)
 
-    update_quantity_mock = mocker.patch.object(
+    adjust_inventory_mock = mocker.patch.object(
         view.inventory_service,
-        "update_quantity",
-        side_effect=update_quantity,
+        "adjust_inventory",
+        side_effect=adjust_inventory,
     )
     changed_payloads, changed_handler = capture_signal(event_system.inventory_changed)
     updated_payloads, updated_handler = capture_signal(event_system.inventory_updated)
@@ -64,9 +64,10 @@ def test_edit_inventory_does_not_reemit_inventory_events(qtbot, db_manager, mock
     try:
         view.edit_inventory(item)
 
-        update_quantity_mock.assert_called_once_with(
+        adjust_inventory_mock.assert_called_once_with(
             product_id=product_id,
             quantity_change=1.5,
+            reason="manual set",
         )
         assert changed_payloads == [product_id]
         assert updated_payloads == []

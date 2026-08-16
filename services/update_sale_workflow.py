@@ -35,7 +35,9 @@ class UpdateSaleWorkflow:
         self.sale_service._validate_sale_items(items)
 
         # Require that the sale exists
-        self.sale_service._require_sale(sale_id)
+        sale = self.sale_service._require_sale(sale_id)
+        if sale.status == "cancelled":
+            raise ValidationException(f"Sale {sale_id} is already cancelled")
 
         # Get existing items to perform inventory pre-validation
         old_items = self.sale_service.get_sale_items(sale_id)

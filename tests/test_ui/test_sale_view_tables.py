@@ -44,8 +44,9 @@ def test_render_sale_item_row_populates_cells_and_remove_action(qtbot):
     assert removed_rows == [0]
 
 
-def test_update_sale_total_label_uses_clp_rounding():
+def test_update_sale_total_label_uses_clp_rounding(qtbot):
     total_label = QLabel()
+    qtbot.addWidget(total_label)
 
     update_sale_total_label(
         total_label,

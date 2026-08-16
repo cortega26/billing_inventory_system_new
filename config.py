@@ -105,14 +105,36 @@ class Config:
         )
 
     @classmethod
+    def _get_config_file(cls) -> Path:
+        """Resolve the config file to read from.
+
+        Prefers a user-local path outside the repo; falls back to the repo
+        copy for backward compatibility with existing installs.
+        """
+        if cls._config_file is not None:
+            return cls._config_file
+        primary = Path.home() / ".config" / "billing-inventory" / "app_config.json"
+        if primary.exists():
+            return primary
+        repo_copy = Path(__file__).parent / "app_config.json"
+        if repo_copy.exists():
+            return repo_copy
+        return primary
+
+    @classmethod
+    def _get_save_target(cls) -> Path:
+        """Resolve where config writes land (user-local, migrated on save)."""
+        if cls._config_file is not None:
+            return cls._config_file
+        return Path.home() / ".config" / "billing-inventory" / "app_config.json"
+
+    @classmethod
     def _load_config(cls) -> None:
         """Load configuration from file or create default if not exists."""
         if not cls._is_cache_valid():
             with cls._lock:
                 if not cls._is_cache_valid():
-                    config_file = cls._config_file or (
-                        Path(__file__).parent / "app_config.json"
-                    )
+                    config_file = cls._get_config_file()
                     if config_file.exists():
                         try:
                             with open(config_file) as f:
@@ -144,10 +166,20 @@ class Config:
             "backup_dir": "backups",
             "backup_retention_days": 7,
             "pin_hash": "",
+            "pin_failed_attempts": 0,
+            "pin_locked_until": "",
             "last_backup_success": "",
             "last_backup_skipped_time": "",
             "last_backup_skipped_reason": "",
         }
+
+    @classmethod
+    def _restrict_permissions(cls, path: Path) -> None:
+        """Restrict a file to owner-only read/write (0600)."""
+        try:
+            os.chmod(path, 0o600)
+        except OSError as e:
+            logging.error(f"Failed to restrict permissions on {path}: {e}")
 
     @classmethod
     def _save_config(cls) -> None:
@@ -155,10 +187,12 @@ class Config:
         if cls._config is None:
             cls._config = cls._get_default_config()
 
-        config_file = cls._config_file or (Path(__file__).parent / "app_config.json")
+        config_file = cls._get_save_target()
+        config_file.parent.mkdir(parents=True, exist_ok=True)
         try:
             with open(config_file, "w") as f:
                 json.dump(cls._config, f, indent=4)
+            cls._restrict_permissions(config_file)
         except OSError as e:
             logging.error(f"Error saving configuration: {e}")
             raise ConfigLoadError(f"Failed to save config: {e}") from e
@@ -182,6 +216,8 @@ class Config:
             "backup_dir": (str, None),
             "backup_retention_days": (int, (1, 365)),
             "pin_hash": (str, None),
+            "pin_failed_attempts": (int, None),
+            "pin_locked_until": (str, None),
             "last_backup_success": (str, None),
             "last_backup_skipped_time": (str, None),
             "last_backup_skipped_reason": (str, None),

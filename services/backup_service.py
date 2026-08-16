@@ -1,4 +1,5 @@
 import contextlib
+import os
 import shutil
 import sqlite3
 import threading
@@ -91,6 +92,7 @@ class BackupService:
                 logger.info(
                     f"Backup created successfully (sqlite3 backup): {backup_path}"
                 )
+                os.chmod(backup_path, 0o600)
 
                 config.set("last_backup_success", datetime.now().isoformat())
                 config.save()

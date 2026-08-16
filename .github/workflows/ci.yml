@@ -14,13 +14,14 @@ jobs:
         python-version: ["3.13"]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
+        cache-dependency-path: requirements.lock
 
     - name: Install dependencies
       run: |
@@ -30,7 +31,7 @@ jobs:
     - name: Install system dependencies for Qt (Headless)
       run: |
         sudo apt-get update
-        sudo apt-get install -y libegl1 libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 libxcb-xfixes0 x11-utils libdbus-1-3
+        sudo apt-get install -y libegl1 libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 libxcb-xfixes0 x11-utils libdbus-1-3 xvfb
 
     - name: Lint with Ruff
       run: ruff check .
@@ -44,7 +45,5 @@ jobs:
     - name: Check schema drift
       run: python scripts/check_schema_drift.py
 
-    - name: Run tests with pytest
-      uses: GabrielBB/xvfb-action@v1
-      with:
-        run: pytest
+    - name: Run tests with pytest (parallel under xvfb)
+      run: xvfb-run -a python -m pytest -n auto

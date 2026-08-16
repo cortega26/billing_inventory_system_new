@@ -264,6 +264,8 @@ class SaleService:
     def delete_sale(self, sale_id: int) -> None:
         sale_id = validate_integer(sale_id, min_value=1)
         sale = self._require_sale(sale_id)
+        if sale.status == "cancelled":
+            raise ValidationException(f"Sale {sale_id} is already cancelled")
         items = sale.items
 
         try:

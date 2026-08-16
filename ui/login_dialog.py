@@ -1,4 +1,7 @@
 import hashlib
+import hmac
+import os
+from datetime import datetime, timedelta
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -14,11 +17,34 @@ from PySide6.QtWidgets import (
 from config import config
 from utils.system.logger import logger
 
+PBKDF2_ITERATIONS = 600_000
 
-def hash_pin(pin: str) -> str:
-    """Hash the PIN with a hardcoded salt."""
-    salt = b"billing_inventory_system_salt_2026"
-    return hashlib.sha256(salt + pin.encode("utf-8")).hexdigest()
+
+def hash_pin(pin: str, salt: bytes | None = None) -> str:
+    """Hash the PIN with PBKDF2-SHA256 and a fresh per-install salt."""
+    if salt is None:
+        salt = os.urandom(16)
+    digest = hashlib.pbkdf2_hmac("sha256", pin.encode("utf-8"), salt, PBKDF2_ITERATIONS)
+    return f"pbkdf2${PBKDF2_ITERATIONS}${salt.hex()}${digest.hex()}"
+
+
+def is_legacy_hash(stored: str) -> bool:
+    """Detect the pre-PBKDF2 single-round SHA-256 format."""
+    return len(stored) == 64 and all(c in "0123456789abcdef" for c in stored.lower())
+
+
+def verify_pin(stored: str, pin: str) -> bool:
+    """Verify a PIN against a stored pbkdf2$iterations$salt$digest hash."""
+    if is_legacy_hash(stored):
+        return False
+    try:
+        _, iterations_s, salt_hex, digest_hex = stored.split("$")
+        iterations = int(iterations_s)
+        salt = bytes.fromhex(salt_hex)
+        digest = hashlib.pbkdf2_hmac("sha256", pin.encode("utf-8"), salt, iterations)
+        return hmac.compare_digest(digest.hex(), digest_hex)
+    except (ValueError, TypeError, AttributeError):
+        return False
 
 
 class LoginDialog(QDialog):
@@ -27,8 +53,9 @@ class LoginDialog(QDialog):
         self.setWindowTitle("Autenticación de Acceso")
         self.setModal(True)
         self.resize(320, 200)
-        self.attempts = 0
+        self.attempts = int(config.get("pin_failed_attempts", 0) or 0)
         self.max_attempts = 5
+        self.lockout_window = timedelta(minutes=5)
         self.setup_ui()
 
     def setup_ui(self):
@@ -157,18 +184,52 @@ class LoginDialog(QDialog):
         else:
             # Login validation
             pin = self.pin_input.text()
-            hashed = hash_pin(pin)
-            if hashed == self.pin_hash:
+            stored = self.pin_hash
+            locked_until_raw = config.get("pin_locked_until", "")
+            if locked_until_raw:
+                try:
+                    locked_until = datetime.fromisoformat(locked_until_raw)
+                except ValueError:
+                    locked_until = None
+                if locked_until is not None and locked_until > datetime.now():
+                    remaining = locked_until - datetime.now()
+                    seconds = int(remaining.total_seconds())
+                    minutes, seconds = divmod(seconds, 60)
+                    logger.warning("PIN login blocked by persistent lockout")
+                    self.msg_label.setText(
+                        "Acceso bloqueado. Intente nuevamente en "
+                        f"{minutes} min {seconds} s"
+                    )
+                    self.reject()
+                    return
+            if is_legacy_hash(stored):
+                logger.warning("Legacy PIN hash detected; operator must re-set the PIN")
+                self.msg_label.setText(
+                    "El PIN usa el formato antiguo. Elimine la clave pin_hash de "
+                    "~/.config/billing-inventory/app_config.json y reinicie."
+                )
+                self.reject()
+                return
+            if verify_pin(stored, pin):
                 logger.info("PIN authentication successful")
+                config.set("pin_failed_attempts", 0)
+                config.set("pin_locked_until", "")
+                config.save()
                 self.accept()
             else:
                 self.attempts += 1
+                config.set("pin_failed_attempts", self.attempts)
                 remaining = self.max_attempts - self.attempts
                 logger.warning(
                     f"Failed PIN login attempt {self.attempts}/{self.max_attempts}"
                 )
 
                 if self.attempts >= self.max_attempts:
+                    config.set(
+                        "pin_locked_until",
+                        (datetime.now() + self.lockout_window).isoformat(),
+                    )
+                    config.save()
                     QMessageBox.critical(
                         self,
                         "Acceso Bloqueado",

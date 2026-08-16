@@ -712,6 +712,19 @@ class TestAnalyticsServiceRealDb:
         assert row["stock_quantity"] == 5.0
         assert row["last_sold_date"] is None
 
+    def test_manual_inventory_mutations_clear_analytics_low_stock_cache(self):
+        AnalyticsService.clear_cache()
+        self.inventory_service.set_quantity(self.prod_id, 20.0)
+
+        assert AnalyticsService.get_low_stock(threshold=10) == []
+
+        self.inventory_service.adjust_inventory(self.prod_id, -15.0, "test")
+        result = AnalyticsService.get_low_stock(threshold=10)
+        assert [row["id"] for row in result] == [self.prod_id]
+
+        self.inventory_service.set_quantity(self.prod_id, 50.0)
+        assert AnalyticsService.get_low_stock(threshold=10) == []
+
     def test_get_sales_summary_sums_sales_across_days(self):
         # A second sale on a different day inside the range; the full-range
         # summary must sum both days (end date inclusive).

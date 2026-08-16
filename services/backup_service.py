@@ -8,7 +8,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from config import DATABASE_PATH, config
+from config import (  # noqa: F401 -- import-time default kept so tests patching services.backup_service.DATABASE_PATH still bind
+    DATABASE_PATH,
+    DEFAULT_ACTIVE_BUSINESS,
+    config,
+)
 from database.database_manager import DatabaseManager
 from utils.system.event_system import event_system
 from utils.system.logger import logger
@@ -28,11 +32,14 @@ class BackupService:
         return cls._instance
 
     def get_backup_dir(self) -> Path:
-        """Get the directory where backups are stored."""
+        """Get the directory where backups are stored (per business)."""
         backup_dir = Path(config.get("backup_dir", "backups"))
         if not backup_dir.is_absolute():
             # Relative to project root (assuming CWD is project root)
             backup_dir = Path.cwd() / backup_dir
+
+        business_id = config.get("active_business", DEFAULT_ACTIVE_BUSINESS)
+        backup_dir = backup_dir / business_id
 
         if not backup_dir.exists():
             try:
@@ -49,12 +56,13 @@ class BackupService:
         Returns the path to the backup file if successful, None otherwise.
         """
         try:
-            db_path = DATABASE_PATH
+            db_path = config.get_active_database_path()
             if not db_path.exists():
                 logger.error(f"Database file not found at {db_path}")
                 return None
 
             backup_dir = self.get_backup_dir()
+            business_id = config.get("active_business", DEFAULT_ACTIVE_BUSINESS)
 
             # Try to free space before creating a new backup file.
             self.cleanup_old_backups()
@@ -90,7 +98,8 @@ class BackupService:
                     source_conn.backup(dest_conn)
 
                 logger.info(
-                    f"Backup created successfully (sqlite3 backup): {backup_path}"
+                    f"Backup created successfully (sqlite3 backup): {backup_path}",
+                    extra={"business_id": business_id},
                 )
                 os.chmod(backup_path, 0o600)
 

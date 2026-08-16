@@ -9,6 +9,8 @@ from json.decoder import JSONDecodeError
 from pathlib import Path
 from typing import Any, Optional
 
+from models.business import BUSINESS_ID_PATTERN
+
 
 # Custom exceptions
 class ConfigError(Exception):
@@ -53,6 +55,13 @@ def get_safe_db_path(db_name: str) -> Path:
 
 DATABASE_NAME = os.environ.get("DATABASE_NAME", "billing_inventory.db")
 DATABASE_PATH = get_safe_db_path(DATABASE_NAME)
+
+# Business registry (backward compatible: absent from config ⇒ single
+# implicit "default" business using DATABASE_PATH semantics).
+DEFAULT_BUSINESSES = [
+    {"id": "default", "name": "Principal", "db_filename": "billing_inventory.db"},
+]
+DEFAULT_ACTIVE_BUSINESS = "default"
 
 
 # Debug Level configuration
@@ -198,6 +207,46 @@ class Config:
             raise ConfigLoadError(f"Failed to save config: {e}") from e
 
     @classmethod
+    def _validate_businesses(cls, businesses: Any) -> None:
+        """Validate the optional business registry structure.
+
+        Business ids must be safe for file/dir names (``^[a-z0-9_]+$``) and
+        ``db_filename`` must be a bare filename (no separators).
+        """
+        if not isinstance(businesses, list) or not businesses:
+            raise ConfigValidationError("'businesses' must be a non-empty list")
+
+        seen_ids = set()
+        for business in businesses:
+            if not isinstance(business, dict):
+                raise ConfigValidationError("Each business entry must be an object")
+            business_id = business.get("id")
+            name = business.get("name")
+            filename = business.get("db_filename")
+            if not isinstance(business_id, str) or not BUSINESS_ID_PATTERN.fullmatch(
+                business_id
+            ):
+                raise ConfigValidationError(
+                    f"Invalid business id: {business_id!r}. "
+                    f"Must match {BUSINESS_ID_PATTERN.pattern}"
+                )
+            if business_id in seen_ids:
+                raise ConfigValidationError(f"Duplicate business id: {business_id!r}")
+            seen_ids.add(business_id)
+            if not isinstance(name, str) or not name:
+                raise ConfigValidationError(
+                    f"Business {business_id!r} must have a non-empty name"
+                )
+            if not isinstance(filename, str) or not filename:
+                raise ConfigValidationError(
+                    f"Business {business_id!r} must have a non-empty db_filename"
+                )
+            if get_safe_db_path(filename).name != filename:
+                raise ConfigValidationError(
+                    f"Invalid db_filename for business {business_id!r}: {filename!r}"
+                )
+
+    @classmethod
     def _validate_config(cls, config: dict[str, Any]) -> None:
         """
         Validate the configuration structure and types.
@@ -253,6 +302,14 @@ class Config:
                 raise ConfigValidationError(
                     f"Invalid value for {key}. Must be one of {valid_values}"
                 )
+
+        # Optional keys (backward compatible: absent ⇒ single-business default)
+        if "businesses" in config:
+            cls._validate_businesses(config["businesses"])
+        if "active_business" in config and not isinstance(
+            config["active_business"], str
+        ):
+            raise ConfigValidationError("'active_business' must be a string")
 
     @classmethod
     def get(cls, key: str, default: Any = None) -> Any:
@@ -310,6 +367,80 @@ class Config:
         """Reset configuration to defaults."""
         cls._config = cls._get_default_config()
         cls._save_config()
+
+    @classmethod
+    def get_businesses(cls) -> list[dict]:
+        """Return the configured businesses.
+
+        With no ``businesses`` key in config, the implicit single-business
+        default (business id ``default``) is returned.
+        """
+        businesses = cls.get("businesses")
+        if not businesses:
+            return [dict(business) for business in DEFAULT_BUSINESSES]
+        return [dict(business) for business in businesses]
+
+    @classmethod
+    def get_active_business(cls) -> dict:
+        """Return the active business entry.
+
+        Falls back to the first configured business (with a log) when the
+        stored ``active_business`` id does not match any configured business.
+        """
+        active_id = cls.get("active_business", DEFAULT_ACTIVE_BUSINESS)
+        businesses = cls.get_businesses()
+        for business in businesses:
+            if business["id"] == active_id:
+                return dict(business)
+        logging.warning(
+            f"active_business {active_id!r} not found in configured businesses; "
+            f"falling back to {businesses[0]['id']!r}"
+        )
+        return dict(businesses[0])
+
+    @classmethod
+    def set_active_business(cls, business_id: str, persist: bool = True) -> None:
+        """Set (and optionally persist) the active business id.
+
+        Args:
+            business_id: An id from the configured businesses registry.
+            persist: When False the choice applies to this session only and is
+                not written to disk.
+        """
+        if not isinstance(business_id, str) or not BUSINESS_ID_PATTERN.fullmatch(
+            business_id
+        ):
+            raise ConfigValidationError(
+                f"Invalid business id: {business_id!r}. "
+                f"Must match {BUSINESS_ID_PATTERN.pattern}"
+            )
+        known_ids = {business["id"] for business in cls.get_businesses()}
+        if business_id not in known_ids:
+            raise ConfigValidationError(f"Unknown business id: {business_id!r}")
+
+        cls._load_config()
+        with cls._lock:
+            if cls._config is None:
+                cls._config = cls._get_default_config()
+            cls._config["active_business"] = business_id
+            if persist:
+                cls._save_config()
+
+    @classmethod
+    def get_business_db_path(cls, business_id: str) -> Path:
+        """Resolve a business's database file path (mirrors ``DATABASE_PATH``)."""
+        for business in cls.get_businesses():
+            if business["id"] == business_id:
+                return get_safe_db_path(business["db_filename"])
+        raise ConfigValidationError(f"Unknown business id: {business_id!r}")
+
+    @classmethod
+    def get_active_database_path(cls) -> Path:
+        """Path to the active business's database file.
+
+        For the implicit single-business install this equals ``DATABASE_PATH``.
+        """
+        return cls.get_business_db_path(cls.get_active_business()["id"])
 
     @classmethod
     def _reset_for_testing(cls, config_file=None):

@@ -68,6 +68,33 @@
 - Retention: Last 7 days
 - Scope: All historical data
 - Timing: Scheduler checks the configured interval and creates a backup when the last one is older than that interval
+- Backups are stored per business under `backups/<business_id>/`
+
+## Multi-business
+
+The same app can serve multiple businesses (for example, the main minimarket
+and CasaBea, a cinnamon-roll entrepreneurship). Each business owns a separate
+SQLite database file, so products, inventory, sales, purchases, customers, and
+reports are fully isolated between businesses.
+
+- **One database file per business.** The schema is identical for every
+  business and migrations run automatically when a new business's database is
+  first used, so a new business starts with the full schema.
+- **Selection at startup.** When more than one business is configured, the app
+  shows a selector dialog before the PIN login. With a single business the
+  selector is skipped and behavior is unchanged from a single-business install.
+- **Restart to switch.** The active business is chosen at startup; changing it
+  in-app requires restarting the application. There is no runtime
+  re-initialization of the database connection.
+- **Backups per business.** Backup files land in `backups/<business_id>/` and
+  retention applies per business.
+- **Customers are per-business.** There is no customer sync between businesses
+  today; shared customer directories can be a future feature.
+- **Adding a third business** only requires adding one entry to the `businesses`
+  list in the application config; no code changes are needed.
+- Existing installs without a `businesses` entry in config behave exactly as
+  before: an implicit single "default" business using the current database
+  file.
 
 ## Technical Implementation
 

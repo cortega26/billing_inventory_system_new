@@ -19,7 +19,31 @@ This system manages:
 - Customer department tracking
 - Chilean Peso (CLP) monetary operations
 - Weekly automated backups
+- Multi-business support (one database per business)
 - Simple and efficient UI designed for retail operations
+
+## Running a second business
+
+The same install can serve multiple businesses (for example, a minimarket and
+a separate entrepreneurship such as CasaBea). Each business gets its own SQLite
+database file and its own backup folder, so products, inventory, sales,
+purchases, customers, and reports stay isolated.
+
+To add a business, add one entry to the `businesses` list in the application
+config (`~/.config/billing-inventory/app_config.json`), for example:
+
+```json
+"businesses": [
+  {"id": "default", "name": "Principal", "db_filename": "billing_inventory.db"},
+  {"id": "casabea", "name": "CasaBea", "db_filename": "casabea.db"}
+]
+```
+
+The new business's database is created automatically (with the full schema and
+migrations) the first time it is selected at startup. When more than one
+business is configured, a selector dialog appears at startup before the PIN
+login; switching business requires restarting the application. Single-business
+installs keep working exactly as before with no configuration changes.
 
 ## Technical Details
 

@@ -16,7 +16,7 @@
 
 - **Priority**: P1 (user request — twice: no in-app way to switch business)
 - **Effort**: S
-- **Risk**: LOW (menu action + config defaults; no persistence/DB changes)
+- **Risk**: LOW-MED (see AMENDMENT — a cross-plan interaction with engine.py required a scope extension)
 - **Depends on**: none
 - **Category**: feature
 - **Planned at**: commit `93d30f9`, 2026-08-16
@@ -125,6 +125,33 @@ Repo conventions that apply:
   lifecycle is High-Risk; the switch applies on restart, message tells the user)
 - `services/`, `database/`, backup paths, schema — untouched
 - The login dialog / startup flow (already wired in plan 022)
+
+AMENDMENT (2026-08-16, after first execution attempt — STOPPED with proof):
+Step 1 ("registry always in defaults") kills the legacy branch in
+`services/analytics/engine.py:19` (`elif config.get("businesses") is None:`
+is now never True), breaking 4 `TestAnalyticsServiceRealDb` tests in CI and
+the real tree — the engine reads the repo-root DB instead of the tests'
+seeded tmp file (their seam is a `monkeypatch.setattr` of
+`engine.DATABASE_PATH`). Fix (in-scope extension): replace the
+registry-absence signal with an explicit flag — `Config` tracks whether the
+config FILE contained a `businesses` key at load time, and the engine falls
+back to `DATABASE_PATH` only when the registry is implicit. This preserves:
+(a) the 4 RealDb tests' patch seam (isolate_config gives no registry file →
+implicit → `DATABASE_PATH`), (b) the `DATABASE_NAME` env override for
+single-business installs before their first save, (c) multi-business
+behavior after any persisted registry. Changes added to scope:
+
+- `config.py` — `_registry_is_explicit: bool` instance/class flag, set in
+  `_load_config` from `"businesses" in loaded_config` (False on the
+  no-file/default path), reset in `_reset_for_testing`; public
+  `Config.has_explicit_business_registry() -> bool`.
+- `services/analytics/engine.py:19` — the legacy branch becomes
+  `elif not config.has_explicit_business_registry(): self.db_path = DATABASE_PATH`.
+- `tests/test_system/test_config.py` — extend the self-heal test to assert
+  `has_explicit_business_registry()` is False before any save and True after
+  a file WITH a registry is loaded.
+- Done criteria: add `engine.py` uses `has_explicit_business_registry()`;
+  `tests/test_services/test_analytics_service.py` passes (4 RealDb tests).
 
 ## Git workflow
 

@@ -180,9 +180,11 @@ class EditSaleDialog(QDialog):
 
             # Set date
             qdate = QDate.fromString(
-                self.sale.date.strftime("%Y-%m-%d")
-                if self.sale.date is not None
-                else "",
+                (
+                    self.sale.date.strftime("%Y-%m-%d")
+                    if self.sale.date is not None
+                    else ""
+                ),
                 "yyyy-MM-dd",
             )
             self.date_input.setDate(qdate)
@@ -1012,9 +1014,7 @@ class SaleView(QWidget):
             date = validate_date(self.date_input.date().toString("yyyy-MM-dd"))
             processed_items = prepare_processed_sale_items(self.sale_items)
 
-            sale_id = self.sale_service.create_sale(
-                customer_id, date, processed_items
-            )
+            sale_id = self.sale_service.create_sale(customer_id, date, processed_items)
 
             if sale_id:
                 self.load_sales()

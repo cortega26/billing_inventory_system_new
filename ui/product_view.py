@@ -447,9 +447,7 @@ class ProductView(QWidget):
             row = selected_rows[0].row()
             row_item = self.product_table.item(row, 0)
             if row_item is None:
-                raise ValidationException(
-                    "No se pudo leer el producto seleccionado."
-                )
+                raise ValidationException("No se pudo leer el producto seleccionado.")
             product_id = int(row_item.text())
             product = self.product_service.get_product(product_id)
 

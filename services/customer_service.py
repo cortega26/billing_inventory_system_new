@@ -45,7 +45,6 @@ class CustomerService:
             ValidationException: If validation fails.
             DatabaseException: If database operation fails.
         """
-        logger.debug(f"Creating customer with identifier_9: {identifier_9}")
         identifier_9 = validate_identifier_9(sanitize_html(str(identifier_9)))
 
         if name is not None:
@@ -77,14 +76,14 @@ class CustomerService:
             self.clear_cache()
             logger.info(
                 "Customer created",
-                extra={"customer_id": customer_id, "identifier_9": identifier_9},
+                extra={"customer_id": customer_id},
             )
             event_system.customer_added.emit(customer_id)
             return customer_id
         except Exception as e:
             logger.error(
                 "Failed to create customer",
-                extra={"error": str(e), "identifier_9": identifier_9},
+                extra={"error": str(e)},
             )
             raise DatabaseException(f"Failed to create customer: {str(e)}") from e
 
@@ -141,7 +140,7 @@ class CustomerService:
                 )
             logger.info(
                 "Customer 3or4 identifier updated",
-                extra={"customer_id": customer_id, "identifier_3or4": identifier_3or4},
+                extra={"customer_id": customer_id},
             )
         except Exception as e:
             logger.error(
@@ -253,8 +252,6 @@ class CustomerService:
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def update_customer(self, customer_id: int, **kwargs):
         """Update customer details by ID."""
-        logger.debug(f"[update_customer] Starting with kwargs: {kwargs}")
-
         try:
             customer_id = validate_integer(customer_id, min_value=1)
             self._require_customer(customer_id)
@@ -264,16 +261,12 @@ class CustomerService:
             logger.debug("[update_customer] Starting field validation")
 
             if "name" in kwargs:
-                logger.debug(f"[update_customer] Validating name: {kwargs['name']}")
                 name = kwargs["name"]
                 if name is not None:
                     validate_string(name, max_length=50)
                 customer_updates["name"] = name
 
             if "identifier_9" in kwargs:
-                logger.debug(
-                    f"[update_customer] Validating identifier_9: {kwargs['identifier_9']}"
-                )
                 identifier_9 = validate_identifier_9(kwargs["identifier_9"])
                 customer_updates["identifier_9"] = identifier_9
 
@@ -281,9 +274,6 @@ class CustomerService:
             identifier_3or4 = None
             has_identifier_update = "identifier_3or4" in kwargs
             if has_identifier_update:
-                logger.debug(
-                    f"[update_customer] Handling identifier_3or4: {kwargs['identifier_3or4']}"
-                )
                 identifier_3or4 = kwargs["identifier_3or4"]
                 if identifier_3or4:
                     identifier_3or4 = validate_identifier_3or4(identifier_3or4)
@@ -302,9 +292,6 @@ class CustomerService:
                         WHERE id = ?
                     """.format(", ".join(update_fields))  # nosec B608
                     params.append(customer_id)
-
-                    logger.debug(f"[update_customer] Executing SQL: {query}")
-                    logger.debug(f"[update_customer] With parameters: {params}")
 
                     DatabaseManager.execute_query(query, tuple(params))
 
@@ -414,16 +401,10 @@ class CustomerService:
         """
         row = DatabaseManager.fetch_one(query, (identifier_9, 1 if active_only else 0))
         if row:
-            logger.info(
-                "Customer retrieved by identifier_9",
-                extra={"identifier_9": identifier_9},
-            )
+            logger.info("Customer retrieved by 9-digit identifier")
             return Customer.from_db_row(row)
         else:
-            logger.warning(
-                "Customer not found by identifier_9",
-                extra={"identifier_9": identifier_9},
-            )
+            logger.warning("Customer not found by 9-digit identifier")
             return None
 
     @db_operation(show_dialog=True)
@@ -468,13 +449,12 @@ class CustomerService:
                     seen_phones.add(customer.identifier_9)
                 else:
                     logger.warning(
-                        f"Duplicate customer found with phone {customer.identifier_9} for department {identifier_3or4}"
+                        f"Duplicate customer found: customer_id {customer.id} matches multiple department identifiers"
                     )
 
             logger.info(
-                f"Retrieved {len(unique_customers)} unique customers by identifier_3or4",
+                f"Retrieved {len(unique_customers)} unique customers",
                 extra={
-                    "identifier_3or4": identifier_3or4,
                     "total_found": len(customers),
                     "unique_count": len(unique_customers),
                 },
@@ -483,7 +463,7 @@ class CustomerService:
             return unique_customers
 
         except Exception as e:
-            logger.error(f"Error retrieving customers by identifier_3or4: {str(e)}")
+            logger.error(f"Error retrieving customers by department identifier: {str(e)}")
             raise DatabaseException(f"Failed to retrieve customers: {str(e)}") from e
 
     @db_operation(show_dialog=True)
@@ -558,7 +538,7 @@ class CustomerService:
         customers = [Customer.from_db_row(row) for row in rows]
         logger.info(
             "Customers searched",
-            extra={"search_term": search_term, "count": len(customers)},
+            extra={"count": len(customers)},
         )
         return customers
 

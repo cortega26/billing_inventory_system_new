@@ -14,7 +14,7 @@ merge), move its file to `plans/archive/` in the same change that marks it done.
 The index below keeps the historical record; the archived files are the record
 of what was executed. Do not delete archived plans.
 
-## Status (23 plans; 001-023 all DONE — files archived)
+## Status (24 plans; 001-024 all DONE — files archived)
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
@@ -41,6 +41,7 @@ of what was executed. Do not delete archived plans.
 | 021  | InventoryAgingMetric must not count cancelled sales as "last sold" | P2 | S | — | DONE (executed 2026-08-15, commits 7d446d3\/36ee211\/864d292, merged, reviewed APPROVED) |
 | 022  | Multi-business support (CasaBea): one DB per business + startup selector | P1 | M | — | DONE (executed 2026-08-15, 8 commits b3aa38b..fa38ee7, merged 5bbed86, reviewed APPROVED; Phase E amendment: analytics engine follows active business; deviation: three-branch db_path resolution preserves DATABASE_NAME override + legacy test seam) |
 | 023  | Copy customers (identity only) between business DBs (El Rincón → CasaBea) | P1 | S | — | DONE (executed 2026-08-16, commits db31700/a3f73ce, merged 4bfaa74, reviewed APPROVED; executor STOPPED on live-DB-vs-repo schema drift → plan revised to repo schema; drift recorded as backlog) |
+| 024  | Reconcile customer schema drift (current_balance/credit_limit in repo sources) | P2 | S | — | DONE (executed 2026-08-16, commits 1939f9e..d1f16dd, merged 955e4c2, reviewed APPROVED; no-op verified against a copy of the live DB; remaining COLLATE NOCASE/name-CHECK drift moved to backlog) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 
@@ -145,18 +146,9 @@ if the maintainer asks.
 
 ## Follow-up backlog (found during execution of plans 015-023)
 
-- **LIVE DB DRIFT: `customers.current_balance` / `customers.credit_limit`
-  exist in the live El Rincón DB but NOT in repo schema sources**
-  (`schema.sql`, `models/customer.py`, Alembic) — every live row is at the
-  default (0 / 50000). Likely a legacy windows-import branch artifact never
-  migrated into the repo. Fresh business DBs (e.g. casabea.db) will lack the
-  columns. Suggested reconciliation plan 024: add both columns to
-  `models/customer.py` + `schema.sql` + a new Alembic revision (defaults
-  matching the live DB), then re-run `check_schema_drift.py`. Zero data risk
-  (all defaults). Alternative: drop the columns from the live DB (no code
-  references them) — maintainer's call.
-- **`customer_identifiers.identifier_3or4` is NOT NULL** in all repo sources
-  — copy scripts and future tooling must skip the row, never insert NULL.
+- **RESOLVED by plan 024**: `customers.current_balance`/`credit_limit` live-vs-repo drift — columns now in `models/customer.py`, `schema.sql`, migration `652b05c0c11e`; no-op verified on a copy of the live DB.
+- **Remaining drift (open)**: live `customers.identifier_9 COLLATE NOCASE` and the name-length CHECK differ from repo sources — future reconciliation plan if it ever bites.
+- **`customer_identifiers.identifier_3or4` is NOT NULL** in all repo sources — copy scripts and future tooling must skip the row, never insert NULL.
 
 ## Direction candidates (not written as plans — maintainer's call)
 

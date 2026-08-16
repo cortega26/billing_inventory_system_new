@@ -94,6 +94,6 @@ Consult before every change. Check off as work completes.
 
 - [x] Recon: live DDL vs repo sources verified (all rows at defaults; alembic stamped at head)
 - [x] Plan 024 written (plans/024-customer-credit-columns.md) + spec.md section
-- [ ] Executor: model + schema.sql + migration + tests in worktree
-- [ ] Review, merge, push, clean, archive, mark DONE
-- [ ] Manual app boot on live DB to confirm no-op migration
+- [x] Executor: model + schema.sql + migration + tests (no STOP)
+- [x] Reviewed (APPROVE), merged 955e4c2, pushed, cleaned, archived, DONE
+- [x] No-op verified against a COPY of the live DB (127 customers intact, head 652b05c0c11e)

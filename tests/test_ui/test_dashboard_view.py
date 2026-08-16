@@ -19,9 +19,7 @@ PRODUCTION_DB = "dashboard_production_test.db"
 @pytest.fixture
 def set_dashboard_profile(db_manager):
     def _set(profile):
-        db_filename = (
-            RESELLER_DB if profile == "reseller" else PRODUCTION_DB
-        )
+        db_filename = RESELLER_DB if profile == "reseller" else PRODUCTION_DB
         config.set(
             "businesses",
             [
@@ -46,9 +44,7 @@ def _metric_labels(view: DashboardView) -> list[str]:
     return [label.text() for label in view.findChildren(QLabel)]
 
 
-def test_reseller_profile_shows_inventory_value_card(
-    qtbot, set_dashboard_profile
-):
+def test_reseller_profile_shows_inventory_value_card(qtbot, set_dashboard_profile):
     set_dashboard_profile("reseller")
     view = DashboardView()
     qtbot.addWidget(view)
@@ -58,9 +54,7 @@ def test_reseller_profile_shows_inventory_value_card(
     assert "Unidades Vendidas" not in labels
 
 
-def test_production_profile_shows_units_card(
-    qtbot, set_dashboard_profile
-):
+def test_production_profile_shows_units_card(qtbot, set_dashboard_profile):
     set_dashboard_profile("production")
     view = DashboardView()
     qtbot.addWidget(view)

@@ -14,7 +14,7 @@ merge), move its file to `plans/archive/` in the same change that marks it done.
 The index below keeps the historical record; the archived files are the record
 of what was executed. Do not delete archived plans.
 
-## Status (24 plans; 001-024 all DONE — files archived)
+## Status (26 plans; 001-026 all DONE — files archived)
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
@@ -42,6 +42,8 @@ of what was executed. Do not delete archived plans.
 | 022  | Multi-business support (CasaBea): one DB per business + startup selector | P1 | M | — | DONE (executed 2026-08-15, 8 commits b3aa38b..fa38ee7, merged 5bbed86, reviewed APPROVED; Phase E amendment: analytics engine follows active business; deviation: three-branch db_path resolution preserves DATABASE_NAME override + legacy test seam) |
 | 023  | Copy customers (identity only) between business DBs (El Rincón → CasaBea) | P1 | S | — | DONE (executed 2026-08-16, commits db31700/a3f73ce, merged 4bfaa74, reviewed APPROVED; executor STOPPED on live-DB-vs-repo schema drift → plan revised to repo schema; drift recorded as backlog) |
 | 024  | Reconcile customer schema drift (current_balance/credit_limit in repo sources) | P2 | S | — | DONE (executed 2026-08-16, commits 1939f9e..d1f16dd, merged 955e4c2, reviewed APPROVED; no-op verified against a copy of the live DB; remaining COLLATE NOCASE/name-CHECK drift moved to backlog) |
+| 025  | In-app business switch + config registry self-healing | P1 | S | — | DONE (executed 2026-08-16, 8 commits, merged 00acf5d, reviewed APPROVED; executor STOPPED on engine.py legacy-seam interaction → amendment: registry-explicitness flag; second STOP caught order-dependent flag staleness → one-line Config.set fix) |
+| 026  | `isolate_config` teardown must never save (config-nuking test bug) | P1 | S | — | DONE (executed 2026-08-16, commits 5ce9b7d..870bda2, merged, reviewed APPROVED; real config nuked by suite at 12:55 → restored from backup; post-merge full suite leaves real config untouched — verified mtime+content) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 

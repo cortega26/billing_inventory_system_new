@@ -103,13 +103,13 @@ Consult before every change. Check off as work completes.
 - [x] Recon: main_window menu structure (create_menu list), config default-shape tests located
 - [x] Plan 025 written + spec.md section
 - [ ] Executor: menu action + config defaults + tests in worktree
-- [ ] Review, merge, push, clean, archive, mark DONE
-- [ ] Manual launch check: selector at startup + in-app switch
+- [x] Reviewed (APPROVE), merged, pushed, cleaned, archived, DONE
+- [ ] Manual launch check: selector at startup + Archivo → Cambiar de negocio (user action)
 
 ## Plan 026 (config-nuking test bug) — isolate_config teardown must never save
 
 - [x] Root cause: tests calling Config._reset_for_testing() bare leave _config_file=None; autouse teardown reset_to_defaults() writes the REAL config (nuked PIN + registry on the dev machine; also created stray repo-root nonexistent.json)
 - [x] Plan 026 written + spec.md section
-- [ ] Executor: harden fixture teardown + fix offending tests + regression test
-- [ ] Review, merge, push, clean, archive, mark DONE
-- [ ] Re-run full suite in main (should NOT touch the real config)
+- [x] Executor: teardown state-only + fixed leaks + regression test (3 documented deviations, all correct)
+- [x] Reviewed (APPROVE), merged, pushed, cleaned, archived, DONE
+- [x] Full suite in main: 389 passed; real config mtime+content verified UNTOUCHED

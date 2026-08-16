@@ -32,7 +32,7 @@ reflect the working tree, not `HEAD`.
 | 011  | Dead code sweep with zero-reference guard | P2 | M | 008, 009, 010 | DONE (executed 2026-08-15, commits d179e7d/1acdba2/6c6e3f4, merged, reviewed APPROVED; 2045 deletions; follow-up: get_sale_statistics + handle_external_service + ReceiptService.send_via_whatsapp orphans) |
 | 012  | DX: runnable README, pre-commit install + drift hook, logging paths, editorconfig | P2 | S-M | — | DONE (executed 2026-08-15, 4 commits + f065a62 logger-name fix, merged, reviewed APPROVED; incl. production fix: app logger name aligned with yaml so logging is not dropped) |
 | 013  | Reconcile docs/backlogs with reality; language decision; bandit wire-or-drop | P2 | S-M | — | DONE (executed 2026-08-15, 4 commits 10adf92..b3b362a, merged, reviewed APPROVED; bandit wired with 8 false-positive nosec sites) |
-| 014  | Extend pyright scope into ui/ incrementally | P3 | M | — | TODO |
+| 014  | Extend pyright scope into ui/ incrementally | P3 | M | — | DONE (executed 2026-08-15, 8 commits e62d4b1..dc61586, merged, reviewed APPROVED) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 

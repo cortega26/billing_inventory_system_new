@@ -176,7 +176,7 @@ class CategoryService:
         logger.info("Category statistics retrieved", extra={"count": len(rows)})
         return rows
 
-    @staticmethod
-    def clear_cache():
+    @classmethod
+    def clear_cache(cls) -> None:
         CategoryService.get_all_categories.cache_clear()
         logger.debug("Category cache cleared")

@@ -317,8 +317,8 @@ class AnalyticsService:
             "unique_customers": result["unique_customers"],
         }
 
-    @staticmethod
-    def clear_cache():
+    @classmethod
+    def clear_cache(cls) -> None:
         AnalyticsService.get_sales_by_weekday.cache_clear()
         AnalyticsService.get_top_selling_products.cache_clear()
         AnalyticsService.get_sales_trend.cache_clear()

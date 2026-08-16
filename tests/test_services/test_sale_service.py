@@ -516,3 +516,33 @@ class TestGetAllSalesPagination:
     def test_pagination_invalid_offset_raises(self, sale_service):
         with pytest.raises(ValidationException):
             sale_service.get_all_sales(limit=10, offset=-1)
+
+
+class TestCacheFreshness:
+    def test_get_all_sales_includes_new_sale(
+        self, sale_service, sample_sale_data, inventory_service, sample_product
+    ):
+        SaleService.clear_cache()
+        inventory_service.update_quantity(sample_product.id, 30.0)
+
+        sales_before = sale_service.get_all_sales()
+        sale_id = sale_service.create_sale(**sample_sale_data)
+
+        sales_after = sale_service.get_all_sales()
+        assert len(sales_after) == len(sales_before) + 1
+        assert any(sale.id == sale_id for sale in sales_after)
+
+    def test_get_product_details_reflects_price_update(
+        self, sale_service, product_service, sample_product
+    ):
+        SaleService.clear_cache()
+        product_id = sample_product.id
+
+        details_before = sale_service.get_product_details(product_id)
+        assert details_before is not None
+        new_price = details_before["sell_price"] + 100
+        product_service.update_product(product_id, {"sell_price": new_price})
+
+        details_after = sale_service.get_product_details(product_id)
+        assert details_after is not None
+        assert details_after["sell_price"] == new_price

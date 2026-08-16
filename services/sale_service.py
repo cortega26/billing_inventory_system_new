@@ -457,7 +457,8 @@ class SaleService:
     def send_receipt_via_whatsapp(self, sale_id: int, phone_number: str) -> None:
         self.receipt_service.send_via_whatsapp(sale_id, phone_number)
 
-    def clear_cache(self):
+    @classmethod
+    def clear_cache(cls) -> None:
         """Clear the sale cache."""
         SaleService.get_all_sales.cache_clear()
         logger.debug("Sale cache cleared")

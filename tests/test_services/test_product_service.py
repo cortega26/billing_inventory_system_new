@@ -405,3 +405,25 @@ class TestProductServiceContracts:
             assert payloads == [product_id]
         finally:
             event_system.product_updated.disconnect(handler)
+
+    def test_get_all_products_reflects_update(self, product_service):
+        ProductService.clear_cache()
+        product_id = product_service.create_product(
+            {
+                "name": "Cache Freshness Product",
+                "description": "List cache freshness",
+                "cost_price": 500,
+                "sell_price": 900,
+                "barcode": "123456789021",
+            }
+        )
+        products_before = product_service.get_all_products()
+        assert any(p.id == product_id for p in products_before)
+
+        new_price = 1000
+        product_service.update_product(product_id, {"sell_price": new_price})
+
+        products_after = product_service.get_all_products()
+        updated = [p for p in products_after if p.id == product_id]
+        assert len(updated) == 1
+        assert updated[0].sell_price == new_price

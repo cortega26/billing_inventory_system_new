@@ -539,9 +539,10 @@ class CustomerService:
         )
         return customers
 
-    def clear_cache(self):
+    @classmethod
+    def clear_cache(cls) -> None:
         """Clear the customer cache."""
-        self.get_all_customers.cache_clear()
+        CustomerService.get_all_customers.cache_clear()
         logger.debug("Customer cache cleared")
 
     @db_operation(show_dialog=True)

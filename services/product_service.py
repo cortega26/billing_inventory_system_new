@@ -348,9 +348,10 @@ class ProductService:
             )
             raise
 
-    def clear_cache(self):
+    @classmethod
+    def clear_cache(cls) -> None:
         """Clear the product cache."""
-        self.get_all_products.cache_clear()
+        ProductService.get_all_products.cache_clear()
         logger.debug("Product cache cleared")
 
     @staticmethod

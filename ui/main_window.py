@@ -376,7 +376,7 @@ class MainWindow(QMainWindow):
                     widget = self.views_by_name.get(tab_name)
                     if widget is None or not shiboken6.isValid(widget):
                         continue
-                    if hasattr(widget, "refresh") and callable(widget.refresh):
+                    if callable(getattr(widget, "refresh", None)):
                         refreshable_widget = cast(RefreshableWidget, widget)
                         refreshable_widget.refresh()
                 except RuntimeError as e:
@@ -404,9 +404,7 @@ class MainWindow(QMainWindow):
     @ui_operation(show_dialog=True)
     def export_data(self):
         current_widget = self.tab_widget.currentWidget()
-        if hasattr(current_widget, "export_current_view") and callable(
-            current_widget.export_current_view
-        ):
+        if callable(getattr(current_widget, "export_current_view", None)):
             exportable_widget = cast(ExportableWidget, current_widget)
             exportable_widget.export_current_view()
             return
@@ -450,7 +448,7 @@ class MainWindow(QMainWindow):
     def refresh_current_tab(self):
         try:
             current_widget = self.tab_widget.currentWidget()
-            if hasattr(current_widget, "refresh") and callable(current_widget.refresh):
+            if callable(getattr(current_widget, "refresh", None)):
                 refreshable_widget = cast(RefreshableWidget, current_widget)
                 refreshable_widget.refresh()
             self.show_status_message("Vista actualizada")

@@ -27,7 +27,7 @@ reflect the working tree, not `HEAD`.
 | 006  | Fix xdist crash + enable parallel CI + bump CI actions | P1 | S | — | DONE (executed 2026-08-15, commits dcaf970/ad347a3/d7fd8cf, branch advisor/006-xdist-ci, reviewed APPROVED) |
 | 007  | Unify cache protocol; fix false clear_cache pairing | P2 | M | — | DONE (executed 2026-08-15, commits 0981f5a/e0116a2, merged f4937c3, reviewed APPROVED) |
 | 008  | Sale-domain test hardening + purchase-delete reversal + suite cleanup | P1 | S-M | 007 | DONE (executed 2026-08-15, commits c1ebf4b/41c0041, merged 02a97e5, reviewed APPROVED) |
-| 009  | Inventory + analytics real-DB guard tests | P2 | M | — | TODO |
+| 009  | Inventory + analytics real-DB guard tests | P2 | M | — | DONE (executed 2026-08-15, commits 943c0b4/9ea88fa/d4dc040, merged 7e3ed71, reviewed APPROVED; included root-cause fix for event_system reload fixture flake) |
 | 010  | Receipt + purchase_query characterization tests | P2 | M | — | TODO |
 | 011  | Dead code sweep with zero-reference guard | P2 | M | 008, 009, 010 | TODO |
 | 012  | DX: runnable README, pre-commit install + drift hook, logging paths, editorconfig | P2 | S-M | — | TODO |

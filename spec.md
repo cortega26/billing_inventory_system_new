@@ -249,3 +249,22 @@ Requested 2026-08-16 (user twice: no in-app way to switch business). Two parts:
 - Config test files green (existing "defaults" assertions updated to the new
   shape); UI tests under xvfb; full suite; ruff/black/pyright. Post-merge:
   manual launch — selector at startup + Archivo → Cambiar de negocio works.
+
+# Bugfix 6 — isolate_config teardown nukes the real config (plan 026)
+
+Found 2026-08-16 while verifying plan 025 post-merge: the autouse
+`isolate_config` fixture's teardown calls `Config.reset_to_defaults()`, which
+SAVES. Any test that leaves `_config_file = None` (e.g.
+`tests/test_system/test_config.py:173,180` call `_reset_for_testing()` bare)
+makes the teardown write defaults to the REAL
+`~/.config/billing-inventory/app_config.json` — wiping the PIN hash and the
+business registry on the dev machine (verified: it happened at 12:55:12
+during the post-merge suite run; config restored from backup). The relative
+`Path("nonexistent.json")` at `test_config.py:97` produces the stray
+repo-root `nonexistent.json`.
+
+Fix: the teardown must reset in-memory state ONLY (no save) — replace
+`Config.reset_to_defaults()` with a state-only reset; fix the bare
+`_reset_for_testing()` calls; add a regression test (monkeypatched home,
+`_config_file=None` left behind ⇒ user-local config untouched); remove the
+stray `nonexistent.json`. Planned at `00acf5d`.

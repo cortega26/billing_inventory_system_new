@@ -357,7 +357,7 @@ class InventoryService:
                    'Sale' as reason
             FROM sale_items si
             JOIN sales s ON si.sale_id = s.id
-            WHERE si.product_id = ? AND s.date BETWEEN ? AND ?
+            WHERE si.product_id = ? AND s.date BETWEEN ? AND ? AND s.status = 'confirmed'
             UNION ALL
             SELECT 'purchase' as type, p.date, pi.quantity as quantity_change,
                    'Purchase' as reason
@@ -392,7 +392,7 @@ class InventoryService:
                 SELECT si.product_id, SUM(si.quantity) as total_sold
                 FROM sale_items si
                 JOIN sales s ON si.sale_id = s.id
-                WHERE s.date BETWEEN ? AND ?
+                WHERE s.date BETWEEN ? AND ? AND s.status = 'confirmed'
                 GROUP BY si.product_id
             )
             SELECT sd.product_id,

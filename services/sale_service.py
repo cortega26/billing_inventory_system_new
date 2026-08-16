@@ -365,6 +365,30 @@ class SaleService:
     @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
+    def get_total_units_sold(start_date: str, end_date: str) -> float:
+        start_date = validate_date(start_date)
+        end_date = validate_date(end_date)
+        query = """
+            SELECT COALESCE(ROUND(SUM(si.quantity), 3), 0) as total_units
+            FROM sale_items si
+            JOIN sales s ON si.sale_id = s.id
+            WHERE s.date BETWEEN ? AND ? AND s.status = 'confirmed'
+        """
+        result = DatabaseManager.fetch_one(query, (start_date, end_date))
+        total_units = float(result["total_units"] if result else 0)
+        logger.info(
+            "Total units sold retrieved",
+            extra={
+                "start_date": start_date,
+                "end_date": end_date,
+                "total_units": total_units,
+            },
+        )
+        return total_units
+
+    @staticmethod
+    @db_operation(show_dialog=True)
+    @handle_exceptions(DatabaseException, show_dialog=True)
     def get_total_profits(start_date: str, end_date: str) -> int:
         start_date = validate_date(start_date)
         end_date = validate_date(end_date)

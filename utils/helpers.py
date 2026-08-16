@@ -9,6 +9,20 @@ from utils.system.logger import logger
 T = TypeVar("T")
 
 
+def get_product_ids_from_items(items: list[Any]) -> list[int]:
+    """Extract unique product ids from sale/purchase items (dicts or objects)."""
+    product_ids: list[int] = []
+    for item in items:
+        product_id = (
+            item["product_id"]
+            if isinstance(item, dict)
+            else getattr(item, "product_id", None)
+        )
+        if product_id is not None and product_id not in product_ids:
+            product_ids.append(int(product_id))
+    return product_ids
+
+
 def create_table(headers: list[str]) -> QTableWidget:
     """
     Create and return a QTableWidget with the specified headers.

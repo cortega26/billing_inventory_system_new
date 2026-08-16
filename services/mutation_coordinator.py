@@ -3,6 +3,7 @@ from typing import Any
 
 from services.analytics_service import AnalyticsService
 from services.inventory_service import InventoryService
+from utils.helpers import get_product_ids_from_items
 from utils.system.event_system import event_system
 from utils.system.logger import logger
 
@@ -31,7 +32,7 @@ class MutationCoordinator:
                 logger.error(f"Error clearing service cache: {e}")
 
         # 3. Emit inventory changed events for affected products
-        product_ids = MutationCoordinator._get_product_ids(items)
+        product_ids = get_product_ids_from_items(items)
         for product_id in product_ids:
             try:
                 event_system.inventory_changed.emit(product_id)
@@ -45,16 +46,3 @@ class MutationCoordinator:
             signal.emit(entity_id)
         except Exception as e:
             logger.error(f"Error emitting signal {signal}: {e}")
-
-    @staticmethod
-    def _get_product_ids(items: list[Any]) -> list[int]:
-        product_ids: list[int] = []
-        for item in items:
-            product_id = (
-                item["product_id"]
-                if isinstance(item, dict)
-                else getattr(item, "product_id", None)
-            )
-            if product_id is not None and product_id not in product_ids:
-                product_ids.append(int(product_id))
-        return product_ids

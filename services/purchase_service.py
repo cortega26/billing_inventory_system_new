@@ -13,6 +13,7 @@ from services.mutation_coordinator import MutationCoordinator
 from services.purchase_query_service import PurchaseQueryService
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import DatabaseException, NotFoundException, ValidationException
+from utils.helpers import get_product_ids_from_items
 from utils.math.financial_calculator import FinancialCalculator
 from utils.system.event_system import event_system
 from utils.system.logger import logger
@@ -60,7 +61,7 @@ class PurchaseService:
                     "supplier": supplier,
                     "date": date,
                     "item_count": len(items),
-                    "product_ids": PurchaseService._get_product_ids(items),
+                    "product_ids": get_product_ids_from_items(items),
                     "total_amount": total_amount,
                 },
             )
@@ -119,7 +120,7 @@ class PurchaseService:
                 purchase_id,
                 {
                     "item_count": len(items),
-                    "product_ids": PurchaseService._get_product_ids(items),
+                    "product_ids": get_product_ids_from_items(items),
                 },
             )
 
@@ -181,9 +182,7 @@ class PurchaseService:
                     "date": date,
                     "old_item_count": len(old_items),
                     "new_item_count": len(items),
-                    "product_ids": PurchaseService._get_product_ids(
-                        [*old_items, *items]
-                    ),
+                    "product_ids": get_product_ids_from_items([*old_items, *items]),
                     "total_amount": total_amount,
                 },
             )
@@ -236,19 +235,6 @@ class PurchaseService:
                 raise ValidationException(f"Invalid cost price: {cost_price}")
         except (ValueError, TypeError) as e:
             raise ValidationException(f"Invalid item data: {str(e)}") from e
-
-    @staticmethod
-    def _get_product_ids(items: list[Any]) -> list[int]:
-        product_ids: list[int] = []
-        for item in items:
-            product_id = (
-                item["product_id"]
-                if isinstance(item, dict)
-                else getattr(item, "product_id", None)
-            )
-            if product_id is not None and product_id not in product_ids:
-                product_ids.append(int(product_id))
-        return product_ids
 
     @staticmethod
     @db_operation(show_dialog=True)

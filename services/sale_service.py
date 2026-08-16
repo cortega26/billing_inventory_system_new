@@ -13,6 +13,7 @@ from services.product_service import ProductService
 from services.receipt_service import ReceiptService
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import DatabaseException, NotFoundException, ValidationException
+from utils.helpers import get_product_ids_from_items
 from utils.math.financial_calculator import FinancialCalculator
 from utils.system.event_system import event_system
 from utils.system.logger import logger
@@ -107,7 +108,7 @@ class SaleService:
                         "customer_id": customer_id,
                         "date": sale_date_str,
                         "item_count": len(items),
-                        "product_ids": self._get_product_ids(items),
+                        "product_ids": get_product_ids_from_items(items),
                         "total_amount": total_amount,
                         "total_profit": total_profit,
                         "receipt_id": receipt_id,
@@ -262,7 +263,7 @@ class SaleService:
                     sale_id,
                     {
                         "item_count": len(items),
-                        "product_ids": self._get_product_ids(items),
+                        "product_ids": get_product_ids_from_items(items),
                     },
                 )
                 DatabaseManager.execute_query(
@@ -314,7 +315,7 @@ class SaleService:
                     sale_id,
                     {
                         "item_count": len(items),
-                        "product_ids": self._get_product_ids(items),
+                        "product_ids": get_product_ids_from_items(items),
                     },
                 )
             logger.info("Sale cancelled", extra={"sale_id": sale_id})
@@ -480,19 +481,6 @@ class SaleService:
                 f"Daily receipt limit reached for {sale_date_str} (max 999 per day)"
             )
         return f"{date_part}{next_number:03d}"
-
-    @staticmethod
-    def _get_product_ids(items: list[Any]) -> list[int]:
-        product_ids: list[int] = []
-        for item in items:
-            product_id = (
-                item["product_id"]
-                if isinstance(item, dict)
-                else getattr(item, "product_id", None)
-            )
-            if product_id is not None and product_id not in product_ids:
-                product_ids.append(int(product_id))
-        return product_ids
 
     def _validate_sale_items(self, items: list[dict[str, Any]]) -> None:
         if not items:

@@ -207,6 +207,37 @@ class TestInventoryServiceRealDb:
             == 1
         )
 
+    def test_ui_manual_edit_path_writes_movement_and_audit_rows(self):
+        # Simulates exactly what ui/inventory_view.edit_inventory does today.
+        self.inventory_service.adjust_inventory(self.prod_id, 5.0, "manual set")
+
+        assert self._quantity() == 5.0
+        rows = self._adjustment_rows()
+        assert len(rows) == 1
+        assert rows[0]["quantity_change"] == 5.0
+        assert rows[0]["reason"] == "manual set"
+
+        # The row is stamped with CURRENT_TIMESTAMP, which the movements
+        # query's date-only upper bound can never include on the day it is
+        # written (the time part sorts after the date-only bound, and tomorrow
+        # is rejected as a future date). Backdate the row to a fixed past date
+        # so it deterministically surfaces as an adjustment movement.
+        DatabaseManager.execute_query(
+            "UPDATE inventory_adjustments SET date = '2026-07-15' WHERE product_id = ?",
+            (self.prod_id,),
+        )
+        movements = self.inventory_service.get_inventory_movements(
+            self.prod_id, "2000-01-01", "2026-08-15"
+        )
+        assert any(m["type"] == "adjustment" for m in movements)
+
+    def test_ui_manual_edit_negative_below_zero_raises_and_leaves_no_ledger_row(self):
+        self.inventory_service.adjust_inventory(self.prod_id, 5.0, "manual set")
+        with pytest.raises(ValidationException, match="cannot be negative"):
+            self.inventory_service.adjust_inventory(self.prod_id, -999.0, "manual set")
+        assert self._quantity() == 5.0
+        assert len(self._adjustment_rows()) == 1
+
     def test_get_inventory_value(self):
         self.inventory_service.set_quantity(self.prod_id, 5.0)
 

@@ -81,9 +81,7 @@ EXCLUDED_INDEXES = {
 
 
 def _index_names(conn, table: str) -> set[str]:
-    rows = conn.execute(
-        "SELECT * FROM pragma_index_list(?)", (table,)
-    ).fetchall()
+    rows = conn.execute("SELECT * FROM pragma_index_list(?)", (table,)).fetchall()
     return {
         row["name"]
         for row in rows
@@ -117,9 +115,7 @@ def main() -> int:
         for table in sorted(metadata_tables & db_tables):
             db_columns = {
                 row["name"]
-                for row in conn.execute(
-                    "SELECT * FROM pragma_table_info(?)", (table,)
-                )
+                for row in conn.execute("SELECT * FROM pragma_table_info(?)", (table,))
             }
             metadata_columns = {
                 column.key for column in SQLModel.metadata.tables[table].columns

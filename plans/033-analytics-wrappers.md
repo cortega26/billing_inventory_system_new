@@ -89,6 +89,18 @@ Existing tests that pin behavior:
 - `tests/test_services/test_analytics_service.py` — real-DB wrapper tests
   for both new wrappers (seeded product/inventory, follow the existing
   real-DB class pattern)
+- `services/inventory_service.py` — AMENDMENT (2026-08-16, review round 1):
+  the wrappers are `@lru_cache`d and cleared by the mutation coordinator for
+  sale/purchase paths, but manual adjustments (`set_quantity`,
+  `adjust_inventory`) only clear `InventoryService.clear_cache()` — a manual
+  stock change would leave the dashboard's low-stock card stale until the
+  next sale/purchase (regression vs. the previously uncached service method).
+  Add `AnalyticsService.clear_cache()` next to `InventoryService.clear_cache()`
+  in BOTH manual-adjustment paths (post-commit, same place as the existing
+  cache clear + event emission). Verify no circular import (analytics_service
+  imports database/engine/metrics only — check) and add a test:
+  `adjust_inventory` below-threshold → `AnalyticsService.get_low_stock()`
+  reflects it immediately (no other mutation needed).
 - `SPECIFICATIONS.md` — if the analytics section lists available metrics,
   ensure the two are listed as service-exposed (check first)
 
@@ -210,6 +222,10 @@ Stop and report back (do not improvise) if:
 - The analytics read-only contract is now the single implementation for
   operational alerts (low stock, aging); `inventory_service.get_low_stock_products`
   removal (if applicable) closes the parallel implementation.
+- The manual-adjustment cache clear (amendment) must survive future changes
+  to `set_quantity`/`adjust_inventory` — if a new manual write path appears,
+  it must also clear the analytics cache (see mutation_coordinator for the
+  sale/purchase precedent).
 - Reviewer scrutiny: cache behavior (AnalyticsService caches — the dashboard
   refresh path must still refresh after mutations; verify the existing
   `AnalyticsService.clear_cache` wiring covers the new wrapper usage), and

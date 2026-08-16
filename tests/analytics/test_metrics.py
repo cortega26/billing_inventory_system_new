@@ -198,8 +198,10 @@ def test_inventory_aging_ignores_cancelled_sales(engine, analytics_db_path):
         " VALUES (3, ?, 100, 50, 1, 'cancelled')",
         ((datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S"),),
     )
-    conn.execute("INSERT INTO sale_items (id, sale_id, product_id, quantity, price)"
-                 " VALUES (4, 3, 3, 1, 100)")
+    conn.execute(
+        "INSERT INTO sale_items (id, sale_id, product_id, quantity, price)"
+        " VALUES (4, 3, 3, 1, 100)"
+    )
     conn.commit()
     conn.close()
 
@@ -207,7 +209,6 @@ def test_inventory_aging_ignores_cancelled_sales(engine, analytics_db_path):
     aging = {row["product_id"]: row for row in result.data}
     assert 3 in aging  # still aging: the cancelled sale must not disqualify it
     assert aging[3]["last_sold_date"] is None
-
 
 
 def test_department_sales(engine):

@@ -156,3 +156,34 @@ cinnamon-roll entrepreneurship). Deliverable: `plans/022-casabea-multi-business.
   business).
 - Full suite + `ruff`/`black`/`pyright`/`check_schema_drift.py` clean before
   merge; post-merge full suite in main; push; archive; mark DONE.
+
+# Feature 3 — Seed CasaBea with El Rincón's customers (plan 023)
+
+Requested 2026-08-16: copy El Rincón de Ébano's 127 customers into CasaBea as
+a one-time seed. Architecture decision confirmed with the owner: keep
+per-business DBs; copy identity data only; a future one-way refresh reuses
+the same script; bidirectional sync explicitly out of scope. Deliverable:
+`plans/023-copy-customers-between-businesses.md` (planned at `17f9640`).
+
+## Spec summary
+
+- New headless CLI `scripts/copy_customers.py` (mirrors the
+  `scripts/check_schema_drift.py` pattern): `--source` (default: business
+  "default"), `--target` (default: business "casabea"), `--include-inactive`,
+  `--copy-credit-limits`, `--dry-run`. Spanish messages.
+- Importable `copy_customers(source_path, target_path, ...) -> dict[str, int]`
+  ({inserted, existing, invalid}): plain sqlite3, parameterized SQL, single
+  transaction on target; validates via `validate_9digit_identifier` /
+  `validate_3or4digit_identifier`; never overwrites existing identifier_9;
+  `current_balance` always 0 (debts belong to El Rincón); invalid rows are
+  counted, not fatal.
+- Tests: `tests/test_scripts/test_copy_customers.py` (6 cases, real temp
+  files). No changes to services/ui/config/database.
+
+## Verification (plan 023)
+
+- `--help` exits 0; the 6 tests pass; full suite green (modulo pre-existing
+  worktree UI exceptions); ruff/black/pyright clean.
+- Real-run boundary: executing against the production DBs (El Rincón → a
+  fresh casabea.db) requires the operator's explicit approval; first run with
+  `--dry-run`.

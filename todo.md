@@ -81,3 +81,11 @@ Consult before every change. Check off as work completes.
 - [x] Phase D: docs + business-switch tests + full verification
 - [x] Phase E: analytics engine active-business path + isolation test
 - [x] Reviewed (APPROVE), merged 5bbed86, pushed, cleaned, archived, DONE
+
+## Plan 023 (CasaBea customer seed) — copy_customers script
+
+- [x] Recon: customer schema + scripts pattern verified (127 rows, identity-only copy decision)
+- [x] Plan 023 written (plans/023-copy-customers-between-businesses.md) + spec.md section
+- [ ] Executor: implement script + 6 tests in worktree
+- [ ] Review, merge, push, clean, archive, mark DONE
+- [ ] Real-run (operator approval): dry-run first, then seed casabea.db

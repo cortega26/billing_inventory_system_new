@@ -315,7 +315,7 @@ class CustomerView(QWidget):
                     actions_layout = QHBoxLayout(actions_widget)
                     actions_layout.setContentsMargins(0, 0, 0, 0)
                     actions_layout.setSpacing(6)
-                    actions_layout.setAlignment(Qt.AlignCenter)
+                    actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
                     edit_button = QPushButton("Editar")
                     edit_button.setFixedWidth(80)
@@ -401,6 +401,7 @@ class CustomerView(QWidget):
                         return
 
                 # Update the customer
+                assert customer.id is not None
                 self.customer_service.update_customer(
                     customer.id,
                     identifier_9=new_identifier_9,
@@ -512,6 +513,7 @@ class CustomerView(QWidget):
                         f"[edit_customer] User left name blank; reusing old name='{new_name}'"
                     )
 
+                assert customer.id is not None
                 self.customer_service.update_customer(
                     customer.id,
                     identifier_9=dialog.identifier_9_input.text().strip(),
@@ -555,6 +557,7 @@ class CustomerView(QWidget):
         )
         if reply == QMessageBox.StandardButton.Yes:
             try:
+                assert customer.id is not None
                 if is_active:
                     self.customer_service.delete_customer(customer.id)
                     show_info_message("Éxito", "Cliente archivado exitosamente.")
@@ -596,7 +599,11 @@ class CustomerView(QWidget):
         if row < 0:
             return
 
-        customer_id = self.customer_table.item(row, 0).text()
+        customer_id_item = self.customer_table.item(row, 0)
+        if customer_id_item is None:
+            return
+
+        customer_id = customer_id_item.text()
         customer = self.customer_service.get_customer(int(customer_id))
 
         if customer is None:
@@ -621,7 +628,10 @@ class CustomerView(QWidget):
             selected_rows = self.customer_table.selectionModel().selectedRows()
             if selected_rows:
                 row = selected_rows[0].row()
-                customer_id = int(self.customer_table.item(row, 0).text())
+                customer_id_item = self.customer_table.item(row, 0)
+                if customer_id_item is None:
+                    return
+                customer_id = int(customer_id_item.text())
                 customer = self.customer_service.get_customer(customer_id)
                 if customer:
                     self.delete_customer(customer)

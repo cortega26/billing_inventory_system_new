@@ -19,7 +19,7 @@
 - **Risk**: LOW
 - **Depends on**: none
 - **Category**: security
-- **Planned at**: commit `0b99aa5`, 2026-08-16
+- **Planned at**: commit `0b99aa5`, 2026-08-16 (AMENDED 2026-08-16 after a STOP)
 
 ## Why this matters
 
@@ -62,14 +62,32 @@ the fresh post-rotation active file).
 ## Scope
 
 **In scope**:
-- `utils/system/logger.py` — new `OwnerOnlyRotatingFileHandler` subclass + use it in `setup_logger` and the dictConfig path
-- `login_config.yaml` — the two file handlers' `class:` points at the subclass
+- `utils/system/handlers.py` — NEW module: `OwnerOnlyRotatingFileHandler` subclass (per the amendment)
+- `utils/system/logger.py` — import the subclass from `utils/system/handlers.py`; use it in `setup_logger`
+- `login_config.yaml` — the two file handlers' `class:` points at `utils.system.handlers.OwnerOnlyRotatingFileHandler`
 - `tests/test_system/test_logger.py` — extend the rotation test to assert the fresh active file is 0600
 
 **Out of scope** (do NOT touch):
 - The fallback `FileHandler` path (its file is created at setup and covered by the existing chmod; rotation doesn't apply there)
 - Plan-016's `_harden_log_file_permissions` (keep it; it covers the initial file)
 - Any other handler/logger behavior
+
+AMENDMENT (2026-08-16, after executor STOP with verified root cause):
+`dictConfig` cannot resolve `utils.system.logger.OwnerOnlyRotatingFileHandler`
+because `utils/system/logger.py` initializes the module-level `logger =`
+`setup_structured_logger()` DURING its own import — the `logger` attribute of
+the `utils.system` package is not yet set when `resolve()` walks the dotted
+path, so the class is unresolvable at exactly the moment dictConfig runs
+(baseline import verified OK; failure deterministic, not worktree-only).
+Fix (mechanism, verified by experiment outside the repo): put the subclass
+in a SEPARATE module `utils/system/handlers.py`, which is imported from
+logger.py at the top — its import completes BEFORE dictConfig runs, so the
+`utils.system.handlers` attribute exists when `resolve()` walks it (and the
+parent's lazy `__getattr__` does not interfere — experiment confirmed
+resolution works). The YAML references
+`utils.system.handlers.OwnerOnlyRotatingFileHandler`; `setup_logger` imports
+the class from the new module. Scope additions: the new
+`utils/system/handlers.py` file; `login_config.yaml` unchanged in spirit.
 
 ## Git workflow
 
@@ -79,37 +97,44 @@ the fresh post-rotation active file).
 
 ## Steps
 
-### Step 1: The subclass
+### Step 1: The subclass in its own module
 
-In `utils/system/logger.py`, after the imports, add:
+Create `utils/system/handlers.py`:
 
 ```python
+import logging
+import logging.handlers
+import os
+from contextlib import suppress
+
+
 class OwnerOnlyRotatingFileHandler(logging.handlers.RotatingFileHandler):
     """RotatingFileHandler that keeps log files owner-only (0600) across rotations."""
 
     def doRollover(self) -> None:
         super().doRollover()
-        with contextlib.suppress(OSError):
+        with suppress(OSError):
             os.chmod(self.baseFilename, 0o600)
 ```
 
-(`contextlib` and `os` are already imported in the file — verify.)
+In `utils/system/logger.py`: import the class at the top
+(`from utils.system.handlers import OwnerOnlyRotatingFileHandler`) and use it
+in `setup_logger` (replace the `RotatingFileHandler` construction).
 
-Use it in `setup_logger` (replace the `RotatingFileHandler` construction) and
-in the dictConfig path by changing `login_config.yaml`'s two file handlers:
+In `login_config.yaml`, point the two file handlers at the new module (which
+finishes importing before dictConfig runs — the amendment's verified fix):
 
 ```yaml
     file_handler:
-        class: utils.system.logger.OwnerOnlyRotatingFileHandler
+        class: utils.system.handlers.OwnerOnlyRotatingFileHandler
         ...
     error_file_handler:
-        class: utils.system.logger.OwnerOnlyRotatingFileHandler
+        class: utils.system.handlers.OwnerOnlyRotatingFileHandler
         ...
 ```
 
-(dictConfig resolves dotted module paths — this importable name works. If
-dictConfig fails to resolve it, STOP and report rather than changing the
-mechanism.)
+Do NOT reference `utils.system.logger.OwnerOnlyRotatingFileHandler` anywhere
+(the unresolvable path).
 
 **Verify**: `.venv/bin/python -m pytest tests/test_system/test_logger.py` → all pass.
 
@@ -141,8 +166,9 @@ that the FRESH active file created by the rotation is 0600 — i.e., after
 
 Machine-checkable. ALL must hold:
 
-- [ ] `OwnerOnlyRotatingFileHandler` defined in `utils/system/logger.py` with the `doRollover` chmod
-- [ ] `login_config.yaml`'s two file handlers use the subclass; `setup_logger` uses it
+- [ ] `OwnerOnlyRotatingFileHandler` defined in `utils/system/handlers.py` with the `doRollover` chmod
+- [ ] `login_config.yaml`'s two file handlers use `utils.system.handlers.OwnerOnlyRotatingFileHandler`; `setup_logger` uses the imported class
+- [ ] `python -c "from utils.system.logger import logger"` imports cleanly (module-level init + dictConfig resolve)
 - [ ] `rg -n "RotatingFileHandler" utils/system/logger.py login_config.yaml` shows no plain `logging.handlers.RotatingFileHandler` left in the file-handler paths
 - [ ] `.venv/bin/python -m pytest tests/test_system/test_logger.py` exits 0 with the extended assertion
 - [ ] `.venv/bin/python -m pytest` exits 0 (modulo pre-existing worktree UI exceptions)

@@ -358,3 +358,24 @@ documented separate), receipt text builders ×2 in sale_view, scan sound ×2
 - 029: `rg <name>` → 0 hits for all 33; suite green; ruff/black/pyright.
 - 030: behavior pinned by existing tests (get_all_sales, receipt UI tests);
   suite green; ruff/black/pyright.
+
+# Backlog round — plans 031/032/033
+
+- **031**: `get_inventory_movements` invisible same-day adjustments —
+  root cause: adjustment rows stamped `CURRENT_TIMESTAMP` (UTC) + the three
+  union arms use date-only `BETWEEN`. Fix: store LOCAL time
+  (`datetime('now','localtime')` at the 2 INSERT sites) + range-shift query
+  (plan-019 pattern) on all three arms. Historical UTC rows keep their
+  stored value (documented).
+- **032**: log rotation-time hardening — `OwnerOnlyRotatingFileHandler`
+  (chmod 0600 in `doRollover`) registered in `login_config.yaml` + used by
+  `setup_logger`; covers the gap plan 016 deferred.
+- **033**: expose `LowStockMetric`/`InventoryAgingMetric` via
+  `AnalyticsService` wrappers; dashboard low-stock switches to the wrapper
+  (single implementation; read-only contract).
+- Decisions on older backlog items: `identifier_9 COLLATE NOCASE` —
+  REJECTED (identifiers are digits; no case semantics); name-length CHECK —
+  folded into the schema-alignment check inside plan 031's verification
+  (verify schema.sql already carries it; if not, add it). `identifier_3or4`
+  NOT NULL — tooling note already honored (copy script); closed as
+  documented.

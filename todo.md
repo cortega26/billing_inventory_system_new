@@ -137,3 +137,11 @@ Consult before every change. Check off as work completes.
 - [x] Reviewed (APPROVE), merged ceb9c16, pushed, cleaned, archived, DONE
 - [x] Executor 030: 4 blocks consolidated + LogLevel deleted (6 commits)
 - [x] Reviewed (APPROVE), merged 2ddeff1, pushed, cleaned, archived, DONE
+
+## Backlog round: plans 031 (movements UTC), 032 (rotation hardening), 033 (analytics wrappers)
+
+- [x] Plans 031/032/033 written + spec.md section; older backlog items closed with decisions
+- [ ] Executor 031 → review/merge/push/archive
+- [ ] Executor 032 → review/merge/push/archive
+- [ ] Executor 033 → review/merge/push/archive
+- [ ] Propose next: returns/refunds workflow + CSV import (product decisions)

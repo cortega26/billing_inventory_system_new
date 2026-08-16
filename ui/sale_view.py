@@ -1239,6 +1239,51 @@ class SaleView(QWidget):
             logger.error(f"Error printing receipt: {str(e)}")
             show_error_message("Error", f"Error al imprimir recibo: {str(e)}")
 
+    def _build_receipt_text(self, sale: Sale) -> str:
+        """Build the full receipt text with proper money formatting."""
+        assert sale.id is not None
+        items = self.sale_service.get_sale_items(sale.id)
+        customer = (
+            self.customer_service.get_customers_by_ids([sale.customer_id]).get(
+                sale.customer_id
+            )
+            if sale.customer_id is not None
+            else None
+        )
+
+        receipt_id = sale.receipt_id or self.sale_service.generate_receipt(sale.id)
+
+        # Format customer display
+        customer_text = build_customer_display(customer)
+
+        message = "<pre>"
+        message += f"{'Recibo #' + receipt_id:^64}\n\n"
+        message += f"{' Detalles de venta ':=^64}\n\n"
+        message += f"Cliente: {customer_text}\n"
+        message += (
+            f"Fecha: {sale.date.strftime('%d-%m-%Y')}\n"
+            if sale.date is not None
+            else "Fecha: -\n"
+        )
+        message += f"{'':=^64}\n\n"
+        message += f"{'Producto':<30}{'Cantidad':>10}{'P.Unit.':>12}{'Total':>12}\n"
+        message += f"{'':-^64}\n"
+
+        for item in items:
+            product = self.product_service.get_product(item.product_id)
+            product_name = product.name if product else "Unknown Product"
+            message += (
+                f"{product_name[:30]:<30}"
+                f"{item.quantity:>10.3f}"
+                f"{format_price(item.unit_price):>12}"
+                f"{format_price(item.total_price()):>12}\n"
+            )
+
+        message += f"{'':-^64}\n"
+        message += f"{'Total:':<45}{format_price(sale.total_amount):>19}\n"
+        message += "</pre>"
+        return message
+
     @ui_operation(show_dialog=True)
     @handle_exceptions(
         ValidationException, DatabaseException, UIException, show_dialog=True
@@ -1246,47 +1291,7 @@ class SaleView(QWidget):
     def view_sale(self, sale: Sale) -> None:
         """View sale details with proper money formatting."""
         try:
-            assert sale.id is not None
-            items = self.sale_service.get_sale_items(sale.id)
-            customer = (
-                self.customer_service.get_customers_by_ids([sale.customer_id]).get(
-                    sale.customer_id
-                )
-                if sale.customer_id is not None
-                else None
-            )
-
-            receipt_id = sale.receipt_id or self.sale_service.generate_receipt(sale.id)
-
-            # Format customer display
-            customer_text = build_customer_display(customer)
-
-            message = "<pre>"
-            message += f"{'Recibo #' + receipt_id:^64}\n\n"
-            message += f"{' Detalles de venta ':=^64}\n\n"
-            message += f"Cliente: {customer_text}\n"
-            message += (
-                f"Fecha: {sale.date.strftime('%d-%m-%Y')}\n"
-                if sale.date is not None
-                else "Fecha: -\n"
-            )
-            message += f"{'':=^64}\n\n"
-            message += f"{'Producto':<30}{'Cantidad':>10}{'P.Unit.':>12}{'Total':>12}\n"
-            message += f"{'':-^64}\n"
-
-            for item in items:
-                product = self.product_service.get_product(item.product_id)
-                product_name = product.name if product else "Unknown Product"
-                message += (
-                    f"{product_name[:30]:<30}"
-                    f"{item.quantity:>10.3f}"
-                    f"{format_price(item.unit_price):>12}"
-                    f"{format_price(item.total_price()):>12}\n"
-                )
-
-            message += f"{'':-^64}\n"
-            message += f"{'Total:':<45}{format_price(sale.total_amount):>19}\n"
-            message += "</pre>"
+            message = self._build_receipt_text(sale)
 
             show_info_message("Detalles de Venta", message)
 
@@ -1309,49 +1314,7 @@ class SaleView(QWidget):
     def generate_receipt_preview(self, sale: Sale) -> str:
         """Generate a text preview of the receipt with proper formatting."""
         try:
-            customer = (
-                self.customer_service.get_customers_by_ids([sale.customer_id]).get(
-                    sale.customer_id
-                )
-                if sale.customer_id is not None
-                else None
-            )
-            assert sale.id is not None
-            items = self.sale_service.get_sale_items(sale.id)
-
-            receipt = []
-            receipt.append(f"{'Recibo #' + str(sale.receipt_id or sale.id):^64}")
-            receipt.append("\n")
-
-            # Customer info
-            customer_text = build_customer_display(customer)
-            receipt.append(f"Cliente: {customer_text}")
-
-            # Date
-            if sale.date:
-                receipt.append(f"Fecha: {sale.date.strftime('%d-%m-%Y')}")
-            receipt.append("=" * 64)
-
-            # Headers
-            headers = "{:<30}{:>10}{:>12}{:>12}".format(
-                "Producto", "Cantidad", "P.Unit.", "Total"
-            )
-            receipt.append(headers)
-            receipt.append("-" * 64)
-
-            # Items with proper formatting
-            for item in items:
-                name = item.product_name if item.product_name else "Unknown Product"
-                line = f"{name[:30]:<30}{item.quantity:>10.3f}{format_price(item.unit_price):>12}{format_price(item.total_price()):>12}"
-                receipt.append(line)
-
-            # Totals
-            receipt.append("-" * 64)
-            receipt.append(
-                "{:<52}{:>12}".format("Total:", format_price(sale.total_amount))
-            )
-
-            return "\n".join(receipt)
+            return self._build_receipt_text(sale)
         except Exception as e:
             logger.error(f"Error generating receipt preview: {str(e)}")
             return "Error generating receipt preview"

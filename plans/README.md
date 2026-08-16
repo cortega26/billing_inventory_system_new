@@ -20,7 +20,7 @@ reflect the working tree, not `HEAD`.
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
 | 001  | Guard cancelled-sale delete/edit against double inventory restore | P1 | S | — | DONE (executed 2026-08-15, commit 86063b1, branch advisor/001-cancelled-sale-guard, reviewed APPROVED) |
-| 002  | Unify model validation: service-layer enforcement, no load-time crashes | P1 | M | — | TODO |
+| 002  | Unify model validation: service-layer enforcement, no load-time crashes | P1 | M | — | DONE (executed 2026-08-15, commit e701f73, merged, reviewed APPROVED) |
 | 003  | PIN security: rotate, relocate config, PBKDF2, persistent lockout | P1 | M | — | TODO |
 | 004  | Reconcile index sources + cleanup migration + legacy-DB upgrade test | P1 | M | — | TODO |
 | 005  | Sales-table batching + refresh-wave coalescing | P2 | M | — | TODO |

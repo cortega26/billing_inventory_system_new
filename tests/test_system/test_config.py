@@ -268,3 +268,13 @@ class TestBusinessRegistryValidation:
 
         assert Config.get_active_business()["id"] == "default"
         assert Config.get_businesses()[0]["db_filename"] == "billing_inventory.db"
+        # The registry defaults are now carried by the config itself, so a
+        # stripped file heals on the next load/save cycle.
+        assert Config.get("businesses") == [
+            {
+                "id": "default",
+                "name": "Principal",
+                "db_filename": "billing_inventory.db",
+            }
+        ]
+        assert Config.get("active_business") == "default"

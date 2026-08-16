@@ -165,7 +165,7 @@ class Config:
                         cls._last_load_time = time.time()
 
     @classmethod
-    def _get_default_config(cls) -> dict[str, str | int]:
+    def _get_default_config(cls) -> dict[str, Any]:
         """Return the default configuration."""
         return {
             "version": CONFIG_VERSION,
@@ -180,6 +180,8 @@ class Config:
             "last_backup_success": "",
             "last_backup_skipped_time": "",
             "last_backup_skipped_reason": "",
+            "businesses": [dict(business) for business in DEFAULT_BUSINESSES],
+            "active_business": DEFAULT_ACTIVE_BUSINESS,
         }
 
     @classmethod

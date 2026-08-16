@@ -87,6 +87,9 @@ class TestValidators:
         assert validate_money(1000) == 1000
         assert validate_money("1000") == 1000
         assert validate_money(999999) == 999999
+        assert validate_money("1000.0") == 1000  # Integral string accepted
+        assert validate_money("1e3") == 1000  # Scientific notation, integral
+        assert validate_money(1000.0) == 1000  # Integral float accepted
 
         # Invalid cases
         with pytest.raises(ValidationException):
@@ -95,6 +98,10 @@ class TestValidators:
             validate_money(1000.50)  # Decimal not allowed
         with pytest.raises(ValidationException):
             validate_money(1_000_001)  # Exceeds maximum
+        with pytest.raises(ValidationException):
+            validate_money("999.6")  # Fractional string must not round
+        with pytest.raises(ValidationException):
+            validate_money("1000000.4")  # Fractional string must not round
 
     def test_money_multiplication_validation(self):
         """Test money multiplication validation."""

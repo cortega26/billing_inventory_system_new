@@ -29,6 +29,7 @@ class Customer(SQLModel, table=True):
         sa.CheckConstraint(
             "name IS NULL OR LENGTH(name) <= 50", name="check_customer_name_length"
         ),
+        sa.CheckConstraint("credit_limit >= 0", name="check_customer_credit_limit"),
     )
 
     id: int | None = Field(default=None, primary_key=True)
@@ -39,6 +40,16 @@ class Customer(SQLModel, table=True):
         sa_column=sa.Column(sa.Boolean, nullable=False, server_default=sa.text("1")),
     )
     deleted_at: str | None = Field(default=None)
+    current_balance: int = Field(
+        default=0,
+        sa_column=sa.Column(sa.Integer, nullable=False, server_default=sa.text("0")),
+    )
+    credit_limit: int = Field(
+        default=50000,
+        sa_column=sa.Column(
+            sa.Integer, nullable=False, server_default=sa.text("50000")
+        ),
+    )
 
     # Not a database column in the 'customers' table (stored in customer_identifiers table)
     _identifier_3or4: str | None = PrivateAttr(default=None)

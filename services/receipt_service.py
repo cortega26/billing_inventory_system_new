@@ -98,5 +98,5 @@ class ReceiptService:
         # This is a placeholder. You'll need to implement the actual WhatsApp API integration.
         logger.info(
             "Sending receipt via WhatsApp",
-            extra={"sale_id": sale_id, "phone_number": phone_number},
+            extra={"sale_id": sale_id},
         )

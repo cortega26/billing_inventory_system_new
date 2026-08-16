@@ -318,3 +318,36 @@ class TestLogger:
         assert (logger_test_dir / "app.log").exists()
         # assert (logger_test_dir / "app.log.1").exists() # Rotation might depend on implementation details
         # If rotate_logs uses doRollover, it should exist.
+
+    def test_log_files_are_owner_only(self, configured_logger, logger_test_dir):
+        """All log files must be readable/writable only by the owner."""
+        import os
+
+        configured_logger.info("Test message")
+
+        self._flush_logs(configured_logger)
+
+        for handler in configured_logger._logger.handlers:
+            handler.close()
+
+        log_files = list(logger_test_dir.glob("*.log*"))
+        assert log_files
+        for log_file in log_files:
+            assert os.stat(log_file).st_mode & 0o777 == 0o600
+
+    def test_rotated_log_files_are_owner_only(self, configured_logger, logger_test_dir):
+        """Rotated log backups must remain readable/writable only by the owner."""
+        import os
+
+        configured_logger.info("Test message before rotation")
+        rotate_logs(logger_test_dir)
+        configured_logger.info("Test message after rotation")
+
+        self._flush_logs(configured_logger)
+
+        for handler in configured_logger._logger.handlers:
+            handler.close()
+
+        backup = logger_test_dir / "app.log.1"
+        assert backup.exists()
+        assert os.stat(backup).st_mode & 0o777 == 0o600

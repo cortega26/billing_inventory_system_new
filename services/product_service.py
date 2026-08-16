@@ -274,7 +274,7 @@ class ProductService:
         products = [Product.from_db_row(row) for row in rows]
         logger.info(
             "Products searched",
-            extra={"search_term": search_term, "count": len(products)},
+            extra={"count": len(products)},
         )
         return products
 
@@ -295,9 +295,7 @@ class ProductService:
         try:
             row = DatabaseManager.fetch_one(query, (barcode, 1 if active_only else 0))
             if row:
-                logger.debug(f"Found product row: {row}")
                 product = Product.from_db_row(row)
-                logger.debug(f"Created product object: {vars(product)}")
                 return product
             return None
         except Exception as e:

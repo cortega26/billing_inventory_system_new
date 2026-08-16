@@ -2,6 +2,7 @@ import json
 import logging
 import logging.config
 import logging.handlers
+import os
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
@@ -164,6 +165,8 @@ def setup_logger(config: LoggerConfig) -> StructuredLogger:
         else logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     )
 
+    _harden_log_file_permissions(config.log_file)
+
     logger._logger.addHandler(handler)
     logger._logger.setLevel(config.level)
     return logger
@@ -181,6 +184,14 @@ def clear_logs(log_dir: Path) -> None:
     for log_file in log_dir.glob("*.log*"):
         with contextlib.suppress(OSError):
             log_file.unlink(missing_ok=True)
+
+
+def _harden_log_file_permissions(path: Path) -> None:
+    """Restrict a log file (and its rotated siblings) to the owner."""
+    for candidate in (path, *path.parent.glob(f"{path.name}.*")):
+        # file may not exist yet; rotation creates it later
+        with contextlib.suppress(OSError):
+            os.chmod(candidate, 0o600)
 
 
 def setup_structured_logger() -> StructuredLogger:
@@ -201,6 +212,10 @@ def setup_structured_logger() -> StructuredLogger:
                     if not filename.is_absolute():
                         handler["filename"] = str(_PROJECT_ROOT / filename)
             logging.config.dictConfig(config)
+            for handler in (config.get("handlers") or {}).values():
+                filename = handler.get("filename")
+                if filename:
+                    _harden_log_file_permissions(Path(filename))
     else:
         # Fallback configuration if YAML doesn't exist
         logging.warning(
@@ -215,6 +230,7 @@ def setup_structured_logger() -> StructuredLogger:
                 logging.FileHandler(f"{LOGGER_NAME}.log"),
             ],
         )
+        _harden_log_file_permissions(Path(f"{LOGGER_NAME}.log"))
 
     logger = StructuredLogger(LOGGER_NAME)
     logger._logger.setLevel(DEBUG_LEVEL)  # Ensure logger level is set

@@ -109,7 +109,10 @@ def _assert_columns_restored() -> list[str]:
     conn = sqlite3.connect(DATABASE_PATH)
     for table, columns in STRIP_COLUMNS.items():
         actual = {
-            row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
+            row[1]
+            for row in conn.execute(
+                "SELECT * FROM pragma_table_info(?)", (table,)
+            ).fetchall()
         }
         for column in sorted(columns):
             if column not in actual:
@@ -124,7 +127,9 @@ def _assert_indexes() -> list[str]:
     for table, canonical in CANONICAL_INDEXES.items():
         actual = {
             row[1]
-            for row in conn.execute(f"PRAGMA index_list({table})").fetchall()
+            for row in conn.execute(
+                "SELECT * FROM pragma_index_list(?)", (table,)
+            ).fetchall()
             if not row[1].startswith("sqlite_autoindex_")
         }
         for name in sorted(canonical - actual):
@@ -139,8 +144,9 @@ def _assert_quantity_types() -> list[str]:
     problems = []
     conn = sqlite3.connect(DATABASE_PATH)
     for table in ("sale_items", "purchase_items"):
+        # table ∈ hardcoded tuple, not user input — identifiers can't be bound
         rows = conn.execute(
-            f"SELECT typeof(quantity), COUNT(*) FROM {table} "
+            f"SELECT typeof(quantity), COUNT(*) FROM {table} "  # nosec B608
             "GROUP BY typeof(quantity)"
         ).fetchall()
         for type_name, count in rows:

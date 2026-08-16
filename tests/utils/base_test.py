@@ -32,8 +32,6 @@ class BaseTest:
 
         return self.mock_db
 
-        return self.mock_db
-
     def setup_mock_db_response(
         self,
         mock_db: Mock,

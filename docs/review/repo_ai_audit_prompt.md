@@ -18,10 +18,10 @@ Use the prompt below when asking an AI coding agent to audit and harden this rep
 
 ## Baseline Signals To Verify
 
-- `pytest` currently fails during collection in the active environment because `reportlab` is missing.
+- `reportlab` is pinned in `requirements.lock` (`reportlab==4.5.1`), so pytest collection is not blocked by a missing dependency in a correctly installed environment.
 - `ruff` is configured in `pyproject.toml`, but the active shell cannot resolve it without switching Python toolchains.
-- pytest configuration is duplicated between `pyproject.toml` and `pytest.ini`.
-- `SPECIFICATIONS.md` says the UI should be English only, while parts of the UI are currently in Spanish.
+- pytest configuration lives only in `pyproject.toml` (`[tool.pytest.ini_options]`); there is no `pytest.ini`.
+- `SPECIFICATIONS.md` declares Spanish as the UI language (decision 2026-08-15); all new or modified UI strings must be in Spanish.
 - Backup behavior appears inconsistent across `SPECIFICATIONS.md`, `config.py`, and `docs/review/security_findings.md`.
 - `DatabaseManager.execute_query()` commits immediately, which increases partial-failure risk in multi-step flows if callers assume outer transaction boundaries are still atomic.
 
@@ -79,10 +79,10 @@ Audit requirements:
   - test gaps that allow regressions in core flows
 
 Known repo signals that must be verified:
-- `pytest` currently stops during collection because `reportlab` is missing in the active environment.
+- `reportlab` is pinned in `requirements.lock`, so pytest collection should not stop on a missing dependency in a correctly installed environment.
 - `ruff` is not available in the active environment even though lint config exists in `pyproject.toml`.
-- There is duplicated pytest configuration in `pyproject.toml` and `pytest.ini`.
-- `SPECIFICATIONS.md` says the UI should be English only, but UI strings appear mixed-language.
+- pytest configuration lives only in `pyproject.toml`; there is no `pytest.ini` duplication.
+- `SPECIFICATIONS.md` declares Spanish as the UI language (decision 2026-08-15); UI strings must be in Spanish.
 - Backup expectations appear inconsistent between specs, config defaults, and review docs.
 - `DatabaseManager.execute_query()` auto-commits, so any service flow that expects multi-step atomicity must be verified carefully.
 Do not assume these are the only issues.

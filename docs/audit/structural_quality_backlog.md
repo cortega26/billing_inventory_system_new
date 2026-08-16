@@ -287,6 +287,7 @@ Re-establish clean boundaries and reduce the highest-value structural complexity
 
 - Priority: P1
 - Effort: L
+- Status: completed
 - Findings covered:
   - SQ-4
   - SQ-6
@@ -311,11 +312,19 @@ Re-establish clean boundaries and reduce the highest-value structural complexity
 - Regression protection required:
   1. focused update-sale tests
   2. sad-path tests for insufficient stock and rollback
+- Evidence:
+  - [services/update_sale_workflow.py](../../services/update_sale_workflow.py)
+  - [services/sale_service.py](../../services/sale_service.py)
+  - [services/mutation_coordinator.py](../../services/mutation_coordinator.py)
+  - [tests/test_services/test_sale_service.py](../../tests/test_services/test_sale_service.py)
+  - [tests/test_critical_backend_flows.py](../../tests/test_critical_backend_flows.py)
+  - [AGENTS.md](../../AGENTS.md) "Architecture Contracts"
 
 ### SQ-B.4 Extract common post-commit mutation behavior
 
 - Priority: P1
 - Effort: M
+- Status: completed
 - Findings covered:
   - SQ-6
 - Why it matters:
@@ -336,6 +345,12 @@ Re-establish clean boundaries and reduce the highest-value structural complexity
   2. sequence is explicit and tested
 - Regression protection required:
   1. tests around cache clearing and event ordering
+- Evidence:
+  - [services/mutation_coordinator.py](../../services/mutation_coordinator.py)
+  - [services/sale_service.py](../../services/sale_service.py)
+  - [services/purchase_service.py](../../services/purchase_service.py)
+  - [services/update_sale_workflow.py](../../services/update_sale_workflow.py)
+  - [AGENTS.md](../../AGENTS.md) "Architecture Contracts"
 
 ---
 
@@ -570,26 +585,21 @@ Prepare the repo for growth without overengineering.
 
 ## Suggested execution order
 
-1. SQ-B.1
-2. SQ-B.2
-3. SQ-B.3
-4. SQ-B.4
-5. SQ-C.4
-6. SQ-C.3
-7. SQ-C.1
-8. SQ-C.2
-9. SQ-D.1
-10. SQ-D.2
-11. SQ-D.3
+1. SQ-C.4
+2. SQ-C.3
+3. SQ-C.1
+4. SQ-C.2
+5. SQ-D.1
+6. SQ-D.2
+7. SQ-D.3
 
 ---
 
 ## Recommended first new-conversation prompts
 
-1. `Implement Phase SQ-B from docs/audit/structural_quality_backlog.md`
-2. `Implement SQ-B.1 from docs/audit/structural_quality_backlog.md with focused tests`
-3. `Implement SQ-B.2 from docs/audit/structural_quality_backlog.md after reviewing MainWindow refresh behavior`
-4. `Review Phase SQ-A implementation against docs/review/structural_quality_audit_2026-04-07.md and continue with SQ-B.1`
+1. `Implement Phase SQ-C from docs/audit/structural_quality_backlog.md`
+2. `Implement SQ-C.3 from docs/audit/structural_quality_backlog.md with focused tests`
+3. `Review Phase SQ-B implementation against docs/review/structural_quality_audit_2026-04-07.md`
 
 ---
 

@@ -32,7 +32,7 @@ La auditoría ya produjo hallazgos accionables y parte de ellos ya se empezó a 
 
 ### Seguridad / compliance intermedio
 
-1. [C-1] Sigue faltando autenticación básica por usuario/PIN.
+1. [C-1] ~~Sigue faltando autenticación básica por usuario/PIN.~~ **Resuelto:** login por PIN implementado en `ui/login_dialog.py` + `main.py` (commit 9ff8aee) y endurecido por el plan 003 (PBKDF2, config local del usuario, bloqueo persistente).
 2. [C-2] Sigue faltando asociar actor autenticado al audit log para trazabilidad por usuario.
 3. [C-3] Sigue faltando trazabilidad persistente de fallos operativos relevantes.
 
@@ -78,7 +78,7 @@ La auditoría ya produjo hallazgos accionables y parte de ellos ya se empezó a 
 
 ### Pendientes de mayor impacto
 
-1. [P-1] Autenticación básica para acceso a la app.
+1. [P-1] ~~Autenticación básica para acceso a la app.~~ **Resuelto:** ver [C-1].
 2. [P-2] Flujo dedicado de devoluciones/reembolsos.
 3. [P-3] Vista o widget de salud operativa en dashboard.
 4. [P-4] Soft-delete consistente para entidades de negocio relevantes.
@@ -94,7 +94,7 @@ La auditoría ya produjo hallazgos accionables y parte de ellos ya se empezó a 
 
 ## 5 quick wins priorizados
 
-1. [Q-1] Autenticación básica por PIN o usuario local.
+1. [Q-1] ~~Autenticación básica por PIN o usuario local.~~ **Resuelto:** ver [C-1].
 2. [Q-2] Indicador de salud de backups en dashboard.
 3. [Q-3] Refactor parcial de ventas para bajar complejidad.
 4. [Q-4] Mensajes y labels de ventas más consistentes en español operativo.
@@ -115,7 +115,7 @@ La auditoría ya produjo hallazgos accionables y parte de ellos ya se empezó a 
 
 ## Resumen ejecutivo
 
-La auditoría ya generó resultados concretos y el proyecto ya mejoró en confiabilidad operativa. Sin embargo, todavía no está en nivel industry-grade para PyME desde el punto de vista de control operativo y compliance intermedio. El mayor gap restante ya no es estabilidad básica, sino control: autenticación, trazabilidad y workflows de negocio más completos.
+La auditoría ya generó resultados concretos y el proyecto ya mejoró en confiabilidad operativa. Sin embargo, todavía no está en nivel industry-grade para PyME desde el punto de vista de control operativo y compliance intermedio. El mayor gap restante ya no es estabilidad básica ni acceso, sino control: trazabilidad por actor, salud operativa en dashboard y workflows de negocio más completos.
 
 ## Backlog ejecutable
 

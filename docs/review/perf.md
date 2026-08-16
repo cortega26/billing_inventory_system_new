@@ -1,5 +1,14 @@
 # Performance and Reliability Review
 
+> **Status: RESOLVED (2026-08-15)** — slow-query instrumentation lives in
+> `database/database_manager.py` (`time.perf_counter()` around query
+> execution); the indexes listed below are migration-owned (see
+> `alembic/versions/e318e5c02e34_initial_schema.py` and
+> `alembic/versions/72e1091bcd50_cleanup_deduplicate_indexes_and_.py`) and
+> their canonical set is drift-checked by `scripts/check_schema_drift.py`;
+> backups use the sqlite3 backup API with concurrent-write coverage in
+> `tests/test_perf_backup.py`.
+
 ## 1. Slow Query Monitoring
 We have instrumented `DatabaseManager` to log any query taking longer than **50ms**.
 -   **Implementation**: `time.perf_counter()` is used for high-precision measurement.

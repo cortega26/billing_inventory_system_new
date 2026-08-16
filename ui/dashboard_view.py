@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from config import DEFAULT_DASHBOARD_PROFILE, config
 from services.analytics_service import AnalyticsService
 from services.customer_service import CustomerService
 from services.inventory_service import InventoryService
@@ -94,15 +95,8 @@ class DashboardView(QWidget):
 
         # Top row with key metrics
         metrics_layout = QHBoxLayout()
-        metrics_layout.addWidget(MetricWidget("Ventas Totales", self.get_total_sales))
-        metrics_layout.addWidget(MetricWidget("Ganancia Total", self.get_total_profits))
-        metrics_layout.addWidget(
-            MetricWidget("Valor Inventario", self.get_inventory_value)
-        )
-        metrics_layout.addWidget(
-            MetricWidget("Margen Ganancia", self.get_profit_margin)
-        )
-        metrics_layout.addWidget(MetricWidget("Ventas de Hoy", self.get_todays_sales))
+        for metric_widget in self._metric_cards():
+            metrics_layout.addWidget(metric_widget)
         layout.addLayout(metrics_layout)
 
         # Middle row: Charts
@@ -265,6 +259,32 @@ class DashboardView(QWidget):
             return f"{profit_margin:.2f}%"
         return "0.00%"
 
+    def _metric_cards(self) -> list[MetricWidget]:
+        profile = config.get_active_business().get(
+            "dashboard", DEFAULT_DASHBOARD_PROFILE
+        )
+        common = [
+            MetricWidget("Ventas Totales", self.get_total_sales),
+            MetricWidget("Ganancia Total", self.get_total_profits),
+            MetricWidget("Margen Ganancia", self.get_profit_margin),
+        ]
+        if profile == "production":
+            return common + [
+                MetricWidget("Unidades Vendidas", self.get_total_units_sold),
+                MetricWidget("Ventas de Hoy", self.get_todays_sales),
+            ]
+        return common + [
+            MetricWidget("Valor Inventario", self.get_inventory_value),
+            MetricWidget("Ventas de Hoy", self.get_todays_sales),
+        ]
+
+    @ui_operation()
+    def get_total_units_sold(self) -> str:
+        units = self.sale_service.get_total_units_sold(
+            self.start_date.strftime("%Y-%m-%d"), self.end_date.strftime("%Y-%m-%d")
+        )
+        return f"{units:,.3f}".replace(",", ".").rstrip("0").rstrip(".")
+
     @ui_operation()
     def get_todays_sales(self) -> str:
         today = datetime.now().strftime("%Y-%m-%d")
@@ -273,8 +293,6 @@ class DashboardView(QWidget):
 
     @ui_operation()
     def update_backup_status(self, *args):
-        from config import config
-
         last_success = config.get("last_backup_success", "")
         last_skipped = config.get("last_backup_skipped_time", "")
         skipped_reason = config.get("last_backup_skipped_reason", "")

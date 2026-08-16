@@ -133,7 +133,7 @@ Consult before every change. Check off as work completes.
 
 - [x] Audit complete: 33 fully-dead + 15 test-only (kept); 4 duplication blocks verified
 - [x] Plans 029/030 written + spec.md section
-- [ ] Executor 029: delete 33 symbols + orphaned imports + guard greps
-- [ ] Review/merge/push/archive 029
+- [x] Executor 029: deleted 33 symbols + orphaned imports (-420 lines, guard clean)
+- [x] Reviewed (APPROVE), merged ceb9c16, pushed, cleaned, archived, DONE
 - [ ] Executor 030: shared helpers (product_ids, hydration, receipt text, sound)
 - [ ] Review/merge/push/archive 030

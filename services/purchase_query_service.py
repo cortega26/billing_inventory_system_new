@@ -236,8 +236,8 @@ class PurchaseQueryService:
         )
         return PurchaseQueryService._hydrate_purchases(rows)
 
-    @staticmethod
-    def clear_cache() -> None:
+    @classmethod
+    def clear_cache(cls) -> None:
         PurchaseQueryService.get_all_purchases.cache_clear()
         PurchaseQueryService.get_suppliers.cache_clear()
         logger.debug("Purchase query cache cleared")

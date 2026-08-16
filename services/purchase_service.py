@@ -332,7 +332,7 @@ class PurchaseService:
     def get_purchase_history(start_date: str, end_date: str) -> list[Purchase]:
         return PurchaseQueryService.get_purchase_history(start_date, end_date)
 
-    @staticmethod
-    def clear_cache():
+    @classmethod
+    def clear_cache(cls) -> None:
         PurchaseQueryService.clear_cache()
         logger.debug("Purchase cache cleared")

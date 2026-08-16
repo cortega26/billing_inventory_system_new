@@ -331,8 +331,8 @@ class InventoryService:
             },
         )
 
-    @staticmethod
-    def clear_cache() -> None:
+    @classmethod
+    def clear_cache(cls) -> None:
         """Clear the inventory cache."""
         logger.debug("Clearing inventory cache")
         InventoryService.get_all_inventory.cache_clear()

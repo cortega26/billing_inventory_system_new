@@ -209,11 +209,14 @@ Exact commands (prefer `.venv/bin/...`):
 - lint: `.venv/bin/ruff check .`
 - format check: `.venv/bin/black --check .`
 - type check: `.venv/bin/pyright` (scoped to backend via `pyrightconfig.json`; `ui/` and `tests/` are excluded)
+- security scan: `.venv/bin/bandit -q -r database services utils --skip B101`
+  (B101 = assert is skipped deliberately; the only accepted suppressions are
+  `# nosec B608` on parameterized string-built queries — do not add bare `# nosec`)
 - schema drift check: `.venv/bin/python scripts/check_schema_drift.py` (fresh `init_db()` vs `SQLModel.metadata`)
 - pre-commit: `uvx pre-commit run --all-files` (ruff, black, trailing whitespace, schema drift check)
 - install pre-commit hooks (one-time, writes to `.git/hooks`): `uvx pre-commit install`
 
-CI enforces `ruff check .`, `black --check .`, `pyright`, the schema drift check, and the full pytest suite under xvfb (`.github/workflows/ci.yml`).
+CI enforces `ruff check .`, `black --check .`, `pyright`, `bandit -q -r database services utils --skip B101`, the schema drift check, and the full pytest suite under xvfb (`.github/workflows/ci.yml`).
 CI runs `pytest -n auto` under xvfb; the Qt crash that forced serial mode is fixed (plan 006). New UI tests must request the `qtbot`/`qapp` fixture.
 
 Dependencies are pinned in `requirements.lock` (compiled with `uv pip compile`).
@@ -242,6 +245,7 @@ Before finishing:
   Prefer `.venv/bin/python` and `.venv/bin/ruff`.
 - The repo currently uses Spanish for user-facing strings.
 - New or modified UI strings must be in Spanish to maintain consistency.
+- `SPECIFICATIONS.md` language section was reversed by decision on 2026-08-15; Spanish is the UI language.
 - pytest configuration lives only in `pyproject.toml` (the old `pytest.ini` was removed);
   `--strict-markers` means new markers must be registered there too.
 - Runtime config now lives outside the repo in `~/.config/billing-inventory/app_config.json`;

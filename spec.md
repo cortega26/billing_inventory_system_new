@@ -56,6 +56,11 @@ from the inlined plan text; the orchestrator (this session) reviews and merges.
   setup, both dictConfig and fallback paths.
 - PII-capture test attaches a handler to `structured_logger._logger` (NOT
   caplog — `propagate=False`).
+- KNOWN DEFERRAL (resolved 2026-08-15): rotation-time hardening is setup-only
+  by design — a mid-session `doRollover` recreates the active log with the
+  process umask until the next startup; setup runs at every app start, and
+  renames preserve 0600 on backups. Acceptable residual window; documented in
+  plans/README.md row 016.
 
 ### Plan 017 — validate_money rejects fractional strings
 - `validate_money` integrality via `Decimal(str(value))`; strings like

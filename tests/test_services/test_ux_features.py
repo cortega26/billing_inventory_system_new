@@ -124,3 +124,43 @@ class TestUXFeatures:
         finally:
             event_system.inventory_changed.disconnect(inventory_handler)
             event_system.sale_added.disconnect(sale_handler)
+
+    def test_finalize_mutation_swallows_cache_clear_failure(self):
+        def broken_cache_clear():
+            raise RuntimeError("cache boom")
+
+        inv_payloads, inv_handler = capture_signal(event_system.inventory_changed)
+        sale_payloads, sale_handler = capture_signal(event_system.sale_added)
+        try:
+            # Must NOT raise; the other finalization steps still run.
+            MutationCoordinator.finalize_mutation(
+                entity_id=7,
+                items=[{"product_id": 1}],
+                signal=event_system.sale_added,
+                service_cache_clear_fn=broken_cache_clear,
+            )
+            assert inv_payloads == [1]
+            assert sale_payloads == [7]
+        finally:
+            event_system.inventory_changed.disconnect(inv_handler)
+            event_system.sale_added.disconnect(sale_handler)
+
+    def test_finalize_mutation_swallows_signal_failure(self):
+        inv_payloads, inv_handler = capture_signal(event_system.inventory_changed)
+
+        class BrokenSignal:
+            # finalize_mutation only calls signal.emit(entity_id) — a plain
+            # object with an emit method is a sufficient duck-typed signal.
+            def emit(self, *args, **kwargs):
+                raise RuntimeError("signal boom")
+
+        try:
+            # Must NOT raise; inventory events still emitted.
+            MutationCoordinator.finalize_mutation(
+                entity_id=9,
+                items=[{"product_id": 2}],
+                signal=BrokenSignal(),
+            )
+            assert inv_payloads == [2]
+        finally:
+            event_system.inventory_changed.disconnect(inv_handler)

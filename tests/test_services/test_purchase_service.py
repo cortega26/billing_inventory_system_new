@@ -257,7 +257,7 @@ class TestPurchaseService:
             event_system.inventory_changed.disconnect(inventory_handler)
 
     def test_delete_purchase_emits_purchase_deleted_and_inventory_events_once(
-        self, purchase_service, sample_purchase_data, sample_product
+        self, purchase_service, sample_purchase_data, sample_product, inventory_service
     ):
         purchase_id = purchase_service.create_purchase(**sample_purchase_data)
         purchase_payloads, purchase_handler = capture_signal(
@@ -272,6 +272,22 @@ class TestPurchaseService:
 
             assert purchase_payloads == [purchase_id]
             assert inventory_payloads == [sample_product.id]
+
+            # Inventory must be reversed exactly once: 10 bought -> 0 after delete
+            assert inventory_service.get_inventory(sample_product.id).quantity == 0.0
+            assert (
+                DatabaseManager.fetch_one(
+                    "SELECT 1 FROM purchase_items WHERE purchase_id = ?",
+                    (purchase_id,),
+                )
+                is None
+            )
+            assert (
+                DatabaseManager.fetch_one(
+                    "SELECT 1 FROM purchases WHERE id = ?", (purchase_id,)
+                )
+                is None
+            )
         finally:
             event_system.purchase_deleted.disconnect(purchase_handler)
             event_system.inventory_changed.disconnect(inventory_handler)

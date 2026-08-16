@@ -8,9 +8,9 @@ Consult before every change. Check off as work completes.
 - [x] Plan 015 implemented + verified in worktree
 - [x] Plan 015 reviewed (done criteria, scope, diff)
 - [x] Plan 015 merged (094d15f), pushed, worktree cleaned, plans/README + archive updated
-- [ ] Plan 019 implemented + verified in worktree
-- [ ] Plan 019 reviewed
-- [ ] Plan 019 merged, pushed, cleaned, index updated
+- [x] Plan 019 implemented + verified in worktree
+- [x] Plan 019 reviewed
+- [x] Plan 019 merged (8b34c81), pushed, cleaned, index updated
 - [ ] Plan 016 implemented + verified in worktree
 - [ ] Plan 016 reviewed
 - [ ] Plan 016 merged, pushed, cleaned, index updated

@@ -36,7 +36,7 @@ of what was executed. Do not delete archived plans.
 | 016  | Stop logging customer PII; make log files owner-only | P1 | S | — | TODO |
 | 017  | `validate_money` must reject fractional values in string form | P1 | S | — | TODO |
 | 018  | Route manual UI inventory edits through the adjustment ledger | P2 | S | — | TODO |
-| 019  | Make analytics date-range queries index-usable | P2 | M | 015 | TODO |
+| 019  | Make analytics date-range queries index-usable | P2 | M | 015 | DONE (executed 2026-08-15, commits 8e5ccac/9901453, merged 8b34c81, reviewed APPROVED; boundary test fixed next-day-midnight semantics) |
 | 020  | Sad-path test coverage for the update-sale workflow and MutationCoordinator | P2 | S | — | TODO |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)

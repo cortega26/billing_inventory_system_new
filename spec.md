@@ -170,13 +170,14 @@ the same script; bidirectional sync explicitly out of scope. Deliverable:
 - New headless CLI `scripts/copy_customers.py` (mirrors the
   `scripts/check_schema_drift.py` pattern): `--source` (default: business
   "default"), `--target` (default: business "casabea"), `--include-inactive`,
-  `--copy-credit-limits`, `--dry-run`. Spanish messages.
+  `--dry-run`. Spanish messages.
 - Importable `copy_customers(source_path, target_path, ...) -> dict[str, int]`
   ({inserted, existing, invalid}): plain sqlite3, parameterized SQL, single
   transaction on target; validates via `validate_9digit_identifier` /
   `validate_3or4digit_identifier`; never overwrites existing identifier_9;
-  `current_balance` always 0 (debts belong to El Rincón); invalid rows are
-  counted, not fatal.
+  identity-only copy (the repo schema has NO balance/credit columns — the
+  live DB's `current_balance`/`credit_limit` are a drift finding, see
+  plans/README backlog); invalid rows are counted, not fatal.
 - Tests: `tests/test_scripts/test_copy_customers.py` (6 cases, real temp
   files). No changes to services/ui/config/database.
 

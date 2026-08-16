@@ -142,6 +142,21 @@ if the maintainer asks.
 - **Per-plan drift checks show plan-015 diffs** for 018/020 — resolved via
   dispatch-time drift notes; future plans should scope drift checks tighter.
 
+## Follow-up backlog (found during execution of plans 015-023)
+
+- **LIVE DB DRIFT: `customers.current_balance` / `customers.credit_limit`
+  exist in the live El Rincón DB but NOT in repo schema sources**
+  (`schema.sql`, `models/customer.py`, Alembic) — every live row is at the
+  default (0 / 50000). Likely a legacy windows-import branch artifact never
+  migrated into the repo. Fresh business DBs (e.g. casabea.db) will lack the
+  columns. Suggested reconciliation plan 024: add both columns to
+  `models/customer.py` + `schema.sql` + a new Alembic revision (defaults
+  matching the live DB), then re-run `check_schema_drift.py`. Zero data risk
+  (all defaults). Alternative: drop the columns from the live DB (no code
+  references them) — maintainer's call.
+- **`customer_identifiers.identifier_3or4` is NOT NULL** in all repo sources
+  — copy scripts and future tooling must skip the row, never insert NULL.
+
 ## Direction candidates (not written as plans — maintainer's call)
 
 1. Returns/refunds (devolución) workflow — primitives all exist; design/spike first.

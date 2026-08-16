@@ -33,27 +33,37 @@ the same script. Never overwrite the target's existing data. Financial state
 
 ## Current state
 
-The customer schema (verified against the live DB and `schema.sql:31-45`):
+AMENDMENT (2026-08-15, after first execution attempt — STOPPED on DDL
+mismatch): the ORIGINAL excerpt included `current_balance` and
+`credit_limit`, which exist ONLY in the live El Rincón DB — they are absent
+from `schema.sql`, `models/customer.py`, and both Alembic migrations, and
+every live row is at its default (balance 0, credit 50000). The repo schema
+is authoritative for the copy script (fresh business DBs, including
+casabea.db, are born from it). Identity-only copy unaffected; balance/credit
+handling dropped entirely (no columns, no flag). The live-vs-repo drift is
+recorded as a separate backlog finding (plans/README.md) with a suggested
+reconciliation plan.
+
+The customer schema (repo sources, verified — `schema.sql:31-39`,
+`models/customer.py:11-37`; a fresh `init_db()` target matches this):
 
 ```sql
 customers (
-    id INTEGER PRIMARY KEY,
-    identifier_9 TEXT UNIQUE NOT NULL,   -- 9-digit phone, starts with '9'
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    identifier_9 TEXT NOT NULL UNIQUE,   -- 9-digit phone, starts with '9'
     name TEXT,
-    current_balance INTEGER,             -- financial state: DO NOT copy
-    credit_limit INTEGER,                -- optional starting profile
-    is_active INTEGER,                   -- archived customers have 0 (+ deleted_at)
+    is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
     deleted_at TEXT
 )
 customer_identifiers (
-    id INTEGER PRIMARY KEY,
-    customer_id INTEGER REFERENCES customers(id) ON DELETE CASCADE,
-    identifier_3or4 TEXT                 -- optional 3/4-digit department id
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+    identifier_3or4 TEXT NOT NULL        -- department id; row exists only when set
 )
 ```
 
 Facts verified on the live DB: 127 customers, each with one
-`customer_identifiers` row.
+`customer_identifiers` row (source SELECT reads only identity columns).
 
 Existing script pattern to follow — `scripts/check_schema_drift.py` (lines
 1-30): module docstring with usage, `PROJECT_ROOT` + `sys.path.insert`,
@@ -115,12 +125,12 @@ def copy_customers(
     source_path: Path,
     target_path: Path,
     include_inactive: bool = False,
-    copy_credit_limits: bool = False,
 ) -> dict[str, int]:
     """Copy customers (identity only) from source DB to target DB.
 
     Idempotent: existing identifier_9 values in the target are never
-    overwritten. current_balance is never copied. Returns a summary dict
+    overwritten. The copy is identity-only: identifier_9, name, is_active,
+    and identifier_3or4. Returns a summary dict
     {"inserted": int, "existing": int, "invalid": int}.
     """
 ```
@@ -135,11 +145,12 @@ def copy_customers(
      the validators; on `ValidationException` → count as "invalid", log, skip
      (never let one bad row abort the whole run).
    - Insert into target inside a single transaction: `INSERT INTO customers
-     (identifier_9, name, current_balance, credit_limit, is_active) VALUES
-     (?, ?, 0, ?, ?)` (credit_limit = source credit_limit if
-     `copy_credit_limits` else 0), then `INSERT INTO customer_identifiers
-     (customer_id, identifier_3or4) VALUES (?, ?)` when identifier_3or4 is
-     present (use `lastrowid`).
+     (identifier_9, name, is_active) VALUES (?, ?, ?)` (SOURCE VALUES: do not
+     select balance/limit columns even though the live source DB has them —
+     read only `identifier_9, name, is_active`), then `INSERT INTO
+     customer_identifiers (customer_id, identifier_3or4) VALUES (?, ?)`
+     (use `lastrowid`) ONLY when identifier_3or4 is present and non-empty
+     (the target column is NOT NULL; a missing source value means no row).
    - Also `CREATE TABLE IF NOT EXISTS` is NOT the script's job — document
      that the target DB must exist and be migrated (run `init_db()` on it
      once, e.g. by opening the business in the app or
@@ -150,8 +161,7 @@ def copy_customers(
    `config.get_business_db_path("default")`), `--target PATH` (default:
    `config.get_business_db_path("casabea")` — error out with a clear message
    if the business id isn't registered), `--include-inactive` (flag),
-   `--copy-credit-limits` (flag), `--dry-run` (flag: report inserted/existing
-   counts without writing).
+   `--dry-run` (flag: report inserted/existing counts without writing).
 5. Spanish user-facing messages (repo convention).
 
 **Verify**: `.venv/bin/python scripts/copy_customers.py --help` → exit 0 and
@@ -181,8 +191,9 @@ exact `customers`/`customer_identifiers` DDL from "Current state":
   reporting with a flag or subprocess the CLI with `--dry-run`; assert target
   unchanged. (Prefer invoking `main()` via argparse with a patched sys.argv
   or subprocess — your choice, keep it deterministic.)
-- `test_credit_limit_copied_only_with_flag` — with flag: source credit_limit
-  copied; without: 0.
+- `test_skips_identifier_row_when_3or4_missing` — a source customer without
+  an identifier_3or4 lands with NO `customer_identifiers` row (NOT NULL
+  target column not violated).
 
 **Verify**: `.venv/bin/python -m pytest tests/test_scripts/test_copy_customers.py` → all pass.
 
@@ -203,13 +214,13 @@ exact `customers`/`customer_identifiers` DDL from "Current state":
 | inactive default/flag | test_copy_customers.py | skipped by default, copied with flag |
 | invalid row counted, not aborted | test_copy_customers.py | run completes, invalid==1 |
 | dry-run writes nothing | test_copy_customers.py | target unchanged |
-| credit limit flag | test_copy_customers.py | copied only with flag |
+| missing 3or4 → no identifier row | test_copy_customers.py | NOT NULL target respected |
 
 ## Done criteria
 
 Machine-checkable. ALL must hold:
 
-- [ ] `scripts/copy_customers.py` exists with an importable `copy_customers()` and a `main()` with the five CLI options
+- [ ] `scripts/copy_customers.py` exists with an importable `copy_customers()` and a `main()` with the four CLI options (--source, --target, --include-inactive, --dry-run)
 - [ ] `.venv/bin/python scripts/copy_customers.py --help` exits 0
 - [ ] `.venv/bin/python -m pytest tests/test_scripts/test_copy_customers.py` exits 0 with the six tests above
 - [ ] `.venv/bin/python -m pytest` exits 0 (modulo pre-existing worktree UI exceptions)
@@ -236,7 +247,8 @@ Stop and report back (do not improvise) if:
   script's idempotent import becomes the seed/backfill path for that
   channel's customer master — keep the "never overwrite" rule when extending
   it.
-- Reviewer scrutiny: that `current_balance` is never copied, that the copy
-  runs in one transaction on the target, and that the CLI defaults resolve
-  via `config.get_business_db_path` with a clear error for an unregistered
-  business id.
+- Reviewer scrutiny: that the copy runs in one transaction on the target,
+  reads only identity columns from the source (the live source DB has extra
+  balance/credit columns that must NOT be selected or copied), and that the
+  CLI defaults resolve via `config.get_business_db_path` with a clear error
+  for an unregistered business id.

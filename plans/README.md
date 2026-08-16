@@ -14,7 +14,7 @@ merge), move its file to `plans/archive/` in the same change that marks it done.
 The index below keeps the historical record; the archived files are the record
 of what was executed. Do not delete archived plans.
 
-## Status (30 plans; 001-030 all DONE — files archived)
+## Status (33 plans; 001-033 all DONE — files archived)
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
@@ -48,6 +48,9 @@ of what was executed. Do not delete archived plans.
 | 028  | Resolve Codacy SQLi findings on scripts/ + test | P2 | S | — | DONE (executed 2026-08-16, 4 commits, merged a90e8fe, reviewed APPROVED; 4 PRAGMA sites → bound pragma_table_info/index_list functions; 2 COUNT sites → documented nosec B608; no direct test exists for check_legacy_upgrade.py — verified standalone) |
 | 029  | Dead-code sweep: 33 fully-dead symbols (zero-reference guard) | P2 | S-M | — | DONE (executed 2026-08-16, commit 535672e, merged ceb9c16, reviewed APPROVED; -420 lines; 15 test-only symbols kept; follow-up: LogLevel unreferenced after log_method deletion → folded into plan 030) |
 | 030  | Consolidate duplication: product_ids ×3, hydration ×2, receipt text ×2, scan sound ×2 | P2 | M | 029 | DONE (executed 2026-08-16, 6 commits, merged 2ddeff1, reviewed APPROVED; 7 call sites → shared helper; receipt preview now identical to printed form; LogLevel deleted; test updated that pinned the old copy; -199/+134 lines) |
+| 031  | `get_inventory_movements` sees same-day adjustments (local-time stamps + range-shift) | P2 | S | — | DONE (executed 2026-08-16, commits 2f9c84a/7861d76, merged fe14573, reviewed APPROVED; schema.sql name-CHECK reconciled; turnover untouched) |
+| 032  | Log rotation-time hardening (OwnerOnlyRotatingFileHandler) | P2 | S | — | DONE (executed 2026-08-16, commits 35bf348/6ab1e8e/402b4cc, merged 2a8e034, reviewed APPROVED; executor STOPPED on dictConfig mid-import resolution → amended: subclass in own module utils/system/handlers.py, verified by experiment; closes plan-016 deferral) |
+| 033  | Expose LowStockMetric/InventoryAgingMetric via AnalyticsService; dashboard low-stock via wrapper | P2 | S | — | DONE (executed 2026-08-16, commits 2381200..b291d61, merged 7d9be9e, reviewed APPROVED; review round caught stale-cache regression on manual adjustments → amendment adds AnalyticsService.clear_cache in set_quantity/adjust_inventory, regression test proven; get_low_stock_products kept — test caller) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 
@@ -143,17 +146,28 @@ if the maintainer asks.
 - **InventoryAgingMetric counts cancelled sales as "last sold"**
   (`services/analytics/metrics.py:193` — `MAX(s.date)` with no status filter;
   plan 015 scoped only the 9 date-range metrics). One-line filter + test; S/LOW.
-- **`get_inventory_movements` can't see same-day late adjustments**
-  (adjustment rows stamped `CURRENT_TIMESTAMP` in UTC sort after a date-only
-  end bound, and tomorrow is rejected as future by `validate_date`; surfaced by
-  plan 018's test). Movement-query date semantics; S/MED.
+- **RESOLVED 2026-08-16 (plan 031)**: `get_inventory_movements` same-day
+  adjustments — local-time stamps + range-shifted arms.
 - **Per-plan drift checks show plan-015 diffs** for 018/020 — resolved via
   dispatch-time drift notes; future plans should scope drift checks tighter.
+
+## Monitor (environmental anomalies, twice observed, never reproduced)
+
+- **Transient broad full-suite failure in worktrees** (plan 027: 75 fail/29
+  errors once; plan 033: 57 fail/12 errors once, right after stash/pop +
+  import-verification cycles). Both never reproduced (7+ subsequent runs
+  stable at the known 11 quirks) and both states verified stable across
+  seeds. If it recurs, capture the seed + failing file list before
+  investigating.
 
 ## Follow-up backlog (found during execution of plans 015-023)
 
 - **RESOLVED by plan 024**: `customers.current_balance`/`credit_limit` live-vs-repo drift — columns now in `models/customer.py`, `schema.sql`, migration `652b05c0c11e`; no-op verified on a copy of the live DB.
-- **Remaining drift (open)**: live `customers.identifier_9 COLLATE NOCASE` and the name-length CHECK differ from repo sources — future reconciliation plan if it ever bites.
+- **RESOLVED 2026-08-16 (plan 031)**: name-length CHECK added to schema.sql.
+  `identifier_9 COLLATE NOCASE` — REJECTED by decision: identifiers are
+  digits, case semantics are moot; no table rebuild for it.
+- **RESOLVED 2026-08-16 (plan 032)**: log rotation-time hardening.
+- **RESOLVED 2026-08-16 (plan 033)**: orphaned analytics wrappers.
 - **`customer_identifiers.identifier_3or4` is NOT NULL** in all repo sources — copy scripts and future tooling must skip the row, never insert NULL.
 
 ## Direction candidates (not written as plans — maintainer's call)

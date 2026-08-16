@@ -141,7 +141,7 @@ Consult before every change. Check off as work completes.
 ## Backlog round: plans 031 (movements UTC), 032 (rotation hardening), 033 (analytics wrappers)
 
 - [x] Plans 031/032/033 written + spec.md section; older backlog items closed with decisions
-- [ ] Executor 031 → review/merge/push/archive
-- [ ] Executor 032 → review/merge/push/archive
-- [ ] Executor 033 → review/merge/push/archive
-- [ ] Propose next: returns/refunds workflow + CSV import (product decisions)
+- [x] Executor 031 → reviewed (APPROVE), merged fe14573, archived
+- [x] Executor 032 → STOP+amendment (dictConfig mid-import) → APPROVE, merged 2a8e034, archived
+- [x] Executor 033 → review caught stale-cache regression → amendment → APPROVE, merged 7d9be9e, archived
+- [ ] Propose next: returns/refunds workflow + CSV import (product decisions — pending)

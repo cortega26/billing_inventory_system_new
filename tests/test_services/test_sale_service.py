@@ -204,6 +204,25 @@ class TestSaleService:
         sale_service.cancel_sale(sale_id)
         assert sale_service.get_total_profits(today, today) == 0
 
+    def test_get_total_units_sold_sums_confirmed_sales(
+        self, sale_service, sample_sale_data, inventory_service, sample_product
+    ):
+        inventory_service.update_quantity(sample_product.id, 10.0)
+        sample_sale_data["items"][0]["quantity"] = 2.5
+        sale_service.create_sale(**sample_sale_data)
+        today = date.today().isoformat()
+        assert sale_service.get_total_units_sold(today, today) == 2.5
+
+    def test_get_total_units_sold_excludes_cancelled_sales(
+        self, sale_service, sample_sale_data, inventory_service, sample_product
+    ):
+        inventory_service.update_quantity(sample_product.id, 10.0)
+        sale_id = sale_service.create_sale(**sample_sale_data)
+        today = date.today().isoformat()
+        assert sale_service.get_total_units_sold(today, today) == 2.0
+        sale_service.cancel_sale(sale_id)
+        assert sale_service.get_total_units_sold(today, today) == 0
+
     def test_get_sale_statistics_excludes_cancelled_sales(
         self, sale_service, sample_sale_data, inventory_service, sample_product
     ):

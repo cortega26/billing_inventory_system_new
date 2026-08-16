@@ -58,8 +58,15 @@ DATABASE_PATH = get_safe_db_path(DATABASE_NAME)
 
 # Business registry (backward compatible: absent from config ⇒ single
 # implicit "default" business using DATABASE_PATH semantics).
+DASHBOARD_PROFILES = ("reseller", "production")
+DEFAULT_DASHBOARD_PROFILE = "reseller"
 DEFAULT_BUSINESSES = [
-    {"id": "default", "name": "Principal", "db_filename": "billing_inventory.db"},
+    {
+        "id": "default",
+        "name": "Principal",
+        "db_filename": "billing_inventory.db",
+        "dashboard": DEFAULT_DASHBOARD_PROFILE,
+    },
 ]
 DEFAULT_ACTIVE_BUSINESS = "default"
 
@@ -249,6 +256,12 @@ class Config:
             if get_safe_db_path(filename).name != filename:
                 raise ConfigValidationError(
                     f"Invalid db_filename for business {business_id!r}: {filename!r}"
+                )
+            dashboard = business.get("dashboard")
+            if dashboard is not None and dashboard not in DASHBOARD_PROFILES:
+                raise ConfigValidationError(
+                    f"Invalid dashboard profile for business {business_id!r}: "
+                    f"{dashboard!r}. Must be one of {DASHBOARD_PROFILES}"
                 )
 
     @classmethod

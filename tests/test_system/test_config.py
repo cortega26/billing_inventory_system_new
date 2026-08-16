@@ -7,6 +7,7 @@ import pytest
 from config import (
     DEFAULT_ACTIVE_BUSINESS,
     DEFAULT_BUSINESSES,
+    DEFAULT_DASHBOARD_PROFILE,
     Config,
     ConfigLoadError,
     ConfigValidationError,
@@ -308,6 +309,7 @@ class TestBusinessRegistryValidation:
                 "id": "default",
                 "name": "Principal",
                 "db_filename": "billing_inventory.db",
+                "dashboard": "reseller",
             }
         ]
         assert Config.get("active_business") == "default"
@@ -335,3 +337,34 @@ class TestBusinessRegistryValidation:
         Config.reload()
 
         assert Config.has_explicit_business_registry() is True
+
+    def test_business_dashboard_profile_invalid_rejected(self):
+        with pytest.raises(ConfigValidationError):
+            Config.set(
+                "businesses",
+                [
+                    {
+                        "id": "default",
+                        "name": "Principal",
+                        "db_filename": "billing_inventory.db",
+                        "dashboard": "foo",
+                    }
+                ],
+            )
+
+    def test_business_dashboard_profile_defaults_to_reseller(self):
+        Config.set(
+            "businesses",
+            [
+                {
+                    "id": "default",
+                    "name": "Principal",
+                    "db_filename": "billing_inventory.db",
+                }
+            ],
+        )
+        Config.set("active_business", "default")
+        entry = Config.get_active_business()
+        # Mirror the dashboard profile helper's default path: a missing
+        # "dashboard" key resolves to the reseller profile.
+        assert entry.get("dashboard", DEFAULT_DASHBOARD_PROFILE) == "reseller"

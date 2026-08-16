@@ -92,6 +92,9 @@ reports are fully isolated between businesses.
   retention applies per business.
 - **Customers are per-business.** There is no customer sync between businesses
   today; shared customer directories can be a future feature.
+- **Dashboard por negocio:** perfil `reseller` (incluye Valor Inventario) o
+  `production` (incluye Unidades Vendidas), configurable por negocio en el
+  registro; defecto: `reseller`.
 - **Adding a third business** only requires adding one entry to the `businesses`
   list in the application config; no code changes are needed.
 - Existing installs without a `businesses` entry in config behave exactly as

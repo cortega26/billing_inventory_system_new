@@ -230,7 +230,7 @@ def test_init_db_cleanup_revision_is_idempotent(tmp_path):
         alembic_version = DatabaseManager.fetch_one(
             "SELECT version_num FROM alembic_version"
         )
-        assert alembic_version["version_num"] == "72e1091bcd50"
+        assert alembic_version["version_num"] == "652b05c0c11e"
 
         init_db(str(db_path))
 
@@ -244,7 +244,7 @@ def test_init_db_cleanup_revision_is_idempotent(tmp_path):
             DatabaseManager.fetch_one("SELECT version_num FROM alembic_version")[
                 "version_num"
             ]
-            == "72e1091bcd50"
+            == "652b05c0c11e"
         )
     finally:
         _close_db_connection()

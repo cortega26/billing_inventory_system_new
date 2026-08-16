@@ -288,9 +288,6 @@ class Sale(SQLModel, table=True):
         self.validate_customer_id(new_customer_id)
         self.customer_id = new_customer_id
 
-    def update_receipt_id(self, new_receipt_id: str | None) -> None:
-        self.receipt_id = new_receipt_id
-
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,

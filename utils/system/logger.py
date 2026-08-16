@@ -4,7 +4,6 @@ import logging.config
 import logging.handlers
 import os
 from datetime import datetime
-from functools import wraps
 from pathlib import Path
 from typing import Any
 
@@ -235,46 +234,6 @@ def setup_structured_logger() -> StructuredLogger:
     logger = StructuredLogger(LOGGER_NAME)
     logger._logger.setLevel(DEBUG_LEVEL)  # Ensure logger level is set
     return logger
-
-
-def log_method(level: int = LogLevel.DEBUG):
-    """Decorator for logging method calls with their arguments and results."""
-
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            func_logger = logger.with_context(
-                function=func.__name__, module=func.__module__
-            )
-
-            # Log method entry
-            func_logger._log(
-                level,
-                f"Entering {func.__name__}",
-                args=str(args[1:]),
-                kwargs=str(kwargs),
-            )
-
-            try:
-                result = func(*args, **kwargs)
-                # Log successful completion
-                func_logger._log(level, f"Completed {func.__name__}")
-                return result
-            except Exception as e:
-                # Log exception with full context
-                func_logger.error(
-                    f"Exception in {func.__name__}",
-                    extra={
-                        "exc_info": True,
-                        "exception_type": type(e).__name__,
-                        "exception_message": str(e),
-                    },
-                )
-                raise
-
-        return wrapper
-
-    return decorator
 
 
 # Initialize global logger instance

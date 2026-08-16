@@ -164,42 +164,6 @@ class EventSystem(QObject):
             logger.error(f"Unknown event: {event_name}")
             raise ValueError(f"Unknown event: {event_name}")
 
-    def disconnect_from_event(
-        self, event_name: str, slot: Callable[..., None] | None = None
-    ) -> None:
-        """
-        Disconnect a slot (callback function) from a specific event.
-
-        Args:
-            event_name (str): The name of the event to disconnect from.
-            slot (Optional[Callable[..., None]]): The function to be disconnected. If None, all connections are removed.
-
-        Raises:
-            ValueError: If the event_name is not recognized.
-        """
-        if event_name in self._signal_map:
-            if slot is None:
-                self._signal_map[event_name].disconnect()
-                logger.debug(f"Disconnected all slots from event: {event_name}")
-            else:
-                self._signal_map[event_name].disconnect(slot)
-                logger.debug(
-                    f"Disconnected from event: {event_name}",
-                    extra={"slot_name": slot.__name__},
-                )
-        else:
-            logger.error(f"Unknown event: {event_name}")
-            raise ValueError(f"Unknown event: {event_name}")
-
-    def get_available_events(self) -> list[str]:
-        """
-        Get a list of all available event names.
-
-        Returns:
-            List[str]: A list of all available event names.
-        """
-        return list(self._signal_map.keys())
-
     def clear_all_connections(self) -> None:
         """
         Clear all event connections.

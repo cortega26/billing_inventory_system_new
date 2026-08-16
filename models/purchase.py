@@ -195,13 +195,6 @@ class Purchase(SQLModel, table=True):
             logger.error(f"Error calculating total: {str(e)}")
             raise ValidationException("Error calculating total amount") from e
 
-    def update_supplier(self, new_supplier: str) -> None:
-        """
-        Update supplier name with validation.
-        """
-        self.validate_supplier(new_supplier)
-        self.supplier = new_supplier
-
     def update_date(self, new_date: datetime) -> None:
         """
         Update purchase date with validation.
@@ -244,30 +237,3 @@ class Purchase(SQLModel, table=True):
                 raise ValidationException("Invalid item type")
             item.validate_quantity(item.quantity)
             item.validate_price(item.price)
-
-    def verify_totals(self) -> bool:
-        """
-        Verify that all totals are correctly calculated.
-        """
-        expected_total = sum(item.total_price() for item in self.items)
-        return self.total_amount == expected_total
-
-    def add_items(self, items: list[PurchaseItem]) -> None:
-        """
-        Add multiple items at once.
-        """
-        self.validate_items(items)
-        for item in items:
-            self.add_item(item)
-
-    def get_item_count(self) -> int:
-        """
-        Get the total number of items.
-        """
-        return len(self.items)
-
-    def get_total_quantity(self) -> float:
-        """
-        Get the total quantity of all items, rounded to 3 decimal places.
-        """
-        return round(sum(item.quantity for item in self.items), 3)

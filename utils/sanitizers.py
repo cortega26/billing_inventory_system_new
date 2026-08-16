@@ -26,16 +26,3 @@ def sanitize_sql(value: str) -> str:
         str: The sanitized string.
     """
     return re.sub(r"['\";]", "", value)
-
-
-def sanitize_filename(value: str) -> str:
-    """
-    Remove characters that are not allowed in filenames.
-
-    Args:
-        value (str): The filename to sanitize.
-
-    Returns:
-        str: The sanitized filename.
-    """
-    return re.sub(r'[<>:"/\\|?*]', "", value)

@@ -154,13 +154,6 @@ class BackupService:
         self._scheduler_thread.start()
         logger.info("Backup scheduler started.")
 
-    def stop_scheduler(self) -> None:
-        """Stops the background scheduler."""
-        if self._scheduler_thread:
-            self._stop_event.set()
-            self._scheduler_thread.join(timeout=5)
-            logger.info("Backup scheduler stopped.")
-
     def _scheduler_loop(self) -> None:
         """Loop to check if it's time to backup."""
         while not self._stop_event.is_set():

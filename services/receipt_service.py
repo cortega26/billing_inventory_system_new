@@ -6,8 +6,6 @@ from utils.exceptions import ValidationException
 from utils.system.logger import logger
 from utils.validation.validators import (
     validate_filepath,
-    validate_integer,
-    validate_string,
 )
 
 
@@ -87,16 +85,3 @@ class ReceiptService:
         except Exception as e:
             logger.error(f"Error generating PDF receipt: {str(e)}")
             raise ValidationException(f"Failed to generate PDF: {str(e)}") from e
-
-    def send_via_whatsapp(self, sale_id: int, phone_number: str) -> None:
-        """
-        Send receipt via WhatsApp (Placeholder).
-        """
-        sale_id = validate_integer(sale_id, min_value=1)
-        phone_number = validate_string(phone_number, max_length=20)
-
-        # This is a placeholder. You'll need to implement the actual WhatsApp API integration.
-        logger.info(
-            "Sending receipt via WhatsApp",
-            extra={"sale_id": sale_id},
-        )

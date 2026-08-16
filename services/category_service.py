@@ -1,5 +1,4 @@
 from functools import lru_cache
-from typing import Any
 
 from database.database_manager import DatabaseManager
 from models.category import Category
@@ -137,44 +136,6 @@ class CategoryService:
         else:
             logger.warning("Category not found by name", extra={"name": name})
             raise NotFoundException(f"Category with name '{name}' not found")
-
-    @staticmethod
-    @db_operation(show_dialog=True)
-    @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_products_in_category(category_id: int) -> list[dict[str, Any]]:
-        category_id = validate_integer(category_id, min_value=1)
-        query = """
-        SELECT p.id, p.name, p.description, p.cost_price, p.sell_price
-        FROM products p
-        WHERE p.category_id = ?
-        """
-        rows = DatabaseManager.fetch_all(query, (category_id,))
-        logger.info(
-            "Products retrieved for category",
-            extra={"category_id": category_id, "count": len(rows)},
-        )
-        return rows
-
-    @staticmethod
-    @db_operation(show_dialog=True)
-    @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_category_statistics() -> list[dict[str, Any]]:
-        query = """
-        SELECT
-            c.id,
-            c.name,
-            COUNT(p.id) as product_count,
-            COALESCE(SUM(i.quantity), 0) as total_inventory,
-            COALESCE(SUM(p.sell_price * i.quantity), 0) as inventory_value
-        FROM categories c
-        LEFT JOIN products p ON c.id = p.category_id
-        LEFT JOIN inventory i ON p.id = i.product_id
-        GROUP BY c.id
-        ORDER BY c.name
-        """
-        rows = DatabaseManager.fetch_all(query)
-        logger.info("Category statistics retrieved", extra={"count": len(rows)})
-        return rows
 
     @classmethod
     def clear_cache(cls) -> None:

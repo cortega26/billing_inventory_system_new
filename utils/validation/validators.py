@@ -141,11 +141,6 @@ def validate_float_non_negative(value: float) -> float:
     return validate_float(value, min_value=0, max_decimals=3)
 
 
-def validate_int_non_negative(value: int) -> int:
-    """Validate a non-negative integer value."""
-    return validate_integer(value, min_value=0)
-
-
 def validate_money(
     value: Any, field_name: str = "Amount", max_value: int | None = 1_000_000
 ) -> int:
@@ -228,25 +223,6 @@ def validate_quantity(value: Any) -> float:
     return validate_float(value, min_value=0.001, max_decimals=3)
 
 
-def validate_price_pair(cost_price: int, sell_price: int) -> None:
-    """
-    Validate a pair of cost and sell prices.
-    Sell price must be greater than or equal to cost price.
-
-    Args:
-        cost_price: Cost price to validate
-        sell_price: Sell price to validate
-
-    Raises:
-        ValidationException: If validation fails
-    """
-    validated_cost = validate_money(cost_price)
-    validated_sell = validate_money(sell_price)
-
-    if validated_sell < validated_cost:
-        raise ValidationException("Sell price cannot be less than cost price")
-
-
 def validate_date(date_str: str, format: str = "%Y-%m-%d") -> str:
     try:
         datetime_obj = datetime.strptime(date_str, format)
@@ -263,18 +239,6 @@ def validate_date(date_str: str, format: str = "%Y-%m-%d") -> str:
         ) from None
 
 
-def validate_boolean(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        lowered = value.lower()
-        if lowered in ("true", "1", "yes", "on"):
-            return True
-        if lowered in ("false", "0", "no", "off"):
-            return False
-    raise ValidationException(f"Invalid boolean value: {value}")
-
-
 def validate_with_pattern(
     value: str, pattern: str, error_message: str = "Invalid format"
 ) -> str:
@@ -282,29 +246,6 @@ def validate_with_pattern(
     if not re.match(pattern, value):
         raise ValidationException(error_message)
     return value
-
-
-def validate_email(value: str) -> str:
-    value = validate_string(value)
-    return validate_with_pattern(
-        value,
-        r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
-        "Invalid email format",
-    )
-
-
-def validate_phone(value: str) -> str:
-    value = validate_string(value)
-    return validate_with_pattern(value, r"^\+?1?\d{9,15}$", "Invalid phone format")
-
-
-def validate_url(value: str) -> str:
-    value = validate_string(value)
-    return validate_with_pattern(
-        value,
-        r"^(http:\/\/www\.|https:\/\/www\.|http:\/\/|https:\/\/)?[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,5}(:[0-9]{1,5})?(\/.*)?$",
-        "Invalid URL format",
-    )
 
 
 def validate_identifier(value: str, length: int | tuple[int, ...]) -> str:

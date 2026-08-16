@@ -255,17 +255,6 @@ class InventoryService:
     @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def delete_inventory(product_id: int) -> None:
-        product_id = validate_integer(product_id, min_value=1)
-        query = "DELETE FROM inventory WHERE product_id = ?"
-        DatabaseManager.execute_query(query, (product_id,))
-        InventoryService.clear_cache()
-        event_system.inventory_changed.emit(product_id)
-        logger.info("Inventory deleted", extra={"product_id": product_id})
-
-    @staticmethod
-    @db_operation(show_dialog=True)
-    @handle_exceptions(DatabaseException, show_dialog=True)
     def get_inventory_value() -> int:
         query = """
             SELECT SUM(i.quantity * COALESCE(p.cost_price, 0)) as total_value

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from functools import lru_cache
 from typing import Any
 
@@ -329,25 +329,6 @@ class AnalyticsService:
         AnalyticsService.get_profit_trend.cache_clear()
         AnalyticsService.get_profit_margin_distribution.cache_clear()
         logger.debug("Analytics cache cleared")
-
-    @staticmethod
-    def get_date_range(range_type: str) -> tuple[str, str]:
-        today = datetime.now().date()
-        date_ranges = {
-            "today": (today, today),
-            "yesterday": (today - timedelta(days=1), today - timedelta(days=1)),
-            "this_week": (today - timedelta(days=today.weekday()), today),
-            "this_month": (today.replace(day=1), today),
-            "this_year": (today.replace(month=1, day=1), today),
-        }
-
-        if range_type in date_ranges:
-            start_date, end_date = date_ranges[range_type]
-            logger.debug(f"Date range for {range_type}: {start_date} to {end_date}")
-            return start_date.isoformat(), end_date.isoformat()
-        else:
-            logger.error(f"Invalid range type: {range_type}")
-            raise ValueError("Invalid range type")
 
     @staticmethod
     def _validate_date_range(start_date: str, end_date: str) -> None:

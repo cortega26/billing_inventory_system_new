@@ -142,28 +142,12 @@ class Customer(SQLModel, table=True):
                 "Name can only contain letters, accented characters, and spaces"
             )
 
-    def update_identifier_9(self, new_identifier_9: str) -> None:
-        """
-        Update the 9-digit identifier.
-        """
-        self.validate_identifier_9(new_identifier_9)
-        self.identifier_9 = new_identifier_9
-
     def update_identifier_3or4(self, new_identifier_3or4: str | None) -> None:
         """
         Update the 3 or 4-digit identifier.
         """
         self.validate_identifier_3or4(new_identifier_3or4)
         self.identifier_3or4 = new_identifier_3or4
-
-    def update_name(self, new_name: str | None) -> None:
-        """
-        Update the customer name.
-        """
-        if new_name is not None:
-            self.validate_name(new_name)
-            new_name = " ".join(new_name.split())  # Normalize whitespace
-        self.name = new_name
 
     def get_all_identifiers(self) -> list[str]:
         """

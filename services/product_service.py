@@ -302,50 +302,6 @@ class ProductService:
             logger.error(f"Error getting product by barcode: {str(e)}")
             raise DatabaseException(f"Failed to get product: {str(e)}") from e
 
-    @db_operation(show_dialog=True)
-    @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_product_profit_margin(self, product_id: int) -> int:
-        """
-        Calculate product profit margin.
-
-        Args:
-            product_id: The product ID.
-
-        Returns:
-            int: The profit margin percentage.
-
-        Raises:
-            NotFoundException: If product not found.
-            DatabaseException: If database operation fails.
-        """
-        try:
-            product = self._require_product(product_id)
-
-            if product.cost_price is None or product.sell_price is None:
-                logger.info(
-                    f"Unable to calculate profit margin for product {product_id}: cost_price or sell_price is None"
-                )
-                return 0
-
-            if product.sell_price == 0:
-                logger.warning(
-                    f"Sell price is zero for product {product_id}, unable to calculate profit margin"
-                )
-                return 0
-
-            profit_margin = int(
-                (product.sell_price - product.cost_price) / product.sell_price * 100
-            )
-            logger.info(
-                f"Calculated profit margin for product {product_id}: {profit_margin}%"
-            )
-            return profit_margin
-        except Exception as e:
-            logger.error(
-                f"Error calculating profit margin for product {product_id}: {str(e)}"
-            )
-            raise
-
     @classmethod
     def clear_cache(cls) -> None:
         """Clear the product cache."""

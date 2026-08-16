@@ -2,7 +2,7 @@ import logging
 import sqlite3
 from pathlib import Path
 
-from config import DATABASE_PATH
+from config import DATABASE_PATH, config
 from services.analytics.contracts import Metric, MetricResult
 
 logger = logging.getLogger(__name__)
@@ -14,7 +14,14 @@ class AnalyticsEngine:
     """
 
     def __init__(self, db_path: Path | None = None):
-        self.db_path = db_path or DATABASE_PATH
+        if db_path is not None:
+            self.db_path = db_path
+        elif config.get("businesses") is None:
+            # Single-business installs (no registry) keep the import-time
+            # default, honoring the DATABASE_NAME env override.
+            self.db_path = DATABASE_PATH
+        else:
+            self.db_path = config.get_active_database_path()
 
     def _get_connection(self) -> sqlite3.Connection:
         """

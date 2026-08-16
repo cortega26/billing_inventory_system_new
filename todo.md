@@ -86,6 +86,6 @@ Consult before every change. Check off as work completes.
 
 - [x] Recon: customer schema + scripts pattern verified (127 rows, identity-only copy decision)
 - [x] Plan 023 written (plans/023-copy-customers-between-businesses.md) + spec.md section
-- [ ] Executor: implement script + 6 tests in worktree
-- [ ] Review, merge, push, clean, archive, mark DONE
-- [ ] Real-run (operator approval): dry-run first, then seed casabea.db
+- [x] Executor: implemented script + 6 tests (STOPPED once on schema drift → plan revised)
+- [x] Reviewed (APPROVE), merged 4bfaa74, pushed, cleaned, archived, DONE
+- [x] Dry-run + real seed executed 2026-08-16 (see session report)

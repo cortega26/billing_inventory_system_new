@@ -14,7 +14,7 @@ merge), move its file to `plans/archive/` in the same change that marks it done.
 The index below keeps the historical record; the archived files are the record
 of what was executed. Do not delete archived plans.
 
-## Status (22 plans; 001-022 all DONE — files archived)
+## Status (23 plans; 001-023 all DONE — files archived)
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
@@ -40,6 +40,7 @@ of what was executed. Do not delete archived plans.
 | 020  | Sad-path test coverage for the update-sale workflow and MutationCoordinator | P2 | S | — | DONE (executed 2026-08-15, commit 25b506c, merged c815fd4, reviewed APPROVED) |
 | 021  | InventoryAgingMetric must not count cancelled sales as "last sold" | P2 | S | — | DONE (executed 2026-08-15, commits 7d446d3\/36ee211\/864d292, merged, reviewed APPROVED) |
 | 022  | Multi-business support (CasaBea): one DB per business + startup selector | P1 | M | — | DONE (executed 2026-08-15, 8 commits b3aa38b..fa38ee7, merged 5bbed86, reviewed APPROVED; Phase E amendment: analytics engine follows active business; deviation: three-branch db_path resolution preserves DATABASE_NAME override + legacy test seam) |
+| 023  | Copy customers (identity only) between business DBs (El Rincón → CasaBea) | P1 | S | — | DONE (executed 2026-08-16, commits db31700/a3f73ce, merged 4bfaa74, reviewed APPROVED; executor STOPPED on live-DB-vs-repo schema drift → plan revised to repo schema; drift recorded as backlog) |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale)
 

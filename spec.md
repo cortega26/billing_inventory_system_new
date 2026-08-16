@@ -118,3 +118,41 @@ gaps; its feedback is resolved before continuing.
   `plans/archive/` in the same change.
 - `todo.md` fully checked off.
 - `main` pushed with the merge history.
+
+---
+
+# Feature 2 — Multi-business support (CasaBea)
+
+Requested 2026-08-15: the app must serve a second business ("CasaBea",
+cinnamon-roll entrepreneurship). Deliverable: `plans/022-casabea-multi-business.md`
+(planned at `3df1f6b`). Status ledger: `todo.md` → "Plan 022 (CasaBea)" section.
+
+## Spec summary (from plan 022)
+
+- **Architecture**: ONE SQLite DB per business, chosen at startup. All
+  services/analytics/caches/UI are DB-agnostic (verified: `init_db(db_path)`
+  at `database/__init__.py:84` and `DatabaseManager.initialize(path)` at
+  `database/database_manager.py:35` already take a path; migrations run per
+  file at `init_db`). No `business_id` column work; no High-Risk-Area changes.
+- **Registry**: app config (`~/.config/billing-inventory/app_config.json`)
+  gains `businesses: [{id, name, db_filename}]` + `active_business`. Absent
+  registry ⇒ implicit single business "default" (backward compatible; path
+  equals current `DATABASE_PATH`).
+- **Bootstrap**: new `ui/business_selector_dialog.py` (Spanish) shown in
+  `main.py` before `Application.initialize()`; skipped when only one
+  business is configured. Switching = restart (documented constraint).
+- **Backups**: `backups/<business_id>/`; `backup_service.py:52` must stop
+  reading `DATABASE_PATH` directly.
+- **Out of scope**: `database/`, `services/` business logic, schema,
+  migrations, cross-business features (customer sync / consolidated reports).
+
+## Verification (plan 022)
+
+- Per phase: targeted tests — config registry tests
+  (`tests/test_config.py`, `tests/test_system/test_config.py`), selector UI
+  test (`tests/test_ui/` under xvfb), backup path tests, and the new
+  `tests/test_services/test_business_switch.py` (real temp files: fresh DB
+  born with schema; data isolation between two files; default active
+  business).
+- Full suite + `ruff`/`black`/`pyright`/`check_schema_drift.py` clean before
+  merge; post-merge full suite in main; push; archive; mark DONE.

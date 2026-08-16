@@ -70,3 +70,13 @@ Consult before every change. Check off as work completes.
 - [ ] Implementation + verification in worktree
 - [ ] Orchestrator review
 - [ ] Merge/push/clean/archive
+
+## Plan 022 (CasaBea) — multi-business support
+
+- [x] Recon: bootstrap seams verified (init_db(db_path), DatabaseManager.initialize(path), backup_service.py:52, main.py flow)
+- [x] Plan 022 written (plans/022-casabea-multi-business.md) + spec.md section
+- [ ] Phase A: business registry in config (backward compat) + config tests
+- [ ] Phase B: startup selector dialog + main.py wiring + UI test
+- [ ] Phase C: per-business backups + backup test updates
+- [ ] Phase D: SPECIFICATIONS/readme docs + test_business_switch.py + full verification
+- [ ] Review, merge, push, clean, archive, mark DONE

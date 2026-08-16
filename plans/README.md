@@ -19,12 +19,12 @@ reflect the working tree, not `HEAD`.
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 001  | Guard cancelled-sale delete/edit against double inventory restore | P1 | S | — | TODO |
+| 001  | Guard cancelled-sale delete/edit against double inventory restore | P1 | S | — | DONE (executed 2026-08-15, commit 86063b1, branch advisor/001-cancelled-sale-guard, reviewed APPROVED) |
 | 002  | Unify model validation: service-layer enforcement, no load-time crashes | P1 | M | — | TODO |
 | 003  | PIN security: rotate, relocate config, PBKDF2, persistent lockout | P1 | M | — | TODO |
 | 004  | Reconcile index sources + cleanup migration + legacy-DB upgrade test | P1 | M | — | TODO |
 | 005  | Sales-table batching + refresh-wave coalescing | P2 | M | — | TODO |
-| 006  | Fix xdist crash + enable parallel CI + bump CI actions | P1 | S | — | TODO |
+| 006  | Fix xdist crash + enable parallel CI + bump CI actions | P1 | S | — | DONE (executed 2026-08-15, commits dcaf970/ad347a3/d7fd8cf, branch advisor/006-xdist-ci, reviewed APPROVED) |
 | 007  | Unify cache protocol; fix false clear_cache pairing | P2 | M | — | TODO |
 | 008  | Sale-domain test hardening + purchase-delete reversal + suite cleanup | P1 | S-M | 007 | TODO |
 | 009  | Inventory + analytics real-DB guard tests | P2 | M | — | TODO |

@@ -11,7 +11,8 @@
     "ui/main_window.py",
     "ui/customer_view.py",
     "ui/product_view.py",
-    "ui/purchase_view.py"
+    "ui/purchase_view.py",
+    "ui/sale_view.py"
   ],
   "exclude": ["**/__pycache__", "**/.venv"],
   "pythonVersion": "3.13",

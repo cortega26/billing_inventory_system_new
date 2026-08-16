@@ -179,10 +179,16 @@ class EditSaleDialog(QDialog):
                 self.customer_info_label.setText(" - ".join(display_parts))
 
             # Set date
-            qdate = QDate.fromString(self.sale.date.strftime("%Y-%m-%d"), "yyyy-MM-dd")
+            qdate = QDate.fromString(
+                self.sale.date.strftime("%Y-%m-%d")
+                if self.sale.date is not None
+                else "",
+                "yyyy-MM-dd",
+            )
             self.date_input.setDate(qdate)
 
             # Load items
+            assert self.sale.id is not None
             items = self.sale_service.get_sale_items(self.sale.id)
             for item in items:
                 # Get the product to ensure we have the correct name
@@ -318,6 +324,7 @@ class EditSaleDialog(QDialog):
             date = self.date_input.date().toString("yyyy-MM-dd")
 
             # Update the sale
+            assert self.sale.id is not None
             self.sale_service.update_sale(
                 sale_id=self.sale.id,
                 customer_id=self.selected_customer_id,
@@ -350,6 +357,7 @@ class SaleItemDialog(QDialog):
         # Check stock for low stock warning
         try:
             inventory_service = InventoryService()
+            assert self.product.id is not None
             inventory = inventory_service.get_inventory(self.product.id)
             current_stock = inventory.quantity if inventory else 0.0
             if current_stock < 10:
@@ -571,7 +579,7 @@ class SaleView(QWidget):
             "Al marcar, los artículos se agregan automáticamente con cantidad 1 sin diálogo de confirmación."
         )
         self.quick_scan_checkbox.setChecked(
-            self.settings.value("QuickScanEnabled", False, type=bool)
+            self.settings.value("QuickScanEnabled", False, type=bool) is True
         )
         self.quick_scan_checkbox.toggled.connect(
             lambda checked: self.settings.setValue("QuickScanEnabled", checked)
@@ -755,6 +763,7 @@ class SaleView(QWidget):
                     # Check stock for warning
                     try:
                         inventory_service = InventoryService()
+                        assert product.id is not None
                         inventory = inventory_service.get_inventory(product.id)
                         current_stock = inventory.quantity if inventory else 0.0
                         if current_stock < 10:
@@ -767,10 +776,11 @@ class SaleView(QWidget):
                             )
 
                             main_window = self.window()
-                            if main_window and hasattr(
-                                main_window, "show_status_message"
-                            ):
-                                main_window.show_status_message(
+                            show_status_message = getattr(
+                                main_window, "show_status_message", None
+                            )
+                            if callable(show_status_message):
+                                show_status_message(
                                     f"⚠️ ¡Advertencia! El producto '{product.name}' tiene stock bajo. Disponible: {current_stock} unidades",
                                     10000,
                                 )
@@ -991,7 +1001,8 @@ class SaleView(QWidget):
     )
     def complete_sale(self):
         """Complete the current sale with proper money handling."""
-        if not hasattr(self, "selected_customer_id"):
+        customer_id = getattr(self, "selected_customer_id", None)
+        if customer_id is None:
             raise ValidationException("Por favor seleccione un cliente primero")
 
         if not self.sale_items:
@@ -1002,7 +1013,7 @@ class SaleView(QWidget):
             processed_items = prepare_processed_sale_items(self.sale_items)
 
             sale_id = self.sale_service.create_sale(
-                self.selected_customer_id, date, processed_items
+                customer_id, date, processed_items
             )
 
             if sale_id:
@@ -1044,6 +1055,7 @@ class SaleView(QWidget):
             else {}
         )
         for row, sale in enumerate(sales):
+            assert sale.id is not None
             customer = (
                 customers.get(sale.customer_id)
                 if sale.customer_id is not None
@@ -1149,6 +1161,7 @@ class SaleView(QWidget):
             return
 
         try:
+            assert sale.id is not None
             self.sale_service.delete_sale(sale.id)
             self.load_sales()
             show_info_message("Éxito", "Venta eliminada exitosamente")
@@ -1214,6 +1227,7 @@ class SaleView(QWidget):
             )
 
             if file_path:
+                assert sale.id is not None
                 self.sale_service.save_receipt_as_pdf(sale.id, file_path)
                 show_info_message("Éxito", f"Recibo guardado en {file_path}")
 
@@ -1232,6 +1246,7 @@ class SaleView(QWidget):
     def view_sale(self, sale: Sale) -> None:
         """View sale details with proper money formatting."""
         try:
+            assert sale.id is not None
             items = self.sale_service.get_sale_items(sale.id)
             customer = (
                 self.customer_service.get_customers_by_ids([sale.customer_id]).get(
@@ -1250,7 +1265,11 @@ class SaleView(QWidget):
             message += f"{'Recibo #' + receipt_id:^64}\n\n"
             message += f"{' Detalles de venta ':=^64}\n\n"
             message += f"Cliente: {customer_text}\n"
-            message += f"Fecha: {sale.date.strftime('%d-%m-%Y')}\n"
+            message += (
+                f"Fecha: {sale.date.strftime('%d-%m-%Y')}\n"
+                if sale.date is not None
+                else "Fecha: -\n"
+            )
             message += f"{'':=^64}\n\n"
             message += f"{'Producto':<30}{'Cantidad':>10}{'P.Unit.':>12}{'Total':>12}\n"
             message += f"{'':-^64}\n"
@@ -1297,6 +1316,7 @@ class SaleView(QWidget):
                 if sale.customer_id is not None
                 else None
             )
+            assert sale.id is not None
             items = self.sale_service.get_sale_items(sale.id)
 
             receipt = []

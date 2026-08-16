@@ -132,6 +132,7 @@ Repo conventions that apply:
 - `ui/business_selector_dialog.py` — NEW: startup selector dialog (Spanish UI)
 - `services/backup_service.py` — back up the active business DB into `backups/<business_id>/`
 - `SPECIFICATIONS.md` + `readme.md` — multi-business section
+- `services/analytics/engine.py` — ONE line (see Phase E amendment below)
 - Tests: `tests/test_config.py`, `tests/test_system/test_config.py`, NEW `tests/test_services/test_business_switch.py`, `tests/test_backup_service.py`, `tests/test_ui/test_business_selector_dialog.py`
 
 **Out of scope** (do NOT touch):
@@ -232,6 +233,35 @@ In `services/backup_service.py`:
 - A quick manual probe: create a temp business config, run the backup
   scheduler once, assert the file lands in `backups/<id>/`.
 
+AMENDMENT (2026-08-15, after first execution attempt): the executor found
+that `AnalyticsEngine.__init__` defaults `db_path or DATABASE_PATH`
+(`services/analytics/engine.py:16-17`) — an import-time constant — so
+analytics for a non-default business would silently read the DEFAULT
+business's DB. The plan's "analytics are per-file by construction" rationale
+was wrong at this seam. Phase E below fixes it. This is the ONLY amendment;
+everything else stands.
+
+### Phase E: Analytics engine reads the active business DB
+
+In `services/analytics/engine.py`:
+
+1. Change line 17 to resolve the default at construction time:
+   `self.db_path = db_path or config.get_active_database_path()`
+   (import `config`; keep the `DATABASE_PATH` import if still referenced
+   elsewhere in the file, otherwise drop it — check first).
+2. The 10 `AnalyticsEngine()` instantiations in `services/analytics_service.py`
+   need NO changes — the default now follows the active business.
+3. Add a regression test to `tests/test_services/test_business_switch.py`:
+   seed a product + sale in business A's DB, switch the active business to a
+   fresh business B, run one metric (e.g. `AnalyticsService.get_sales_summary`
+   over the sale's date range), assert the summary is zeroed for B; switch
+   back, assert the totals return. (AnalyticsService caches — call
+   `AnalyticsService.clear_cache()` between switches.)
+
+**Verify**:
+- `.venv/bin/python -m pytest tests/test_services/test_business_switch.py` → all pass, including the new analytics-isolation test.
+- `.venv/bin/python -m pytest tests/test_services/test_analytics_service.py tests/analytics/` → all pass.
+
 ### Phase D: Documentation + full verification
 
 1. `SPECIFICATIONS.md`: add a "Multi-business" section — one DB per business,
@@ -268,6 +298,7 @@ In `services/backup_service.py`:
 | data isolation across businesses | tests/test_services/test_business_switch.py | product in A absent in B, present back in A |
 | default active business | tests/test_services/test_business_switch.py | single-business path equals DATABASE_PATH |
 | per-business backup path | tests/test_backup_service.py | backup lands in backups/<business_id>/ |
+| analytics follow active business | tests/test_services/test_business_switch.py | metric zeroed for fresh business B, totals return on switch back |
 
 ## Done criteria
 
@@ -276,6 +307,7 @@ Machine-checkable. ALL must hold:
 - [ ] `config.get_active_database_path()` exists; with no `businesses` key it equals `DATABASE_PATH` (asserted in a test)
 - [ ] `ui/business_selector_dialog.py` exists; `main.py` shows it before `Application.initialize()`; single-business config skips it
 - [ ] `backup_service.py:52` no longer reads `DATABASE_PATH` directly
+- [ ] `engine.py:17` resolves the default via `config.get_active_database_path()` (asserted by the new analytics-isolation test)
 - [ ] New-business DB files are born with the full schema (migrations run via `init_db`)
 - [ ] `.venv/bin/python -m pytest` exits 0
 - [ ] `.venv/bin/ruff check .`, `.venv/bin/black --check .`, `.venv/bin/pyright`, `.venv/bin/python scripts/check_schema_drift.py` all exit 0

@@ -13,6 +13,7 @@ from services.product_service import ProductService
 from services.receipt_service import ReceiptService
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import DatabaseException, NotFoundException, ValidationException
+from utils.helpers import get_product_ids_from_items
 from utils.math.financial_calculator import FinancialCalculator
 from utils.system.event_system import event_system
 from utils.system.logger import logger
@@ -23,6 +24,33 @@ from utils.validation.validators import (
     validate_integer,
     validate_string,
 )
+
+
+def _hydrate_sale_items(sales: list[Sale], sale_ids: list[int | None]) -> None:
+    """Batch-load items for the given sales and attach them in place."""
+    placeholders = ",".join("?" * len(sale_ids))
+    items_query = f"""
+        SELECT si.*,
+            p.name as product_name,
+            COALESCE(si.quantity, 0) as quantity,
+            COALESCE(si.price, 0) as price,
+            COALESCE(si.profit, 0) as profit
+        FROM sale_items si
+        LEFT JOIN products p ON si.product_id = p.id
+        WHERE si.sale_id IN ({placeholders})
+        ORDER BY si.sale_id, si.id
+    """  # nosec B608
+    items_rows = DatabaseManager.fetch_all(items_query, tuple(sale_ids))
+
+    items_by_sale: dict[int, list[SaleItem]] = {}
+    for item_row in items_rows:
+        sid = item_row["sale_id"]
+        if sid not in items_by_sale:
+            items_by_sale[sid] = []
+        items_by_sale[sid].append(SaleItem.from_db_row(item_row))
+
+    for sale in sales:
+        sale.items = items_by_sale.get(sale.id or 0, [])
 
 
 class SaleService:
@@ -107,7 +135,7 @@ class SaleService:
                         "customer_id": customer_id,
                         "date": sale_date_str,
                         "item_count": len(items),
-                        "product_ids": self._get_product_ids(items),
+                        "product_ids": get_product_ids_from_items(items),
                         "total_amount": total_amount,
                         "total_profit": total_profit,
                         "receipt_id": receipt_id,
@@ -188,29 +216,7 @@ class SaleService:
             sale_ids = [sale.id for sale in sales]
 
             # Fetch items only for this page's sales — avoids loading the full table
-            placeholders = ",".join("?" * len(sale_ids))
-            items_query = f"""
-                SELECT si.*,
-                    p.name as product_name,
-                    COALESCE(si.quantity, 0) as quantity,
-                    COALESCE(si.price, 0) as price,
-                    COALESCE(si.profit, 0) as profit
-                FROM sale_items si
-                LEFT JOIN products p ON si.product_id = p.id
-                WHERE si.sale_id IN ({placeholders})
-                ORDER BY si.sale_id, si.id
-            """  # nosec B608
-            items_rows = DatabaseManager.fetch_all(items_query, tuple(sale_ids))
-
-            items_by_sale: dict[int, list[SaleItem]] = {}
-            for item_row in items_rows:
-                sid = item_row["sale_id"]
-                if sid not in items_by_sale:
-                    items_by_sale[sid] = []
-                items_by_sale[sid].append(SaleItem.from_db_row(item_row))
-
-            for sale in sales:
-                sale.items = items_by_sale.get(sale.id or 0, [])
+            _hydrate_sale_items(sales, sale_ids)
 
             logger.info(
                 f"Retrieved {len(sales)} sales",
@@ -262,7 +268,7 @@ class SaleService:
                     sale_id,
                     {
                         "item_count": len(items),
-                        "product_ids": self._get_product_ids(items),
+                        "product_ids": get_product_ids_from_items(items),
                     },
                 )
                 DatabaseManager.execute_query(
@@ -314,7 +320,7 @@ class SaleService:
                     sale_id,
                     {
                         "item_count": len(items),
-                        "product_ids": self._get_product_ids(items),
+                        "product_ids": get_product_ids_from_items(items),
                     },
                 )
             logger.info("Sale cancelled", extra={"sale_id": sale_id})
@@ -481,19 +487,6 @@ class SaleService:
             )
         return f"{date_part}{next_number:03d}"
 
-    @staticmethod
-    def _get_product_ids(items: list[Any]) -> list[int]:
-        product_ids: list[int] = []
-        for item in items:
-            product_id = (
-                item["product_id"]
-                if isinstance(item, dict)
-                else getattr(item, "product_id", None)
-            )
-            if product_id is not None and product_id not in product_ids:
-                product_ids.append(int(product_id))
-        return product_ids
-
     def _validate_sale_items(self, items: list[dict[str, Any]]) -> None:
         if not items:
             raise ValidationException("Sale must have at least one item")
@@ -597,29 +590,7 @@ class SaleService:
         sale_ids = [sale.id for sale in sales]
 
         # Batch-load items for this page — eliminates N+1
-        placeholders = ",".join("?" * len(sale_ids))
-        items_query = f"""
-            SELECT si.*,
-                p.name as product_name,
-                COALESCE(si.quantity, 0) as quantity,
-                COALESCE(si.price, 0) as price,
-                COALESCE(si.profit, 0) as profit
-            FROM sale_items si
-            LEFT JOIN products p ON si.product_id = p.id
-            WHERE si.sale_id IN ({placeholders})
-            ORDER BY si.sale_id, si.id
-        """  # nosec B608
-        items_rows = DatabaseManager.fetch_all(items_query, tuple(sale_ids))
-
-        items_by_sale: dict[int, list[SaleItem]] = {}
-        for item_row in items_rows:
-            sid = item_row["sale_id"]
-            if sid not in items_by_sale:
-                items_by_sale[sid] = []
-            items_by_sale[sid].append(SaleItem.from_db_row(item_row))
-
-        for sale in sales:
-            sale.items = items_by_sale.get(sale.id or 0, [])
+        _hydrate_sale_items(sales, sale_ids)
 
         logger.info(
             "Sales by date range retrieved",

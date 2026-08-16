@@ -9,6 +9,7 @@ from services.product_service import ProductService
 from services.purchase_query_service import PurchaseQueryService
 from services.purchase_service import PurchaseService
 from utils.exceptions import DatabaseException, NotFoundException, ValidationException
+from utils.helpers import get_product_ids_from_items as helpers
 from utils.system.event_system import event_system
 
 
@@ -316,8 +317,8 @@ class TestPurchaseService:
             event_system.inventory_changed.disconnect(inventory_handler)
 
     def test_purchase_service_declares_get_product_ids_once(self):
-        source = inspect.getsource(PurchaseService)
-        assert source.count("def _get_product_ids") == 1
+        source = inspect.getsource(inspect.getmodule(helpers))
+        assert source.count("def get_product_ids_from_items") == 1
 
     def test_purchase_query_service_reads_history_with_items(
         self, purchase_service, sample_purchase_data, sample_product

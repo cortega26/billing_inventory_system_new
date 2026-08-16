@@ -6,6 +6,7 @@ from services.audit_service import AuditService
 from services.inventory_service import InventoryService
 from services.mutation_coordinator import MutationCoordinator
 from utils.exceptions import ValidationException
+from utils.helpers import get_product_ids_from_items
 from utils.math.financial_calculator import FinancialCalculator
 from utils.system.event_system import event_system
 from utils.system.logger import logger
@@ -83,9 +84,7 @@ class UpdateSaleWorkflow:
                     "date": date,
                     "old_item_count": len(old_items),
                     "new_item_count": len(items),
-                    "product_ids": self.sale_service._get_product_ids(
-                        [*old_items, *items]
-                    ),
+                    "product_ids": get_product_ids_from_items([*old_items, *items]),
                     "total_amount": total_amount,
                     "total_profit": total_profit,
                 },

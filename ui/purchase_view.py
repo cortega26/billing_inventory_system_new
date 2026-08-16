@@ -1,9 +1,7 @@
-import os
 from typing import Any
 
-from PySide6.QtCore import QDate, Qt, QTimer, QUrl
+from PySide6.QtCore import QDate, Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
-from PySide6.QtMultimedia import QSoundEffect
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -38,6 +36,7 @@ from utils.helpers import (
     show_info_message,
 )
 from utils.system.logger import logger
+from utils.ui.sound import SoundEffect
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
 from utils.validation.validators import validate_float, validate_string
 
@@ -135,10 +134,7 @@ class PurchaseView(QWidget):
         self.setup_scan_sound()
 
     def setup_scan_sound(self):
-        self.scan_sound = QSoundEffect()
-        sound_file = os.path.join(os.path.dirname(__file__), "resources", "scan.wav")
-        self.scan_sound.setSource(QUrl.fromLocalFile(sound_file))
-        self.scan_sound.setVolume(0.5)
+        self.scan_sound = SoundEffect("scan.wav")
 
     def setup_ui(self):
         layout = QVBoxLayout(self)

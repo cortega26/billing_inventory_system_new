@@ -19,16 +19,6 @@ LOGGER_NAME = "inventory_system"
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
-class LogLevel:
-    """Enum-like class for log levels with clear hierarchy."""
-
-    DEBUG = logging.DEBUG  # Detailed information for debugging
-    INFO = logging.INFO  # General operational events
-    WARNING = logging.WARNING  # Warning messages for potential issues
-    ERROR = logging.ERROR  # Error events that might still allow the app to run
-    CRITICAL = logging.CRITICAL  # Critical errors that prevent proper functioning
-
-
 class StructuredLogger:
     """Enhanced logger with structured logging capabilities and context management."""
 

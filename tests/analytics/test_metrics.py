@@ -302,3 +302,29 @@ def test_cancelled_sale_excluded_from_sales_summary(engine, analytics_db_path):
     summary = result.data[0]
     assert summary["total_sales"] == 2
     assert summary["total_revenue"] == 3100
+
+
+def test_sales_daily_range_includes_end_date_exactly_once(engine, analytics_db_path):
+    # Insert: one sale ON the end date (included), one sale at midnight the
+    # next day (excluded). Use far-past dates so the fixture's now-relative
+    # seed rows (ids 1-2) can never fall inside the queried range.
+    conn = sqlite3.connect(analytics_db_path)
+    end = "2020-01-15"
+    conn.execute(
+        "INSERT INTO sales (id, date, total_amount, total_profit, customer_id)"
+        " VALUES (3, ?, 111, 11, 1)",
+        (end,),
+    )
+    conn.execute(
+        "INSERT INTO sales (id, date, total_amount, total_profit, customer_id)"
+        " VALUES (4, ?, 222, 22, 1)",
+        ("2020-01-16 00:00:00",),
+    )
+    conn.commit()
+    conn.close()
+
+    result = engine.execute_metric(
+        SalesDailyMetric(), start_date="2020-01-14", end_date=end
+    )
+    # Sum of total_sales across returned days == 111 only (222 must be excluded)
+    assert sum(row["total_sales"] for row in result.data) == 111

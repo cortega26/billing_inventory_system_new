@@ -140,6 +140,10 @@ Do not do the following without an explicit, fully tested refactor:
 - Do not assume every historical sale still has a live customer row.
 - Do not rely on bare `python` or `ruff` being on PATH for repo automation.
   Prefer `.venv/bin/python` and `.venv/bin/ruff` unless the environment is known-good.
+- Do not re-add dead code: any new public method must have a caller or a
+  test. Deleting code requires the zero-reference grep from plan 011's Step 1
+  (definition + zero other hits across the repo, tests excluded only when the
+  plan classified the references as test-only).
 
 ## Regression Prevention Rules
 

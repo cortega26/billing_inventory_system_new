@@ -153,23 +153,6 @@ class TestSaleService:
         sales = sale_service.get_sales_by_date_range(today, today)
         assert len(sales) == 1
 
-    def test_get_customer_sales(
-        self,
-        sale_service,
-        sample_sale_data,
-        sample_customer,
-        inventory_service,
-        sample_product,
-    ):
-        # Setup inventory
-        inventory_service.update_quantity(sample_product.id, 10.0)
-        sale_service.create_sale(**sample_sale_data)
-
-        # Get sales for customer
-        sales = sale_service.get_customer_sales(sample_customer.id)
-        assert len(sales) == 1
-        assert sales[0].customer_id == sample_customer.id
-
     def test_calculate_sale_totals(
         self, sale_service, sample_sale_data, inventory_service, sample_product
     ):
@@ -186,20 +169,6 @@ class TestSaleService:
         assert (
             sale.total_profit > 0
         )  # Profit should be positive since sell_price > cost_price
-
-    def test_update_sale_receipt(
-        self, sale_service, sample_sale_data, inventory_service, sample_product
-    ):
-        inventory_service.update_quantity(sample_product.id, 10.0)
-        sale_id = sale_service.create_sale(**sample_sale_data)
-
-        # Update receipt number
-        receipt_id = "R123456"
-        sale_service.update_sale_receipt(sale_id, receipt_id)
-
-        # Verify update
-        sale = sale_service.get_sale(sale_id)
-        assert sale.receipt_id == receipt_id
 
     def test_get_sale_statistics(
         self, sale_service, sample_sale_data, inventory_service, sample_product
@@ -626,18 +595,3 @@ class TestCacheFreshness:
         sales_after = sale_service.get_all_sales()
         assert len(sales_after) == len(sales_before) + 1
         assert any(sale.id == sale_id for sale in sales_after)
-
-    def test_get_product_details_reflects_price_update(
-        self, sale_service, product_service, sample_product
-    ):
-        SaleService.clear_cache()
-        product_id = sample_product.id
-
-        details_before = sale_service.get_product_details(product_id)
-        assert details_before is not None
-        new_price = details_before["sell_price"] + 100
-        product_service.update_product(product_id, {"sell_price": new_price})
-
-        details_after = sale_service.get_product_details(product_id)
-        assert details_after is not None
-        assert details_after["sell_price"] == new_price

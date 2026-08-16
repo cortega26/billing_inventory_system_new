@@ -1,20 +1,14 @@
 import functools
-import time
 from collections.abc import Callable
 from typing import Any, ParamSpec, TypeVar
 
 from utils.system.logger import logger
-from utils.validation.validators import validate
 
 from .exceptions import (
-    AuthorizationException,
-    BusinessLogicException,
-    ConcurrencyException,
     DatabaseException,
     ExternalServiceException,
     NotFoundException,
     UIException,
-    ValidationException,
 )
 
 T = TypeVar("T")
@@ -99,40 +93,6 @@ def db_operation(
     )
 
 
-def validate_input(
-    validators: list[Callable[[Any], bool]],
-    error_message: str,
-    show_dialog: bool = False,
-) -> Callable[[Callable[P, T]], Callable[P, T]]:
-    """Decorator for input validation."""
-
-    def decorator(func: Callable[P, T]) -> Callable[P, T]:
-        @functools.wraps(func)
-        def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
-            try:
-                # Validate the first argument after 'self'
-                if len(args) > 1:
-                    validate(args[1], validators, error_message)
-                return func(*args, **kwargs)
-            except ValidationException as e:
-                log_exception(e, func.__name__, "Validation error")
-                parent = _get_dialog_parent(args)
-                if show_dialog and parent is not None:
-                    show_error_dialog("Validation Error", str(e), parent)
-                raise
-
-        return wrapper
-
-    return decorator
-
-
-def require_authorization(
-    show_dialog: bool = True,
-) -> Callable[[Callable[P, T]], Callable[P, T]]:
-    """Decorator for operations requiring authorization."""
-    return handle_exceptions(AuthorizationException, show_dialog=show_dialog)
-
-
 def handle_external_service(
     show_dialog: bool = False,
 ) -> Callable[[Callable[P, T]], Callable[P, T]]:
@@ -140,119 +100,8 @@ def handle_external_service(
     return handle_exceptions(ExternalServiceException, show_dialog=show_dialog)
 
 
-def handle_concurrency(
-    show_dialog: bool = False,
-) -> Callable[[Callable[P, T]], Callable[P, T]]:
-    """Decorator for concurrency-sensitive operations."""
-    return handle_exceptions(ConcurrencyException, show_dialog=show_dialog)
-
-
-def enforce_business_logic(
-    show_dialog: bool = False,
-) -> Callable[[Callable[P, T]], Callable[P, T]]:
-    """Decorator for enforcing business logic rules."""
-    return handle_exceptions(BusinessLogicException, show_dialog=show_dialog)
-
-
 def ui_operation(
     show_dialog: bool = True,
 ) -> Callable[[Callable[P, T]], Callable[P, T]]:
     """Decorator for UI operations."""
     return handle_exceptions(UIException, show_dialog=show_dialog)
-
-
-def retry(
-    max_attempts: int = 3, delay: float = 1.0
-) -> Callable[[Callable[P, T]], Callable[P, T]]:
-    """
-    A decorator that retries the function execution on failure.
-
-    Args:
-    - max_attempts: Maximum number of retry attempts
-    - delay: Delay between retries in seconds
-    """
-
-    def decorator(func: Callable[P, T]) -> Callable[P, T]:
-        @functools.wraps(func)
-        def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
-            attempts = 0
-            last_exception: Exception | None = None
-            while attempts < max_attempts:
-                try:
-                    return func(*args, **kwargs)
-                except Exception as e:
-                    attempts += 1
-                    last_exception = e
-                    if attempts < max_attempts:
-                        time.sleep(delay)
-                    else:
-                        log_exception(
-                            e, func.__name__, f"Failed after {max_attempts} attempts"
-                        )
-
-            if last_exception:
-                raise last_exception
-            else:
-                raise RuntimeError(
-                    f"Failed to execute {func.__name__} after {max_attempts} attempts"
-                )
-
-        return wrapper
-
-    return decorator
-
-
-def measure_performance(
-    threshold: float | None = None,
-) -> Callable[[Callable[P, T]], Callable[P, T]]:
-    """
-    A decorator that measures the execution time of a function.
-
-    Args:
-    - threshold: If set, log a warning if execution time exceeds this value (in seconds)
-    """
-
-    def decorator(func: Callable[P, T]) -> Callable[P, T]:
-        @functools.wraps(func)
-        def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
-            start_time = time.time()
-            result = func(*args, **kwargs)
-            execution_time = time.time() - start_time
-            logger.debug(f"{func.__name__} executed in {execution_time:.2f} seconds")
-            if threshold and execution_time > threshold:
-                logger.warning(
-                    f"{func.__name__} exceeded threshold of {threshold} seconds",
-                    extra={"execution_time": execution_time, "threshold": threshold},
-                )
-            return result
-
-        return wrapper
-
-    return decorator
-
-
-def cache_result(ttl: int = 300) -> Callable[[Callable[P, T]], Callable[P, T]]:
-    """
-    A decorator that caches the result of a function for a specified time.
-
-    Args:
-    - ttl: Time to live for the cached result in seconds
-    """
-
-    def decorator(func: Callable[P, T]) -> Callable[P, T]:
-        cache: dict = {}
-
-        @functools.wraps(func)
-        def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
-            key = str(args) + str(kwargs)
-            if key in cache and time.time() - cache[key]["time"] < ttl:
-                logger.debug(f"Cache hit for {func.__name__}")
-                return cache[key]["result"]
-            result = func(*args, **kwargs)
-            cache[key] = {"result": result, "time": time.time()}
-            logger.debug(f"Cache miss for {func.__name__}, result cached")
-            return result
-
-        return wrapper
-
-    return decorator

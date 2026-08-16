@@ -156,24 +156,6 @@ class SaleService:
 
         raise NotFoundException(f"Sale with ID {sale_id} not found")
 
-    @db_operation(show_dialog=True)
-    @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_customer_sales(self, customer_id: int) -> list[Sale]:
-        """Get all sales for a specific customer."""
-        customer_id = validate_integer(customer_id, min_value=1)
-        query = "SELECT * FROM sales WHERE customer_id = ?"
-        rows = DatabaseManager.fetch_all(query, (customer_id,))
-        sales = []
-        for row in rows:
-            sale = Sale.from_db_row(row)
-            sale.items = self.get_sale_items(sale.id or 0)
-            sales.append(sale)
-        logger.info(
-            "Customer sales retrieved",
-            extra={"customer_id": customer_id, "count": len(sales)},
-        )
-        return sales
-
     @staticmethod
     @lru_cache(maxsize=128)
     @db_operation(show_dialog=True)
@@ -437,11 +419,6 @@ class SaleService:
         if cursor.rowcount == 0:
             raise NotFoundException(f"Sale with ID {sale_id} not found")
 
-    @db_operation(show_dialog=True)
-    def update_sale_receipt(self, sale_id: int, receipt_id: str) -> None:
-        """Public method to update sale receipt ID."""
-        self._update_sale_receipt_id(sale_id, receipt_id)
-
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def save_receipt_as_pdf(self, sale_id: int, filepath: str) -> None:
         sale_id = validate_integer(sale_id, min_value=1)
@@ -453,10 +430,6 @@ class SaleService:
 
         # Delegate to ReceiptService
         self.receipt_service.generate_pdf(sale, items, filepath)
-
-    @handle_exceptions(DatabaseException, show_dialog=True)
-    def send_receipt_via_whatsapp(self, sale_id: int, phone_number: str) -> None:
-        self.receipt_service.send_via_whatsapp(sale_id, phone_number)
 
     @classmethod
     def clear_cache(cls) -> None:
@@ -573,54 +546,6 @@ class SaleService:
         )
         SaleService._insert_sale_items(sale_id, items)
 
-    @staticmethod
-    @db_operation(show_dialog=True)
-    def get_top_selling_products(
-        start_date: str, end_date: str, limit: int = 10
-    ) -> list[dict[str, Any]]:
-        start_date = validate_date(start_date)
-        end_date = validate_date(end_date)
-        limit = validate_integer(limit, min_value=1, max_value=1000)
-        query = """
-            SELECT p.id, p.name, SUM(si.quantity) as total_quantity, SUM(si.quantity * si.price) as total_revenue
-            FROM products p
-            JOIN sale_items si ON p.id = si.product_id
-            JOIN sales s ON si.sale_id = s.id
-            WHERE s.date BETWEEN ? AND ?
-            GROUP BY p.id
-            ORDER BY total_quantity DESC
-            LIMIT ?
-        """
-        result = DatabaseManager.fetch_all(query, (start_date, end_date, limit))
-        logger.info(
-            "Top selling products retrieved",
-            extra={
-                "start_date": start_date,
-                "end_date": end_date,
-                "limit": limit,
-                "count": len(result),
-            },
-        )
-        return result
-
-    @staticmethod
-    @db_operation(show_dialog=True)
-    @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_total_sales_by_customer(customer_id: int) -> int:
-        customer_id = validate_integer(customer_id, min_value=1)
-        query = """
-            SELECT COALESCE(SUM(total_amount), 0) as total
-            FROM sales
-            WHERE customer_id = ?
-        """
-        result = DatabaseManager.fetch_one(query, (customer_id,))
-        total_sales = int(result["total"] if result else 0)
-        logger.info(
-            "Total sales by customer retrieved",
-            extra={"customer_id": customer_id, "total_sales": total_sales},
-        )
-        return total_sales
-
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
     def get_sales_by_date_range(
@@ -687,133 +612,6 @@ class SaleService:
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_daily_sales_report(self, date: str) -> dict[str, Any]:
-        date = validate_date(date)
-        query = """
-            SELECT
-                COUNT(*) as total_sales,
-                COALESCE(SUM(total_amount), 0) as total_revenue,
-                COALESCE(AVG(total_amount), 0) as average_sale_amount,
-                COALESCE(SUM(total_profit), 0) as total_profit
-            FROM sales
-            WHERE date = ?
-        """
-        result = DatabaseManager.fetch_one(query, (date,))
-        report = {
-            "date": date,
-            "total_sales": 0,
-            "total_revenue": 0,
-            "average_sale_amount": 0,
-            "total_profit": 0,
-        }
-        if result:
-            report.update(
-                {
-                    "total_sales": result.get("total_sales", 0),
-                    "total_revenue": int(result.get("total_revenue", 0)),
-                    "average_sale_amount": int(result.get("average_sale_amount", 0)),
-                    "total_profit": int(result.get("total_profit", 0)),
-                }
-            )
-        logger.info(
-            "Daily sales report generated", extra={"date": date, "report": report}
-        )
-        return report
-
-    @db_operation(show_dialog=True)
-    @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_sales_by_product(
-        self, product_id: int, start_date: str, end_date: str
-    ) -> list[dict[str, Any]]:
-        product_id = validate_integer(product_id, min_value=1)
-        start_date = validate_date(start_date)
-        end_date = validate_date(end_date)
-        query = """
-            SELECT s.date, si.quantity, si.price, si.profit
-            FROM sale_items si
-            JOIN sales s ON si.sale_id = s.id
-            WHERE si.product_id = ? AND s.date BETWEEN ? AND ?
-            ORDER BY s.date
-        """
-        rows = DatabaseManager.fetch_all(query, (product_id, start_date, end_date))
-        sales = [
-            {
-                "date": row["date"],
-                "quantity": row["quantity"],
-                "price": row["price"],
-                "profit": row["profit"],
-            }
-            for row in rows
-        ]
-        logger.info(
-            "Sales by product retrieved",
-            extra={
-                "product_id": product_id,
-                "start_date": start_date,
-                "end_date": end_date,
-                "count": len(sales),
-            },
-        )
-        return sales
-
-    @db_operation(show_dialog=True)
-    @handle_exceptions(DatabaseException, show_dialog=True)
-    def get_sales_distribution_by_category(
-        self, start_date: str, end_date: str
-    ) -> list[dict[str, Any]]:
-        start_date = validate_date(start_date)
-        end_date = validate_date(end_date)
-        query = """
-            SELECT
-                c.name as category_name,
-                COUNT(DISTINCT s.id) as sale_count,
-                SUM(si.quantity * si.price) as total_revenue,
-                SUM(si.profit) as total_profit
-            FROM sales s
-            JOIN sale_items si ON s.id = si.sale_id
-            JOIN products p ON si.product_id = p.id
-            LEFT JOIN categories c ON p.category_id = c.id
-            WHERE s.date BETWEEN ? AND ?
-            GROUP BY c.id
-            ORDER BY total_revenue DESC
-        """
-        rows = DatabaseManager.fetch_all(query, (start_date, end_date))
-        distribution = [
-            {
-                "category_name": row["category_name"] or "Uncategorized",
-                "sale_count": row["sale_count"],
-                "total_revenue": int(row["total_revenue"]),
-                "total_profit": int(row["total_profit"]),
-            }
-            for row in rows
-        ]
-        logger.info(
-            "Sales distribution by category retrieved",
-            extra={
-                "start_date": start_date,
-                "end_date": end_date,
-                "count": len(distribution),
-            },
-        )
-        return distribution
-
-    def get_product_details(self, product_id: int) -> dict[str, Any] | None:
-        product = self.product_service.get_product(product_id)
-        return product.to_dict() if product else None
-
-    def calculate_total_amount(self, items: list[dict[str, Any]]) -> int:
-        """Calculate total amount for a sale."""
-        return sum(
-            FinancialCalculator.calculate_item_total(
-                item["quantity"], item["sell_price"]
-            )
-            for item in items
-        )
-
-    def calculate_total_profit(self, items: list[dict[str, Any]]) -> int:
-        """Calculate total profit for a sale."""
-        return sum(int(item["profit"]) for item in items)
-
     def get_sale_statistics(self, start_date: str, end_date: str) -> dict[str, Any]:
         """Get aggregated sale statistics for a date range."""
         start_date = validate_date(start_date)

@@ -128,3 +128,12 @@ Consult before every change. Check off as work completes.
 - [x] Plan 028 written + spec.md section; casabea dashboard profile set to production in real config (backed up)
 - [x] Executor: 4 bound pragma conversions + 2 nosec sites (4 commits)
 - [x] Reviewed (APPROVE), merged a90e8fe, pushed, cleaned, archived, DONE
+
+## Plan 029 (dead-code sweep — 33 symbols) / Plan 030 (duplication)
+
+- [x] Audit complete: 33 fully-dead + 15 test-only (kept); 4 duplication blocks verified
+- [x] Plans 029/030 written + spec.md section
+- [ ] Executor 029: delete 33 symbols + orphaned imports + guard greps
+- [ ] Review/merge/push/archive 029
+- [ ] Executor 030: shared helpers (product_ids, hydration, receipt text, sound)
+- [ ] Review/merge/push/archive 030

@@ -332,3 +332,29 @@ scope excludes scripts/, Codacy covers it). Planned at `44c2fa5`.
 - `grep -rn 'f"PRAGMA\|f"SELECT COUNT' scripts/ tests/` → only the nosec
   sites remain; `check_schema_drift.py` exit 0; `pytest tests/test_database`
   (legacy upgrade tests) green; full suite; ruff/black/pyright clean.
+
+# Feature 9/10 — Dead-code sweep + duplication consolidation (plans 029/030)
+
+Requested 2026-08-16 (focused audit). 33 fully-dead symbols (single
+occurrence repo-wide, zero in tests — verified via occurrence-count scan:
+definition + zero other hits, plan 011 protocol) + 15 test-only (compliant
+with AGENTS.md, kept). Duplication: `_get_product_ids` ×3 (byte-identical),
+sale-item hydration ×2 in sale_service (+1 divergent purchase variant,
+documented separate), receipt text builders ×2 in sale_view, scan sound ×2
+(wrapper vs raw QSoundEffect). Planned at `3c74057`.
+
+## Spec summary
+
+- **029**: delete the 33 dead symbols + orphaned imports (ruff F401); keep
+  test-only tier; zero-reference grep guard per symbol; full suite.
+- **030**: `utils/helpers.get_product_ids_from_items` shared by
+  sale/purchase/coordinator; one `_hydrate_sale_items` helper in
+  sale_service used by both list methods; one `_build_receipt_text` in
+  sale_view (view_sale + preview share it); purchase_view uses the
+  `SoundEffect` wrapper (drop raw QSoundEffect).
+
+## Verification
+
+- 029: `rg <name>` → 0 hits for all 33; suite green; ruff/black/pyright.
+- 030: behavior pinned by existing tests (get_all_sales, receipt UI tests);
+  suite green; ruff/black/pyright.

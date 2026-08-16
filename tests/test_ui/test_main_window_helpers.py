@@ -4,13 +4,15 @@ pytest.importorskip("PySide6", reason="PySide6 not installed")
 
 from types import SimpleNamespace
 
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 from ui.main_window import (
     AUDIT_TAB,
     CUSTOMER_REFRESH_TARGETS,
+    INVENTORY_REFRESH_TARGETS,
     PRODUCT_REFRESH_TARGETS,
     PURCHASE_REFRESH_TARGETS,
+    SALE_REFRESH_TARGETS,
     MainWindow,
     build_backup_skipped_status_message,
 )
@@ -166,6 +168,7 @@ def test_refresh_relevant_views_only_refreshes_requested_tabs(
         refresh_spies[tab_name] = mocker.patch.object(widget, "refresh")
 
     window.refresh_relevant_views(("Productos", AUDIT_TAB))
+    QApplication.processEvents()  # coalesced refresh is deferred by one event-loop pass
 
     assert refresh_spies["Productos"].call_count == 1
     assert refresh_spies[AUDIT_TAB].call_count == 1
@@ -173,6 +176,37 @@ def test_refresh_relevant_views_only_refreshes_requested_tabs(
     for tab_name, spy in refresh_spies.items():
         if tab_name not in {"Productos", AUDIT_TAB}:
             assert spy.call_count == 0
+
+
+def test_multiple_signals_in_one_pass_refresh_each_tab_once(
+    qtbot, db_manager, mocker, allow_main_window_close
+):
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    refresh_spies = {}
+    for tab_name, widget in window.views_by_name.items():
+        refresh_spies[tab_name] = mocker.patch.object(widget, "refresh")
+
+    event_system.inventory_changed.emit(1)
+    event_system.inventory_changed.emit(2)
+    event_system.sale_added.emit(3)
+
+    QApplication.processEvents()
+
+    affected_tabs = set(SALE_REFRESH_TARGETS) | set(INVENTORY_REFRESH_TARGETS)
+    for tab_name in affected_tabs:
+        assert refresh_spies[tab_name].call_count == 1
+    for tab_name in set(window.views_by_name) - affected_tabs:
+        assert refresh_spies[tab_name].call_count == 0
+
+    event_system.inventory_changed.emit(4)
+    QApplication.processEvents()
+
+    for tab_name in INVENTORY_REFRESH_TARGETS:
+        assert refresh_spies[tab_name].call_count == 2
+    for tab_name in affected_tabs - set(INVENTORY_REFRESH_TARGETS):
+        assert refresh_spies[tab_name].call_count == 1
 
 
 def test_purchase_view_delete_does_not_reemit_purchase_deleted_event(

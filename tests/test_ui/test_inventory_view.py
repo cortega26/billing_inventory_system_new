@@ -2,6 +2,8 @@ import pytest
 
 pytest.importorskip("PySide6", reason="PySide6 not installed")
 
+from PySide6.QtWidgets import QApplication
+
 from services.product_service import ProductService
 from ui.inventory_view import InventoryView
 from utils.system.event_system import event_system
@@ -27,6 +29,7 @@ def test_edit_inventory_does_not_reemit_inventory_events(qtbot, db_manager, mock
             "barcode": "123456789025",
         }
     )
+    QApplication.processEvents()  # flush deferred refresh so caches are reloaded
 
     class FakeDialog:
         def __init__(self, *_args, **_kwargs):

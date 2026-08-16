@@ -1,6 +1,7 @@
 from typing import Protocol, cast
 
-from PySide6.QtCore import QPoint, QSettings, QSize
+import shiboken6
+from PySide6.QtCore import QPoint, QSettings, QSize, QTimer
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QMainWindow,
@@ -95,6 +96,8 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"{APP_NAME} - v{APP_VERSION}")
         self.settings = QSettings(COMPANY_NAME, APP_NAME)
         self.views_by_name: dict[str, QWidget] = {}
+        self._pending_refresh_tabs: set[str] = set()
+        self._refresh_flush_scheduled = False
         self.setup_ui()
 
     @ui_operation(show_dialog=True)
@@ -349,20 +352,38 @@ class MainWindow(QMainWindow):
     @ui_operation(show_dialog=True)
     @handle_exceptions(UIException, show_dialog=True)
     def refresh_relevant_views(self, target_tab_names: tuple[str, ...] | None = None):
-        try:
-            if target_tab_names is None:
-                target_tab_names = tuple(self.views_by_name.keys())
+        """Queue a refresh of the given tabs, coalescing calls within one event-loop pass."""
+        if target_tab_names is None:
+            target_tab_names = tuple(self.views_by_name.keys())
 
+        self._pending_refresh_tabs.update(target_tab_names)
+        if not self._refresh_flush_scheduled:
+            self._refresh_flush_scheduled = True
+            QTimer.singleShot(0, self._flush_pending_refreshes)
+
+    def _flush_pending_refreshes(self) -> None:
+        self._refresh_flush_scheduled = False
+        pending_tab_names = self._pending_refresh_tabs
+        self._pending_refresh_tabs = set()
+        try:
             refreshed_tabs = set()
-            for tab_name in target_tab_names:
+            for tab_name in pending_tab_names:
                 if tab_name in refreshed_tabs:
                     continue
                 refreshed_tabs.add(tab_name)
 
-                widget = self.views_by_name.get(tab_name)
-                if hasattr(widget, "refresh") and callable(widget.refresh):
-                    refreshable_widget = cast(RefreshableWidget, widget)
-                    refreshable_widget.refresh()
+                try:
+                    widget = self.views_by_name.get(tab_name)
+                    if widget is None or not shiboken6.isValid(widget):
+                        continue
+                    if hasattr(widget, "refresh") and callable(widget.refresh):
+                        refreshable_widget = cast(RefreshableWidget, widget)
+                        refreshable_widget.refresh()
+                except RuntimeError as e:
+                    # View was destroyed (e.g., window closed after tests); skip it.
+                    logger.warning(
+                        f"Skipping refresh of destroyed view {tab_name}: {e}"
+                    )
         except Exception as e:
             logger.error(f"Error refreshing views: {str(e)}")
             raise UIException(f"Failed to refresh views: {str(e)}") from e

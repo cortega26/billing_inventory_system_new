@@ -191,6 +191,29 @@ class TestPurchaseService:
         assert purchase.items[0].quantity == 10.0
         assert inventory.quantity == 10.0
 
+    def test_update_purchase_stores_quantity_as_number(
+        self, purchase_service, sample_purchase_data, inventory_service
+    ):
+        purchase_id = purchase_service.create_purchase(**sample_purchase_data)
+        purchase_service.update_purchase(
+            purchase_id,
+            sample_purchase_data["supplier"],
+            sample_purchase_data["date"],
+            [
+                {
+                    "product_id": sample_purchase_data["items"][0]["product_id"],
+                    "quantity": 3,
+                    "cost_price": 900,
+                }
+            ],
+        )
+
+        row = DatabaseManager.fetch_one(
+            "SELECT typeof(quantity) as type FROM purchase_items WHERE purchase_id = ?",
+            (purchase_id,),
+        )
+        assert row["type"] == "real"
+
     def test_delete_purchase_missing_id_raises_not_found(self, purchase_service):
         with pytest.raises(NotFoundException):
             purchase_service.delete_purchase(999999)

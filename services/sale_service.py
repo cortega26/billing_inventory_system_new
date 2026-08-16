@@ -508,9 +508,8 @@ class SaleService:
     @db_operation(show_dialog=True)
     def _insert_sale_items(sale_id: int, items: list[dict[str, Any]]) -> None:
         for item in items:
-            # Convert float quantity to string for storage
-            # Ensure precision decimal places
-            quantity_str = str(round(float(item["quantity"]), QUANTITY_PRECISION))
+            # Store quantity as a number (not a string) for consistent typing
+            quantity = round(float(item["quantity"]), QUANTITY_PRECISION)
             query = """
                 INSERT INTO sale_items (sale_id, product_id, quantity, price, profit)
                 VALUES (?, ?, ?, ?, ?)
@@ -520,7 +519,7 @@ class SaleService:
                 (
                     sale_id,
                     item["product_id"],
-                    quantity_str,
+                    quantity,
                     item["sell_price"],
                     item["profit"],
                 ),

@@ -2,6 +2,8 @@ from datetime import date, timedelta
 
 import pytest
 
+from database import init_db
+from database.database_manager import DatabaseManager
 from services.analytics.contracts import MetricResult
 from services.analytics.metrics import (
     DepartmentSalesMetric,
@@ -15,6 +17,8 @@ from services.analytics.metrics import (
     WeeklyProfitTrendMetric,
 )
 from services.analytics_service import AnalyticsService
+from services.category_service import CategoryService
+from services.customer_service import CustomerService
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
 from services.purchase_service import PurchaseService
@@ -22,6 +26,18 @@ from services.sale_service import SaleService
 from tests.utils.base_test import BaseTest
 from tests.utils.test_helpers import create_test_product_data, generate_unique_barcode
 from utils.exceptions import ValidationException
+
+
+@pytest.fixture
+def clear_test_data():
+    """No-op replacement for the conftest teardown fixture.
+
+    The conftest autouse `clear_test_data` pulls in `db_manager`, which
+    this module overrides with `mock_database` — so every test in this
+    module would run with mocked services. The real-DB class below owns a
+    temp-file database instead and must not have DatabaseManager patched.
+    """
+    yield
 
 
 @pytest.fixture
@@ -573,3 +589,106 @@ class TestAnalyticsService(BaseTest):
 
         with pytest.raises(ValidationException):
             analytics_service.get_sales_by_weekday(today, future_date)
+
+
+class TestAnalyticsServiceRealDb:
+    """Integration guard: metrics run against the real app schema, read-only.
+
+    The analytics engine opens its OWN read-only connection to the FILE
+    at `config.DATABASE_PATH` (mode=ro URI), so an in-memory `db_manager`
+    DB is invisible to it. This class builds a temp-file database with
+    `init_db(db_path=...)` (real schema.sql + alembic head), seeds it via
+    the services, and points the engine at that file by patching
+    `services.analytics.engine.DATABASE_PATH`. `mock_database` is never
+    used here.
+    """
+
+    DATE_RANGE = ("2026-07-01", "2026-08-14")
+    SALE_DATE = "2026-07-10"
+
+    @pytest.fixture(autouse=True)
+    def setup(self, tmp_path, monkeypatch):
+        self.db_file = tmp_path / "analytics_real.db"
+        init_db(db_path=str(self.db_file))
+        monkeypatch.setattr("services.analytics.engine.DATABASE_PATH", self.db_file)
+
+        self.category_service = CategoryService()
+        self.product_service = ProductService()
+        self.customer_service = CustomerService()
+        self.inventory_service = InventoryService()
+        self.sale_service = SaleService()
+
+        self.cat_id = self.category_service.create_category("Test Cat")
+        self.prod_id = self.product_service.create_product(
+            {
+                "name": "Arroz",
+                "category_id": self.cat_id,
+                "cost_price": 1000,
+                "sell_price": 2000,
+            }
+        )
+        self.inventory_service.set_quantity(self.prod_id, 10.0)
+        self.cust_id = self.customer_service.create_customer(
+            "923456789", "Test Customer"
+        )
+        self.sale_service.create_sale(
+            self.cust_id,
+            self.SALE_DATE,
+            [
+                {
+                    "product_id": self.prod_id,
+                    "quantity": 2.0,
+                    "sell_price": 2000,
+                    "profit": 2000,
+                }
+            ],
+        )
+
+    def _row_counts(self) -> tuple[int, ...]:
+        counts = DatabaseManager.fetch_all(
+            "SELECT "
+            "(SELECT COUNT(*) FROM sales) AS sales,"
+            "(SELECT COUNT(*) FROM sale_items) AS sale_items,"
+            "(SELECT COUNT(*) FROM inventory) AS inventory,"
+            "(SELECT COUNT(*) FROM inventory_adjustments) AS inventory_adjustments,"
+            "(SELECT COUNT(*) FROM products) AS products"
+        )[0]
+        return tuple(counts.values())
+
+    def test_metrics_return_expected_values_for_seeded_data(self):
+        summary = AnalyticsService.get_sales_summary(*self.DATE_RANGE)
+
+        assert summary == {
+            "total_sales": 1,
+            "total_revenue": 4000,
+            "total_profit": 2000,
+            "average_sale_value": 4000.0,
+            "unique_customers": 1,
+        }
+
+        top = AnalyticsService.get_top_selling_products(*self.DATE_RANGE, limit=5)
+        assert top == [
+            {
+                "id": self.prod_id,
+                "product_id": self.prod_id,
+                "name": "Arroz",
+                "total_quantity": 2.0,
+                "total_revenue": 4000,
+                "sale_count": 1,
+            }
+        ]
+
+        weekday = AnalyticsService.get_sales_by_weekday(*self.DATE_RANGE)
+        # 2026-07-10 is a Friday; SQLite %w -> English weekday names.
+        assert weekday == [{"weekday": "Friday", "total_sales": 4000, "sale_count": 1}]
+
+    def test_metric_calls_are_read_only_and_cache_clears(self):
+        before = self._row_counts()
+        assert before == (1, 1, 1, 1, 1)
+
+        AnalyticsService.get_sales_summary(*self.DATE_RANGE)
+        AnalyticsService.get_top_selling_products(*self.DATE_RANGE, limit=5)
+        AnalyticsService.get_sales_by_weekday(*self.DATE_RANGE)
+
+        assert self._row_counts() == before
+        AnalyticsService.clear_cache()

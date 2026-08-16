@@ -45,6 +45,9 @@
 - Items per sale: 2-3 items
 - Deletion: Allowed anytime
 - No time restrictions on modifications
+- All revenue, profit, statistics, turnover, and movement reports exclude
+  cancelled (`status = 'cancelled'`) sales; the sales list retains them for
+  audit.
 
 #### Purchases
 

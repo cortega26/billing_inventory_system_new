@@ -30,7 +30,7 @@ class SalesDailyMetric(Metric):
                 SUM(total_amount) as total_sales,
                 COUNT(*) as sale_count
             FROM sales
-            WHERE date(date) BETWEEN ? AND ?
+            WHERE date(date) BETWEEN ? AND ? AND status = 'confirmed'
             GROUP BY strftime('%Y-%m-%d', date)
             ORDER BY date ASC
         """
@@ -71,7 +71,7 @@ class WeekdaySalesMetric(Metric):
                 SUM(total_amount) as total_sales,
                 COUNT(*) as sale_count
             FROM sales
-            WHERE date(date) BETWEEN ? AND ?
+            WHERE date(date) BETWEEN ? AND ? AND status = 'confirmed'
             GROUP BY CAST(strftime('%w', date) AS INTEGER)
             ORDER BY CAST(strftime('%w', date) AS INTEGER)
         """
@@ -115,7 +115,7 @@ class TopProductsMetric(Metric):
             FROM products p
             JOIN sale_items si ON p.id = si.product_id
             JOIN sales s ON si.sale_id = s.id
-            WHERE date(s.date) BETWEEN ? AND ?
+            WHERE date(s.date) BETWEEN ? AND ? AND s.status = 'confirmed'
             GROUP BY p.id
             ORDER BY total_quantity DESC
             LIMIT ?
@@ -235,7 +235,7 @@ class DepartmentSalesMetric(Metric):
             LEFT JOIN categories c ON p.category_id = c.id
             JOIN sale_items si ON p.id = si.product_id
             JOIN sales s ON si.sale_id = s.id
-            WHERE date(s.date) BETWEEN ? AND ?
+            WHERE date(s.date) BETWEEN ? AND ? AND s.status = 'confirmed'
             GROUP BY c.id
             ORDER BY total_sales DESC
         """
@@ -274,7 +274,7 @@ class ProfitTrendMetric(Metric):
                 SUM(total_profit) as daily_profit,
                 COUNT(*) as sale_count
             FROM sales
-            WHERE date(date) BETWEEN ? AND ?
+            WHERE date(date) BETWEEN ? AND ? AND status = 'confirmed'
             GROUP BY strftime('%Y-%m-%d', date)
             ORDER BY strftime('%Y-%m-%d', date)
         """
@@ -307,7 +307,7 @@ class WeeklyProfitTrendMetric(Metric):
                 MIN(date(date)) as week_start,
                 SUM(total_profit) as weekly_profit
             FROM sales
-            WHERE date(date) BETWEEN ? AND ?
+            WHERE date(date) BETWEEN ? AND ? AND status = 'confirmed'
             GROUP BY week
             ORDER BY week
         """
@@ -355,7 +355,7 @@ class ProductProfitMetric(Metric):
             FROM products p
             JOIN sale_items si ON p.id = si.product_id
             JOIN sales s ON si.sale_id = s.id
-            WHERE date(s.date) BETWEEN ? AND ?
+            WHERE date(s.date) BETWEEN ? AND ? AND s.status = 'confirmed'
             GROUP BY p.id
             ORDER BY total_profit DESC
             LIMIT ?
@@ -416,7 +416,7 @@ class ProfitMarginDistributionMetric(Metric):
                 FROM products p
                 JOIN sale_items si ON p.id = si.product_id
                 JOIN sales s ON si.sale_id = s.id
-                WHERE date(s.date) BETWEEN ? AND ?
+                WHERE date(s.date) BETWEEN ? AND ? AND s.status = 'confirmed'
                 GROUP BY p.id
             ) as product_margins
             GROUP BY margin_range
@@ -467,7 +467,7 @@ class SalesSummaryMetric(Metric):
                 COALESCE(ROUND(AVG(total_amount)), 0) as average_sale_value,
                 COUNT(DISTINCT customer_id) as unique_customers
             FROM sales
-            WHERE date(date) BETWEEN ? AND ?
+            WHERE date(date) BETWEEN ? AND ? AND status = 'confirmed'
         """
 
     def get_parameters(self, **kwargs) -> tuple:

@@ -348,7 +348,7 @@ class SaleService:
         query = """
             SELECT COALESCE(SUM(total_amount), 0) as total
             FROM sales
-            WHERE date BETWEEN ? AND ?
+            WHERE date BETWEEN ? AND ? AND status = 'confirmed'
         """
         result = DatabaseManager.fetch_one(query, (start_date, end_date))
         total_sales = int(result["total"] if result else 0)
@@ -371,7 +371,7 @@ class SaleService:
         query = """
             SELECT COALESCE(SUM(total_profit), 0) as total
             FROM sales
-            WHERE date BETWEEN ? AND ?
+            WHERE date BETWEEN ? AND ? AND status = 'confirmed'
         """
         result = DatabaseManager.fetch_one(query, (start_date, end_date))
         total_profits = int(result["total"] if result else 0)
@@ -621,7 +621,7 @@ class SaleService:
                 SUM(total_amount) as total_amount,
                 SUM(total_profit) as total_profit
             FROM sales
-            WHERE date BETWEEN ? AND ?
+            WHERE date BETWEEN ? AND ? AND status = 'confirmed'
         """
         result = DatabaseManager.fetch_one(query, (start_date, end_date))
 

@@ -47,7 +47,8 @@ def analytics_db_path(tmp_path):
             date TEXT,
             total_amount INTEGER,
             total_profit INTEGER,
-            customer_id INTEGER
+            customer_id INTEGER,
+            status TEXT NOT NULL DEFAULT 'confirmed'
         );
         CREATE TABLE sale_items (
             id INTEGER PRIMARY KEY,
@@ -79,12 +80,20 @@ def analytics_db_path(tmp_path):
     # Sales
     # Sale 1: Yesterday - 2 Laptops
     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
-    cursor.execute("INSERT INTO sales VALUES (1, ?, 2000, 1000, 1)", (yesterday,))
+    cursor.execute(
+        "INSERT INTO sales (id, date, total_amount, total_profit, customer_id)"
+        " VALUES (1, ?, 2000, 1000, 1)",
+        (yesterday,),
+    )
     cursor.execute("INSERT INTO sale_items VALUES (1, 1, 1, 2, 1000)")
 
     # Sale 2: Today - 1 Laptop, 5 T-Shirts
     today = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    cursor.execute("INSERT INTO sales VALUES (2, ?, 1100, 590, 2)", (today,))
+    cursor.execute(
+        "INSERT INTO sales (id, date, total_amount, total_profit, customer_id)"
+        " VALUES (2, ?, 1100, 590, 2)",
+        (today,),
+    )
     cursor.execute("INSERT INTO sale_items VALUES (2, 2, 1, 1, 1000)")
     cursor.execute("INSERT INTO sale_items VALUES (3, 2, 2, 5, 20)")
 
@@ -261,3 +270,35 @@ def test_sales_summary(engine):
     assert summary["total_sales"] == 2
     assert summary["total_revenue"] == 3100
     assert summary["total_profit"] == 1590
+
+
+def test_cancelled_sale_excluded_from_sales_daily(engine, analytics_db_path):
+    conn = sqlite3.connect(analytics_db_path)
+    conn.execute(
+        "INSERT INTO sales (id, date, total_amount, total_profit, customer_id, status)"
+        " VALUES (3, ?, 500, 250, 1, 'cancelled')",
+        (datetime.now().strftime("%Y-%m-%d %H:%M:%S"),),
+    )
+    conn.commit()
+    conn.close()
+    start = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
+    end = datetime.now().strftime("%Y-%m-%d")
+    result = engine.execute_metric(SalesDailyMetric(), start_date=start, end_date=end)
+    assert sum(row["total_sales"] for row in result.data) == 3100
+
+
+def test_cancelled_sale_excluded_from_sales_summary(engine, analytics_db_path):
+    conn = sqlite3.connect(analytics_db_path)
+    conn.execute(
+        "INSERT INTO sales (id, date, total_amount, total_profit, customer_id, status)"
+        " VALUES (3, ?, 500, 250, 1, 'cancelled')",
+        (datetime.now().strftime("%Y-%m-%d %H:%M:%S"),),
+    )
+    conn.commit()
+    conn.close()
+    start = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
+    end = datetime.now().strftime("%Y-%m-%d")
+    result = engine.execute_metric(SalesSummaryMetric(), start_date=start, end_date=end)
+    summary = result.data[0]
+    assert summary["total_sales"] == 2
+    assert summary["total_revenue"] == 3100

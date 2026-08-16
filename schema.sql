@@ -112,16 +112,4 @@ CREATE TABLE IF NOT EXISTS audit_log (
     timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Add composite indexes for frequently joined queries
-CREATE INDEX IF NOT EXISTS idx_sale_items_composite ON sale_items(sale_id, product_id);
-CREATE INDEX IF NOT EXISTS idx_sales_date_customer ON sales(date, customer_id);
-
--- Performance Indexes
-CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode);
-CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
-CREATE INDEX IF NOT EXISTS idx_products_is_active ON products(is_active);
-CREATE INDEX IF NOT EXISTS idx_sale_items_product_id ON sale_items(product_id);
-CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(date);
-CREATE INDEX IF NOT EXISTS idx_customers_is_active ON customers(is_active);
-CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type, entity_id);
-CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log(timestamp);
+-- Indexes are owned by alembic/versions/*; schema.sql defines tables only.

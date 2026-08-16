@@ -1,5 +1,12 @@
 # UX Findings & Review
 
+> **Status: MOSTLY RESOLVED (2026-08-15)** — quick-scan friction, dashboard
+> defaults, error feedback, and low-stock alerts were addressed in later
+> stages (see `docs/ux_revamp/` and the sales UI work in
+> `docs/audit/structural_quality_backlog.md` SQ-C.1). **Single open item: the
+> dedicated returns/refunds workflow (Section 1, Journey C) — tracked as
+> pending in `docs/audit/backlog.md`.**
+
 ## 1. Core Journeys Mapping
 
 ### Journey A: New Sale (Scan-First)

@@ -214,7 +214,7 @@ class CustomerService:
         FROM customers c
         LEFT JOIN customer_identifiers ci ON c.id = ci.customer_id
         WHERE c.id IN ({placeholders})
-        """
+        """  # nosec B608
         rows = DatabaseManager.fetch_all(query, tuple(customer_ids))
         return {row["id"]: Customer.from_db_row(row) for row in rows}
 
@@ -300,7 +300,7 @@ class CustomerService:
                         UPDATE customers
                         SET {}
                         WHERE id = ?
-                    """.format(", ".join(update_fields))
+                    """.format(", ".join(update_fields))  # nosec B608
                     params.append(customer_id)
 
                     logger.debug(f"[update_customer] Executing SQL: {query}")

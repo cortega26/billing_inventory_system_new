@@ -80,7 +80,7 @@
 - Monetary display: Dot separators everywhere
 - Supported themes: default, dark, light only
 - Sound effects: Barcode scans only
-- Language: English-first. New or modified top-level UI strings must be English, but legacy screens still contain Spanish strings pending migration.
+- Language: Spanish. New or modified UI strings must be in Spanish (decision 2026-08-15).
 
 ### Data Validation Rules
 
@@ -123,11 +123,11 @@
 - Self-contained system
 - No external integrations
 - No multi-currency support
-- English-first UI with legacy Spanish strings still being migrated
+- Spanish-first UI; no English migration is planned.
 
 ### Future Compatibility Notes
 
 - Designed for CLP only
 - No multi-currency expansion planned
 - No additional theme support planned
-- No full multi-language support planned beyond the current English-first migration
+- No full multi-language support planned; Spanish is the single UI language.

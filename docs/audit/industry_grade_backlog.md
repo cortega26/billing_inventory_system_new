@@ -57,6 +57,7 @@ Objetivo: dejar la app con control básico de acceso y trazabilidad mínima.
 ### [IG-1.1] Autenticación básica por PIN o usuario local
 - Prioridad: crítica
 - Esfuerzo: M
+- Estado: completado (evidencia: ui/login_dialog.py, main.py, commit 9ff8aee, plan 003 hardening)
 - Qué cambiar:
   1. Agregar una pantalla o diálogo de acceso antes de habilitar la UI principal.
   2. Guardar configuración mínima de credenciales en `config.py` o una tabla dedicada si se elige implementación persistente.
@@ -216,14 +217,13 @@ Objetivo: completar la evolución hacia una app PyME más competitiva.
 
 ## Orden sugerido de implementación
 
-1. IG-1.1
-2. IG-1.3
-3. IG-2.1
-4. IG-2.2
-5. IG-2.1
-6. IG-3.1
-7. IG-3.2
-8. IG-2.3
+1. IG-1.3
+2. IG-2.1
+3. IG-2.2
+4. IG-2.1
+5. IG-3.1
+6. IG-3.2
+7. IG-2.3
 
 ---
 

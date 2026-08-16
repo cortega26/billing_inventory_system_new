@@ -363,3 +363,14 @@ Start a new conversation per phase: *"Implement Phase 0 of docs/audit/backlog.md
 - SQLite single-connection with RLock — adequate for single-process desktop use.
 - No microservices — appropriate for this scope.
 - No backup strategy audited — handled by `backup_service` (not in scope of this audit).
+
+---
+
+## Open items (from the 2026-04 audits)
+
+### [R-1] Dedicated returns/refunds workflow
+- **Status:** pendiente
+- **Source:** `docs/review/ux_findings.md` (Section 1, Journey C); `docs/review/industry_grade_audit_2026-04-07.md` [U-3] / [P-2] / [F-1]; backlog item [IG-2.1] in `docs/audit/industry_grade_backlog.md`
+- **What to change:** dedicated interface to look up a past receipt and process a return/refund that restores inventory exactly once and preserves traceability.
+- **Why:** this is the single remaining open item from the April 2026 audits; the current workaround (manual "negative" sale or external process) is error-prone.
+- **Acceptance:** user-facing return flow; inventory and ledger stay correct.

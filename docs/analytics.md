@@ -5,6 +5,8 @@ This module (`services/analytics`) provides a dedicated, read-only interface for
 ## Architecture
 
 - **Read-Only Access**: Uses a separate SQLite connection with `mode=ro` to ensure analytics queries never modify data.
+- **Lock-model exemption**: the analytics connection opens directly (`services/analytics/engine.py`, `file:...?mode=ro` URI) and does NOT participate in `DatabaseManager`'s process-local lock / transaction model. This is by design: analytics is read-only by contract and must stay that way.
+- **New metrics must be SELECT-only**: any metric that writes would bypass `DatabaseManager` entirely (no lock, no transaction, no cache/event finalization) — regression-guarded by the plan 009 read-only test (`tests/test_services/test_analytics_service.py::TestAnalyticsServiceRealDb::test_metric_calls_are_read_only_and_cache_clears`).
 - **Metric Contracts**: Each metric is defined as a class inheriting from `Metric`, specifying its name, parameters, query, and output schema.
 - **Engine**: The `AnalyticsEngine` executes these metrics safely.
 

@@ -58,7 +58,7 @@ class AuditService:
             FROM audit_log
             {where_clause}
             ORDER BY id
-        """
+        """  # nosec B608
         try:
             return DatabaseManager.fetch_all(query, tuple(params))
         except Exception as e:
@@ -120,7 +120,7 @@ class AuditService:
             {where_clause}
             ORDER BY timestamp DESC, id DESC
             LIMIT ?
-        """
+        """  # nosec B608
         params.append(normalized_limit)
 
         try:

@@ -1,5 +1,13 @@
 # Database Schema & Data Integrity Audit
 
+> **Status: RESOLVED (2026-08-15)** — CHECK constraints now exist in `schema.sql`
+> (`cost_price`/`sell_price` at `schema.sql:15-16`, `inventory.quantity` at
+> `schema.sql:27`, `sales.status` at `schema.sql:56`) and `ON DELETE RESTRICT`
+> is enforced for `sale_items.product_id` / `purchase_items.product_id`
+> (`schema.sql:71,91`). The "Virtual Ledger" strategy (stock computed from
+> movements) remains the documented design. Historical items are covered in
+> `docs/audit/backlog.md`.
+
 ## 1. Executive Summary
 The current SQLite schema is functional but lacks enforcement of key business invariants at the database level. Reliance on application-layer validation (`services/*.py`) creates a risk of data corruption if direct DB access occurs or bugs are introduced.
 

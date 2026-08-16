@@ -268,3 +268,40 @@ Fix: the teardown must reset in-memory state ONLY (no save) — replace
 `_reset_for_testing()` calls; add a regression test (monkeypatched home,
 `_config_file=None` left behind ⇒ user-local config untouched); remove the
 stray `nonexistent.json`. Planned at `00acf5d`.
+
+# Feature 7 — Per-business dashboard KPI profiles (plan 027)
+
+Requested 2026-08-16: "Valor Inventario" makes sense for a reseller
+(El Rincón) but not for a value-added producer (casabea.cl bakery). Design:
+a per-business `dashboard` field in the registry (`"reseller"` default |
+`"production"`), the dashboard composes its MetricWidget cards from the
+active business's profile. "Valor agregado" ≈ existing Ganancia Total
+(revenue − ingredient cost) — no new economic metrics; the profile just
+emphasizes margin % and units for production. Planned at commit `ad20acc`.
+
+## Spec summary
+
+- `config.py`: `dashboard` field validated against
+  {"reseller", "production"} (missing → "reseller" via `.get` default);
+  `DEFAULT_BUSINESSES` entries gain the field.
+- `ui/dashboard_view.py`: extract the top-row card set per profile —
+  reseller: Ventas Totales, Ganancia Total, Valor Inventario, Margen
+  Ganancia, Ventas de Hoy (unchanged); production: Ventas Totales, Ganancia
+  Total, Margen Ganancia, Unidades Vendidas, Ventas de Hoy. Low-stock block
+  and charts stay for both. New `get_total_units_sold` method using the
+  dashboard's date range.
+- `services/sale_service.py`: new `get_total_units_sold(start, end)`
+  mirroring `get_total_sales` (JOIN sale_items, `status='confirmed'` filter
+  per plan 015, range-validated).
+- Tests: config validation (unknown value rejected, missing → reseller);
+  sale_service units sum + cancelled exclusion; NEW
+  `tests/test_ui/test_dashboard_view.py` (qtbot): reseller shows Valor
+  Inventario and not Unidades Vendidas; production the inverse.
+- SPECIFICATIONS.md: dashboard-profiles section.
+
+## Verification (plan 027)
+
+- Config + sale-service + new dashboard UI tests pass (xvfb); full suite
+  green (modulo known worktree UI exceptions); ruff/black/pyright clean.
+- Post-merge: set `"dashboard": "production"` on casabea in the real config
+  and eyeball the card row (user action).

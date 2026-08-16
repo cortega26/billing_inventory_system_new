@@ -113,3 +113,11 @@ Consult before every change. Check off as work completes.
 - [x] Executor: teardown state-only + fixed leaks + regression test (3 documented deviations, all correct)
 - [x] Reviewed (APPROVE), merged, pushed, cleaned, archived, DONE
 - [x] Full suite in main: 389 passed; real config mtime+content verified UNTOUCHED
+
+## Plan 027 (per-business dashboard KPI profiles)
+
+- [x] Recon: MetricWidget composition, dashboard date-range methods, no dashboard UI test yet, no units-total method
+- [x] Plan 027 written + spec.md section
+- [ ] Executor: registry field + card profiles + get_total_units_sold + tests in worktree
+- [ ] Review, merge, push, clean, archive, mark DONE
+- [ ] User action: set dashboard profile for casabea in real config

@@ -59,7 +59,7 @@ class LoginDialog(QDialog):
         self.setup_ui()
 
     def setup_ui(self):
-        self.layout = QVBoxLayout(self)
+        self.layout: QVBoxLayout = QVBoxLayout(self)
         self.layout.setSpacing(12)
 
         # Header label

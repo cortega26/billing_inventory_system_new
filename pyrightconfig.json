@@ -6,7 +6,8 @@
     "models",
     "services",
     "utils",
-    "scripts/check_schema_drift.py"
+    "scripts/check_schema_drift.py",
+    "ui/login_dialog.py"
   ],
   "exclude": ["**/__pycache__", "**/.venv"],
   "pythonVersion": "3.13",

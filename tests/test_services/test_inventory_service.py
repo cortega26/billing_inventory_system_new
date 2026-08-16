@@ -1,3 +1,4 @@
+from datetime import date
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -217,19 +218,29 @@ class TestInventoryServiceRealDb:
         assert rows[0]["quantity_change"] == 5.0
         assert rows[0]["reason"] == "manual set"
 
-        # The row is stamped with CURRENT_TIMESTAMP, which the movements
-        # query's date-only upper bound can never include on the day it is
-        # written (the time part sorts after the date-only bound, and tomorrow
-        # is rejected as a future date). Backdate the row to a fixed past date
-        # so it deterministically surfaces as an adjustment movement.
-        DatabaseManager.execute_query(
-            "UPDATE inventory_adjustments SET date = '2026-07-15' WHERE product_id = ?",
-            (self.prod_id,),
-        )
+        # The row is stamped with local time (datetime('now', 'localtime')),
+        # and the movements query's shifted upper bound includes it on the
+        # day it is written, so a same-day range surfaces the movement.
         movements = self.inventory_service.get_inventory_movements(
-            self.prod_id, "2000-01-01", "2026-08-15"
+            self.prod_id, "2000-01-01", date.today().isoformat()
         )
-        assert any(m["type"] == "adjustment" for m in movements)
+        assert any(
+            m["type"] == "adjustment" and m["reason"] == "manual set" for m in movements
+        )
+
+    def test_movements_include_late_day_adjustment(self):
+        # Backlog scenario: an adjustment made late in the day (stamped local
+        # time) must appear in today's movement range. Pre-fix this failed on
+        # machines with a positive UTC offset.
+        self.inventory_service.adjust_inventory(self.prod_id, 3.0, "stock count")
+
+        movements = self.inventory_service.get_inventory_movements(
+            self.prod_id, "2000-01-01", date.today().isoformat()
+        )
+        assert any(
+            m["type"] == "adjustment" and m["reason"] == "stock count"
+            for m in movements
+        )
 
     def test_ui_manual_edit_negative_below_zero_raises_and_leaves_no_ledger_row(self):
         self.inventory_service.adjust_inventory(self.prod_id, 5.0, "manual set")

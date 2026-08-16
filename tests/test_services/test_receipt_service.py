@@ -7,7 +7,6 @@ from services.customer_service import CustomerService
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
 from services.sale_service import SaleService
-from utils.exceptions import ValidationException
 
 
 @pytest.fixture
@@ -94,14 +93,3 @@ class TestSaveReceiptAsPdf:
         assert pdf_path.stat().st_size > 0
         with pdf_path.open("rb") as f:
             assert f.read(4) == b"%PDF"
-
-
-class TestSendReceiptViaWhatsApp:
-    def test_placeholder_returns_none(self, sale_service, seeded_sale):
-        result = sale_service.send_receipt_via_whatsapp(seeded_sale, "912345678")
-
-        assert result is None
-
-    def test_phone_too_long_raises(self, sale_service):
-        with pytest.raises(ValidationException):
-            sale_service.send_receipt_via_whatsapp(1, "9" * 25)

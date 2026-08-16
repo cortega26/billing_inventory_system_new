@@ -92,9 +92,9 @@ class TestConfig:
         with pytest.raises(ConfigLoadError):
             Config().get("version")
 
-    def test_missing_config_file(self):
+    def test_missing_config_file(self, tmp_path):
         """Test handling of missing config file."""
-        Config._reset_for_testing(Path("nonexistent.json"))
+        Config._reset_for_testing(tmp_path / "nonexistent.json")
         # Should create default
         config = Config()
         assert config.get("version") == "1.0"
@@ -170,14 +170,18 @@ class TestConfig:
         with open(primary, "w") as f:
             json.dump({"version": "1.0", "theme": "light"}, f)
 
-        Config._reset_for_testing()
+        Config._reset_for_testing(
+            tmp_path / ".config" / "billing-inventory" / "app_config.json"
+        )
 
         assert Config().get("theme") == "light"
 
     def test_config_migrates_to_user_local_on_first_save(self, tmp_path, monkeypatch):
         """First save after fallback loads the repo copy lands in the user-local path."""
         monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
-        Config._reset_for_testing()
+        Config._reset_for_testing(
+            tmp_path / ".config" / "billing-inventory" / "app_config.json"
+        )
 
         assert Config().get("backup_interval") == 24
         Config.set("theme", "light")

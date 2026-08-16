@@ -126,5 +126,5 @@ Consult before every change. Check off as work completes.
 
 - [x] Analysis: all 6 sites interpolate internal constants (false positives); 4 convertible to bound pragma functions, 2 need documented nosec B608
 - [x] Plan 028 written + spec.md section; casabea dashboard profile set to production in real config (backed up)
-- [ ] Executor: pragma-function conversions + nosec sites in worktree
-- [ ] Review, merge, push, clean, archive, mark DONE
+- [x] Executor: 4 bound pragma conversions + 2 nosec sites (4 commits)
+- [x] Reviewed (APPROVE), merged a90e8fe, pushed, cleaned, archived, DONE

@@ -463,7 +463,9 @@ class CustomerService:
             return unique_customers
 
         except Exception as e:
-            logger.error(f"Error retrieving customers by department identifier: {str(e)}")
+            logger.error(
+                f"Error retrieving customers by department identifier: {str(e)}"
+            )
             raise DatabaseException(f"Failed to retrieve customers: {str(e)}") from e
 
     @db_operation(show_dialog=True)

@@ -189,10 +189,9 @@ def clear_logs(log_dir: Path) -> None:
 def _harden_log_file_permissions(path: Path) -> None:
     """Restrict a log file (and its rotated siblings) to the owner."""
     for candidate in (path, *path.parent.glob(f"{path.name}.*")):
-        try:
+        # file may not exist yet; rotation creates it later
+        with contextlib.suppress(OSError):
             os.chmod(candidate, 0o600)
-        except OSError:
-            pass  # file may not exist yet; rotation creates it later
 
 
 def setup_structured_logger() -> StructuredLogger:

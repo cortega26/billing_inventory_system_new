@@ -335,9 +335,7 @@ class TestLogger:
         for log_file in log_files:
             assert os.stat(log_file).st_mode & 0o777 == 0o600
 
-    def test_rotated_log_files_are_owner_only(
-        self, configured_logger, logger_test_dir
-    ):
+    def test_rotated_log_files_are_owner_only(self, configured_logger, logger_test_dir):
         """Rotated log backups must remain readable/writable only by the owner."""
         import os
 

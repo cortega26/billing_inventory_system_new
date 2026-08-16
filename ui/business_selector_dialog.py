@@ -45,7 +45,9 @@ class BusinessSelectorDialog(QDialog):
         header_label.setStyleSheet("font-weight: bold; font-size: 14px;")
         self.layout.addWidget(header_label)
 
-        hint_label = QLabel("El cambio de negocio se aplica al reiniciar la aplicación.")
+        hint_label = QLabel(
+            "El cambio de negocio se aplica al reiniciar la aplicación."
+        )
         hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.layout.addWidget(hint_label)
 
@@ -59,9 +61,7 @@ class BusinessSelectorDialog(QDialog):
         self.button_group.setExclusive(True)
         self.radio_buttons: dict[str, QRadioButton] = {}
         for business in businesses:
-            radio = QRadioButton(
-                f"{business['name']}  ({business['db_filename']})"
-            )
+            radio = QRadioButton(f"{business['name']}  ({business['db_filename']})")
             self.button_group.addButton(radio)
             self.radio_buttons[business["id"]] = radio
             if business["id"] == active_id:

@@ -4,8 +4,10 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from config import DATABASE_PATH  # noqa: F401 -- kept for tests that patch main.DATABASE_PATH
-from config import config
+from config import (  # noqa: F401 -- kept so tests patching main.DATABASE_PATH still bind
+    DATABASE_PATH,
+    config,
+)
 from database import init_db
 from database.database_manager import DatabaseManager
 from ui.main_window import MainWindow

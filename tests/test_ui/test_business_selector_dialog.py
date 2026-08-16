@@ -13,7 +13,11 @@ def two_businesses():
     config.set(
         "businesses",
         [
-            {"id": "default", "name": "Principal", "db_filename": "billing_inventory.db"},
+            {
+                "id": "default",
+                "name": "Principal",
+                "db_filename": "billing_inventory.db",
+            },
             {"id": "casabea", "name": "CasaBea", "db_filename": "casabea.db"},
         ],
     )

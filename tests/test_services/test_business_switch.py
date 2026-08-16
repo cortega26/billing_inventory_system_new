@@ -5,7 +5,6 @@ from pathlib import Path
 
 from config import DATABASE_PATH, Config
 from database import init_db
-from database.database_manager import DatabaseManager
 
 PRIMARY_TABLES = ("customers", "products", "sales", "inventory")
 

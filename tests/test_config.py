@@ -30,11 +30,11 @@ MOCK_RESPONSES = {
 class TestBusinessRegistry:
     def test_no_registry_implies_implicit_default_business(self):
         from config import (
+            DATABASE_PATH,
             DEFAULT_ACTIVE_BUSINESS,
             DEFAULT_BUSINESSES,
             Config,
             ConfigValidationError,
-            DATABASE_PATH,
         )
 
         assert Config.get_businesses() == DEFAULT_BUSINESSES
@@ -47,7 +47,11 @@ class TestBusinessRegistry:
         from config import Config
 
         businesses = [
-            {"id": "default", "name": "Principal", "db_filename": "billing_inventory.db"},
+            {
+                "id": "default",
+                "name": "Principal",
+                "db_filename": "billing_inventory.db",
+            },
             {"id": "casabea", "name": "CasaBea", "db_filename": "casabea.db"},
         ]
         Config.set("businesses", businesses)
@@ -59,7 +63,11 @@ class TestBusinessRegistry:
         Config.set(
             "businesses",
             [
-                {"id": "default", "name": "Principal", "db_filename": "billing_inventory.db"},
+                {
+                    "id": "default",
+                    "name": "Principal",
+                    "db_filename": "billing_inventory.db",
+                },
                 {"id": "casabea", "name": "CasaBea", "db_filename": "casabea.db"},
             ],
         )
@@ -76,7 +84,11 @@ class TestBusinessRegistry:
         Config.set(
             "businesses",
             [
-                {"id": "default", "name": "Principal", "db_filename": "billing_inventory.db"},
+                {
+                    "id": "default",
+                    "name": "Principal",
+                    "db_filename": "billing_inventory.db",
+                },
                 {"id": "casabea", "name": "CasaBea", "db_filename": "casabea.db"},
             ],
         )

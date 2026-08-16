@@ -244,16 +244,24 @@ class TestBusinessRegistryValidation:
         Config.set(
             "businesses",
             [
-                {"id": "default", "name": "Principal", "db_filename": "billing_inventory.db"},
+                {
+                    "id": "default",
+                    "name": "Principal",
+                    "db_filename": "billing_inventory.db",
+                },
                 {"id": "casabea", "name": "CasaBea", "db_filename": "casabea.db"},
             ],
         )
         Config.set("active_business", "does-not-exist")
 
         assert Config.get_active_business()["id"] == "default"
-        assert Config.get_active_database_path() == Config.get_business_db_path("default")
+        assert Config.get_active_database_path() == Config.get_business_db_path(
+            "default"
+        )
 
-    def test_legacy_config_without_registry_loads_and_keeps_defaults(self, temp_config_file):
+    def test_legacy_config_without_registry_loads_and_keeps_defaults(
+        self, temp_config_file
+    ):
         """Config files without a businesses key behave exactly as before."""
         Config._reset_for_testing(temp_config_file)
         Config.reload()

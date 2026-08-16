@@ -223,9 +223,8 @@ class Config:
             business_id = business.get("id")
             name = business.get("name")
             filename = business.get("db_filename")
-            if (
-                not isinstance(business_id, str)
-                or not BUSINESS_ID_PATTERN.fullmatch(business_id)
+            if not isinstance(business_id, str) or not BUSINESS_ID_PATTERN.fullmatch(
+                business_id
             ):
                 raise ConfigValidationError(
                     f"Invalid business id: {business_id!r}. "
@@ -307,7 +306,9 @@ class Config:
         # Optional keys (backward compatible: absent ⇒ single-business default)
         if "businesses" in config:
             cls._validate_businesses(config["businesses"])
-        if "active_business" in config and not isinstance(config["active_business"], str):
+        if "active_business" in config and not isinstance(
+            config["active_business"], str
+        ):
             raise ConfigValidationError("'active_business' must be a string")
 
     @classmethod

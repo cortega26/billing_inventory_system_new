@@ -31,21 +31,28 @@ See `requirements.txt` for Python package dependencies.
 
 ## Setup
 
-1. **Install Dependencies**:
+Requires Python 3.13 and [uv](https://docs.astral.sh/uv/).
+
+1. **Create the virtual environment**:
+   ```bash
+   uv venv --python 3.13
+   ```
+
+2. **Install Dependencies**:
    ```bash
    uv pip install -r requirements.lock
    ```
 
-2. **Configuration**:
+3. **Configuration**:
    - The system uses `app_config.json` for application settings.
    - Runtime settings live in `~/.config/billing-inventory/app_config.json`
      (outside the repo); the repo copy of `app_config.json` is a default
      template only and is not tracked by git.
    - Database is auto-initialized on first run at `billing_inventory.db`.
 
-3. **Run the Application**:
+4. **Run the Application**:
    ```bash
-   python main.py
+   .venv/bin/python main.py
    ```
 
 ## Seguridad
@@ -67,21 +74,31 @@ See `requirements.txt` for Python package dependencies.
    uv pip install -r requirements.lock
    ```
 
-2. **Run Tests**:
+2. **Install Pre-commit Hooks** (one-time, optional but recommended):
    ```bash
-   pytest
+   uvx pre-commit install
    ```
 
-3. **Linting & Formatting**:
+   To run the hooks once without installing them:
    ```bash
-   ruff check .
-   black --check .
-   pyright
+   uvx pre-commit run --all-files
    ```
 
-4. **Schema Drift Check**:
+3. **Run Tests**:
    ```bash
-   python scripts/check_schema_drift.py
+   .venv/bin/python -m pytest
+   ```
+
+4. **Linting & Formatting**:
+   ```bash
+   .venv/bin/ruff check .
+   .venv/bin/black --check .
+   .venv/bin/pyright
+   ```
+
+5. **Schema Drift Check**:
+   ```bash
+   .venv/bin/python scripts/check_schema_drift.py
    ```
 
 After changing `requirements.txt` or `requirements-dev.txt`, regenerate the lockfile:

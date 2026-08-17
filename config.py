@@ -4,7 +4,6 @@ import os
 import re
 import threading
 import time
-from enum import IntEnum
 from json.decoder import JSONDecodeError
 from pathlib import Path
 from typing import Any, Optional
@@ -72,25 +71,6 @@ DEFAULT_ACTIVE_BUSINESS = "default"
 
 
 # Debug Level configuration
-class DebugLevel(IntEnum):
-    """Enum representing different debug levels for the application."""
-
-    CRITICAL = 1
-    ERROR = 2
-    WARNING = 3
-    INFO = 4
-    DEBUG = 5
-
-
-DEBUG_LEVEL_MAP: dict[DebugLevel, int] = {
-    DebugLevel.CRITICAL: logging.CRITICAL,
-    DebugLevel.ERROR: logging.ERROR,
-    DebugLevel.WARNING: logging.WARNING,
-    DebugLevel.INFO: logging.INFO,
-    DebugLevel.DEBUG: logging.DEBUG,
-}
-
-# Set the desired debug level
 DEBUG_LEVEL = logging.INFO  # This should control the global level
 
 

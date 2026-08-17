@@ -1,5 +1,4 @@
 import os
-from collections.abc import Callable
 from typing import Any
 
 from utils.system.logger import logger
@@ -74,7 +73,6 @@ class EventSystem(QObject):
     inventory_changed: Any = Signal(
         object
     )  # Emits the ID of the product whose inventory changed
-    inventory_updated: Any = Signal(object)  # Add if missing
 
     # Customer-related signals
     customer_added: Any = Signal(object)  # Emits the ID of the added customer
@@ -86,14 +84,7 @@ class EventSystem(QObject):
     category_updated: Any = Signal(object)  # Emits the ID of the updated category
     category_deleted: Any = Signal(object)  # Emits the ID of the deleted category
 
-    # General application signals
-    app_settings_changed: Any = Signal(dict)  # Emits a dictionary of changed settings
-    data_import_completed: Any = Signal(
-        object
-    )  # Emits True if import was successful, False otherwise
-    data_export_completed: Any = Signal(
-        object
-    )  # Emits True if export was successful, False otherwise
+    # Backup signals
     backup_skipped: Any = Signal(
         dict
     )  # Emits metadata when automatic backup is skipped
@@ -101,77 +92,37 @@ class EventSystem(QObject):
 
     def __init__(self):
         super().__init__()
-        self._signal_map = {
-            "product_added": self.product_added,
-            "product_updated": self.product_updated,
-            "product_deleted": self.product_deleted,
-            "purchase_added": self.purchase_added,
-            "purchase_updated": self.purchase_updated,
-            "purchase_deleted": self.purchase_deleted,
-            "sale_added": self.sale_added,
-            "sale_updated": self.sale_updated,
-            "sale_deleted": self.sale_deleted,
-            "inventory_changed": self.inventory_changed,
-            "inventory_updated": self.inventory_updated,
-            "customer_added": self.customer_added,
-            "customer_updated": self.customer_updated,
-            "customer_deleted": self.customer_deleted,
-            "category_added": self.category_added,
-            "category_updated": self.category_updated,
-            "category_deleted": self.category_deleted,
-            "app_settings_changed": self.app_settings_changed,
-            "data_import_completed": self.data_import_completed,
-            "data_export_completed": self.data_export_completed,
-            "backup_skipped": self.backup_skipped,
-            "backup_completed": self.backup_completed,
-        }
-
-    def emit_event(self, event_name: str, *args: Any) -> None:
-        """
-        Emit an event by name with optional arguments.
-
-        Args:
-            event_name (str): The name of the event to emit.
-            *args: Variable length argument list to pass with the event.
-
-        Raises:
-            ValueError: If the event_name is not recognized.
-        """
-        if event_name in self._signal_map:
-            self._signal_map[event_name].emit(*args)
-            logger.debug(f"Event emitted: {event_name}", extra={"args": args})
-        else:
-            logger.error(f"Unknown event: {event_name}")
-            raise ValueError(f"Unknown event: {event_name}")
-
-    def connect_to_event(self, event_name: str, slot: Callable[..., None]) -> None:
-        """
-        Connect a slot (callback function) to a specific event.
-
-        Args:
-            event_name (str): The name of the event to connect to.
-            slot (Callable[..., None]): The function to be called when the event is emitted.
-
-        Raises:
-            ValueError: If the event_name is not recognized.
-        """
-        if event_name in self._signal_map:
-            self._signal_map[event_name].connect(slot)
-            logger.debug(
-                f"Connected to event: {event_name}", extra={"slot_name": slot.__name__}
-            )
-        else:
-            logger.error(f"Unknown event: {event_name}")
-            raise ValueError(f"Unknown event: {event_name}")
 
     def clear_all_connections(self) -> None:
         """
         Clear all event connections.
         """
-        for signal in self._signal_map.values():
-            signal.disconnect()
+        for name in ALL_SIGNALS:
+            getattr(self, name).disconnect()
         logger.info("All event connections cleared")
 
 
 # Global instance of the event system
 event_system = EventSystem()
+
+# Every signal exposed by EventSystem, used to clear connections
+ALL_SIGNALS = (
+    "product_added",
+    "product_updated",
+    "product_deleted",
+    "purchase_added",
+    "purchase_updated",
+    "purchase_deleted",
+    "sale_added",
+    "sale_updated",
+    "sale_deleted",
+    "inventory_changed",
+    "customer_added",
+    "customer_updated",
+    "customer_deleted",
+    "category_added",
+    "category_updated",
+    "category_deleted",
+    "backup_skipped",
+    "backup_completed",
+)

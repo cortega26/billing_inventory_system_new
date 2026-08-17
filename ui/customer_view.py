@@ -3,7 +3,6 @@ import contextlib
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
-    QApplication,
     QCheckBox,
     QDialog,
     QDialogButtonBox,
@@ -13,7 +12,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMenu,
-    QMessageBox,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -26,10 +24,12 @@ from services.customer_service import CustomerService
 from utils.decorators import handle_exceptions, ui_operation
 from utils.exceptions import DatabaseException, UIException, ValidationException
 from utils.helpers import (
+    confirm_action,
     create_table,
     format_price,
     show_error_message,
     show_info_message,
+    wait_cursor,
 )
 from utils.system.event_system import event_system
 from utils.system.logger import logger
@@ -37,6 +37,8 @@ from utils.ui.table_items import (
     DepartmentIdentifierTableWidgetItem,
     NumericTableWidgetItem,
     PriceTableWidgetItem,
+    action_button,
+    build_actions_cell,
 )
 from utils.validation.validators import (
     validate_3or4digit_identifier,
@@ -213,24 +215,23 @@ class CustomerView(QWidget):
         """
         logger.debug(f"(load_customers) Called with _ignored_id={_ignored_id}")
 
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
-            # Force a fresh read from DB
-            self.customer_service.clear_cache()
-            customers = self.customer_service.get_all_customers(
-                active_only=not self.show_archived_checkbox.isChecked()
-            )
-            logger.debug(f"(load_customers) Fetched {len(customers)} customers from DB")
+            with wait_cursor():
+                # Force a fresh read from DB
+                self.customer_service.clear_cache()
+                customers = self.customer_service.get_all_customers(
+                    active_only=not self.show_archived_checkbox.isChecked()
+                )
+                logger.debug(
+                    f"(load_customers) Fetched {len(customers)} customers from DB"
+                )
 
-            # Now populate the table
-            self.populate_customer_table(customers)
+                # Now populate the table
+                self.populate_customer_table(customers)
 
         except Exception as e:
             logger.error(f"(load_customers) Error loading customers: {str(e)}")
             show_error_message("Error", f"Error al cargar clientes: {str(e)}")
-
-        finally:
-            QApplication.restoreOverrideCursor()
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(UIException, show_dialog=True)
@@ -312,32 +313,22 @@ class CustomerView(QWidget):
                     )
 
                     # Column 7: Actions (Edit / Archive/Restore)
-                    actions_widget = QWidget()
-                    actions_layout = QHBoxLayout(actions_widget)
-                    actions_layout.setContentsMargins(0, 0, 0, 0)
-                    actions_layout.setSpacing(6)
-                    actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-                    edit_button = QPushButton("Editar")
-                    edit_button.setFixedWidth(80)
-                    edit_button.setFixedHeight(24)
-                    edit_button.setStyleSheet("padding: 2px 8px;")
-                    edit_button.clicked.connect(
-                        lambda _, cid=cust.id: self.edit_customer_by_id(cid)
+                    edit_button = action_button(
+                        "Editar",
+                        lambda _, cid=cust.id: self.edit_customer_by_id(cid),
+                        height=24,
                     )
 
                     action_label = "Eliminar" if cust.is_active else "Restaurar"
-                    delete_button = QPushButton(action_label)
-                    delete_button.setFixedWidth(80)
-                    delete_button.setFixedHeight(24)
-                    delete_button.setStyleSheet("padding: 2px 8px;")
-                    delete_button.clicked.connect(
-                        lambda _, cid=cust.id: self.delete_customer_by_id(cid)
+                    delete_button = action_button(
+                        action_label,
+                        lambda _, cid=cust.id: self.delete_customer_by_id(cid),
+                        height=24,
                     )
 
-                    actions_layout.addWidget(edit_button)
-                    actions_layout.addWidget(delete_button)
-                    self.customer_table.setCellWidget(row, 7, actions_widget)
+                    self.customer_table.setCellWidget(
+                        row, 7, build_actions_cell(edit_button, delete_button)
+                    )
                     self.customer_table.setRowHeight(row, 36)
 
                 except Exception as row_error:
@@ -441,25 +432,23 @@ class CustomerView(QWidget):
             is_active = customer.is_active
             action_text = "archivar" if is_active else "restaurar"
             title_text = "Archivar Cliente" if is_active else "Restaurar Cliente"
-            reply = QMessageBox.question(
+            if not confirm_action(
                 self,
                 title_text,
                 f"¿Está seguro que desea {action_text} al cliente {display_name}?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No,
+            ):
+                return
+            if is_active:
+                self.customer_service.delete_customer(customer_id)
+                show_info_message("Éxito", "Cliente archivado exitosamente.")
+            else:
+                self.customer_service.restore_customer(customer_id)
+                show_info_message("Éxito", "Cliente restaurado exitosamente.")
+            self.load_customers()
+            logger.info(
+                "Customer status updated",
+                extra={"customer_id": customer_id, "is_active": not is_active},
             )
-            if reply == QMessageBox.StandardButton.Yes:
-                if is_active:
-                    self.customer_service.delete_customer(customer_id)
-                    show_info_message("Éxito", "Cliente archivado exitosamente.")
-                else:
-                    self.customer_service.restore_customer(customer_id)
-                    show_info_message("Éxito", "Cliente restaurado exitosamente.")
-                self.load_customers()
-                logger.info(
-                    "Customer status updated",
-                    extra={"customer_id": customer_id, "is_active": not is_active},
-                )
         except Exception as e:
             logger.error(
                 f"[delete_customer_by_id] Error deleting customer ID={customer_id}: {str(e)}"

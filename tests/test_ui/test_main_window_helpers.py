@@ -4,7 +4,7 @@ pytest.importorskip("PySide6", reason="PySide6 not installed")
 
 from types import SimpleNamespace
 
-from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
+from PySide6.QtWidgets import QApplication, QDialog
 
 from config import config
 from ui.business_selector_dialog import BusinessSelectorDialog
@@ -24,8 +24,8 @@ from utils.system.event_system import event_system
 @pytest.fixture
 def allow_main_window_close(mocker):
     return mocker.patch(
-        "ui.main_window.QMessageBox.question",
-        return_value=QMessageBox.StandardButton.Yes,
+        "ui.main_window.confirm_action",
+        return_value=True,
     )
 
 
@@ -309,8 +309,8 @@ def test_purchase_view_delete_does_not_reemit_purchase_deleted_event(
         purchase_view = window.tab_widget.widget(4)
         mocker.patch("ui.purchase_view.show_info_message")
         mocker.patch(
-            "ui.purchase_view.QMessageBox.question",
-            return_value=QMessageBox.StandardButton.Yes,
+            "ui.purchase_view.confirm_action",
+            return_value=True,
         )
 
         def delete_purchase(_purchase_id):

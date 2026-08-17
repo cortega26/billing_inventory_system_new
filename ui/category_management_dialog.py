@@ -6,7 +6,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
-    QMessageBox,
     QPushButton,
     QVBoxLayout,
 )
@@ -14,7 +13,7 @@ from PySide6.QtWidgets import (
 from services.category_service import CategoryService
 from utils.decorators import handle_exceptions, ui_operation
 from utils.exceptions import DatabaseException, UIException, ValidationException
-from utils.helpers import show_info_message
+from utils.helpers import confirm_action, show_info_message
 from utils.system.event_system import event_system
 from utils.system.logger import logger
 from utils.validation.validators import validate_string
@@ -160,28 +159,24 @@ class CategoryManagementDialog(QDialog):
     def delete_category(self):
         current_item = self.category_list.currentItem()
         if current_item:
-            reply = QMessageBox.question(
-                self,
+            if not confirm_action(
+                None,
                 "Eliminar Categoría",
                 f"¿Está seguro que desea eliminar la categoría '{current_item.text()}'?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No,
-            )
-            if reply == QMessageBox.StandardButton.Yes:
-                category = self.category_service.get_category_by_name(
-                    current_item.text()
+            ):
+                return
+            category = self.category_service.get_category_by_name(current_item.text())
+            if category:
+                assert category.id is not None
+                self.category_service.delete_category(category.id)
+                self.load_categories()
+                show_info_message("Éxito", "Categoría eliminada exitosamente.")
+                event_system.category_deleted.emit(category.id)
+                logger.info(f"Category deleted: ID {category.id}")
+            else:
+                raise ValidationException(
+                    f"Categoría '{current_item.text()}' no encontrada"
                 )
-                if category:
-                    assert category.id is not None
-                    self.category_service.delete_category(category.id)
-                    self.load_categories()
-                    show_info_message("Éxito", "Categoría eliminada exitosamente.")
-                    event_system.category_deleted.emit(category.id)
-                    logger.info(f"Category deleted: ID {category.id}")
-                else:
-                    raise ValidationException(
-                        f"Categoría '{current_item.text()}' no encontrada"
-                    )
         else:
             raise ValidationException(
                 "Por favor seleccione una categoría para eliminar."

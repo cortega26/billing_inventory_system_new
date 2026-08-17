@@ -4,7 +4,6 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QApplication,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -16,7 +15,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMenu,
-    QMessageBox,
     QProgressBar,
     QPushButton,
     QTableWidgetItem,
@@ -37,10 +35,12 @@ from utils.exceptions import (
     ValidationException,
 )
 from utils.helpers import (
+    confirm_action,
     create_table,
     format_price,
     show_error_message,
     show_info_message,
+    wait_cursor,
 )
 from utils.system.event_system import event_system
 from utils.system.logger import logger
@@ -48,6 +48,8 @@ from utils.ui.table_items import (
     NumericTableWidgetItem,
     PercentageTableWidgetItem,
     PriceTableWidgetItem,
+    action_button,
+    build_actions_cell,
 )
 from utils.validation.validators import (
     validate_barcode,
@@ -289,19 +291,17 @@ class ProductView(QWidget):
         """Load all products and maintain current filters."""
         logger.debug("Loading products list")
         try:
-            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-            fresh_products = self.product_service.get_all_products(
-                active_only=not self.show_archived_checkbox.isChecked()
-            )
-            logger.debug(f"Loaded {len(fresh_products)} products")
-            # Use filter_products to maintain current filters
-            self.filter_products(products=fresh_products)
-            logger.info("Products loaded successfully")
+            with wait_cursor():
+                fresh_products = self.product_service.get_all_products(
+                    active_only=not self.show_archived_checkbox.isChecked()
+                )
+                logger.debug(f"Loaded {len(fresh_products)} products")
+                # Use filter_products to maintain current filters
+                self.filter_products(products=fresh_products)
+                logger.info("Products loaded successfully")
         except Exception as e:
             logger.error(f"Error loading products: {str(e)}")
             raise DatabaseException(f"Error al cargar productos: {str(e)}") from e
-        finally:
-            QApplication.restoreOverrideCursor()
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(UIException, show_dialog=True)
@@ -309,101 +309,92 @@ class ProductView(QWidget):
         """Update the product table display."""
         logger.debug(f"Updating product table with {len(products)} products")
         try:
-            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+            with wait_cursor():
+                # Clear existing rows
+                self.product_table.setRowCount(0)
+                self.product_table.setRowCount(len(products))
 
-            # Clear existing rows
-            self.product_table.setRowCount(0)
-            self.product_table.setRowCount(len(products))
+                for row, product in enumerate(products):
+                    logger.debug(f"Adding row {row}: Product ID={product.id}")
 
-            for row, product in enumerate(products):
-                logger.debug(f"Adding row {row}: Product ID={product.id}")
+                    try:
+                        assert product.id is not None
+                        self.product_table.setItem(
+                            row, 0, NumericTableWidgetItem(product.id)
+                        )
+                        self.product_table.setItem(
+                            row, 1, QTableWidgetItem(product.name)
+                        )
+                        self.product_table.setItem(
+                            row, 2, QTableWidgetItem(product.description or "")
+                        )
+                        self.product_table.setItem(
+                            row,
+                            3,
+                            QTableWidgetItem(product.category_name or "Sin Categoría"),
+                        )
+                        status_text = "Activo" if product.is_active else "Archivado"
+                        self.product_table.setItem(
+                            row, 4, QTableWidgetItem(status_text)
+                        )
+                        self.product_table.setItem(
+                            row,
+                            5,
+                            PriceTableWidgetItem(
+                                float(product.cost_price) if product.cost_price else 0,
+                                format_price,
+                            ),
+                        )
+                        self.product_table.setItem(
+                            row,
+                            6,
+                            PriceTableWidgetItem(
+                                float(product.sell_price) if product.sell_price else 0,
+                                format_price,
+                            ),
+                        )
+                        self.product_table.setItem(
+                            row,
+                            7,
+                            PercentageTableWidgetItem(
+                                float(product.calculate_profit_margin())
+                            ),
+                        )
 
-                try:
-                    assert product.id is not None
-                    self.product_table.setItem(
-                        row, 0, NumericTableWidgetItem(product.id)
-                    )
-                    self.product_table.setItem(row, 1, QTableWidgetItem(product.name))
-                    self.product_table.setItem(
-                        row, 2, QTableWidgetItem(product.description or "")
-                    )
-                    self.product_table.setItem(
-                        row,
-                        3,
-                        QTableWidgetItem(product.category_name or "Sin Categoría"),
-                    )
-                    status_text = "Activo" if product.is_active else "Archivado"
-                    self.product_table.setItem(row, 4, QTableWidgetItem(status_text))
-                    self.product_table.setItem(
-                        row,
-                        5,
-                        PriceTableWidgetItem(
-                            float(product.cost_price) if product.cost_price else 0,
-                            format_price,
-                        ),
-                    )
-                    self.product_table.setItem(
-                        row,
-                        6,
-                        PriceTableWidgetItem(
-                            float(product.sell_price) if product.sell_price else 0,
-                            format_price,
-                        ),
-                    )
-                    self.product_table.setItem(
-                        row,
-                        7,
-                        PercentageTableWidgetItem(
-                            float(product.calculate_profit_margin())
-                        ),
-                    )
+                        # Create action buttons
+                        edit_button = action_button(
+                            "Editar",
+                            lambda _, p=product: self.edit_product(p),
+                            height=24,
+                        )
 
-                    # Create action buttons
-                    actions_widget = QWidget()
-                    actions_layout = QHBoxLayout(actions_widget)
-                    actions_layout.setContentsMargins(0, 0, 0, 0)
-                    actions_layout.setSpacing(6)
-                    actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                        delete_label = "Eliminar" if product.is_active else "Restaurar"
+                        delete_button = action_button(
+                            delete_label,
+                            lambda _, p=product: self.delete_product(p),
+                            height=24,
+                        )
 
-                    edit_button = QPushButton("Editar")
-                    edit_button.setFixedWidth(80)
-                    edit_button.setFixedHeight(24)
-                    edit_button.setStyleSheet("padding: 2px 8px;")
-                    edit_button.clicked.connect(
-                        lambda _, p=product: self.edit_product(p)
-                    )
+                        self.product_table.setCellWidget(
+                            row, 8, build_actions_cell(edit_button, delete_button)
+                        )
+                        self.product_table.setRowHeight(row, 36)
+                    except Exception as e:
+                        logger.error(f"Error updating row {row}: {str(e)}")
+                        continue
 
-                    delete_label = "Eliminar" if product.is_active else "Restaurar"
-                    delete_button = QPushButton(delete_label)
-                    delete_button.setFixedWidth(80)
-                    delete_button.setFixedHeight(24)
-                    delete_button.setStyleSheet("padding: 2px 8px;")
-                    delete_button.clicked.connect(
-                        lambda _, p=product: self.delete_product(p)
-                    )
+                # Adjust table display
+                self.product_table.resizeColumnsToContents()
+                self.product_table.horizontalHeader().setSectionResizeMode(
+                    8, QHeaderView.ResizeMode.Stretch
+                )
 
-                    actions_layout.addWidget(edit_button)
-                    actions_layout.addWidget(delete_button)
-                    self.product_table.setCellWidget(row, 8, actions_widget)
-                    self.product_table.setRowHeight(row, 36)
-                except Exception as e:
-                    logger.error(f"Error updating row {row}: {str(e)}")
-                    continue
-
-            # Adjust table display
-            self.product_table.resizeColumnsToContents()
-            self.product_table.horizontalHeader().setSectionResizeMode(
-                8, QHeaderView.ResizeMode.Stretch
-            )
-
-            logger.info("Product table updated successfully")
+                logger.info("Product table updated successfully")
         except Exception as e:
             logger.error(f"Error updating product table: {str(e)}")
             raise UIException(
                 f"Error al actualizar la tabla de productos: {str(e)}"
             ) from e
-        finally:
-            QApplication.restoreOverrideCursor()
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(
@@ -483,36 +474,31 @@ class ProductView(QWidget):
             is_active = product.is_active
             title_text = "Archivar Producto" if is_active else "Restaurar Producto"
             action_text = "archivar" if is_active else "restaurar"
-            reply = QMessageBox.question(
+            if not confirm_action(
                 self,
                 title_text,
                 f"¿Está seguro que desea {action_text} el producto {product.name}?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No,
-            )
+            ):
+                return
 
-            if reply == QMessageBox.StandardButton.Yes:
-                QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-                try:
-                    assert product.id is not None
-                    if is_active:
-                        self.product_service.delete_product(product.id)
-                        show_info_message("Éxito", "Producto archivado exitosamente.")
-                    else:
-                        self.product_service.restore_product(product.id)
-                        show_info_message("Éxito", "Producto restaurado exitosamente.")
+            with wait_cursor():
+                assert product.id is not None
+                if is_active:
+                    self.product_service.delete_product(product.id)
+                    show_info_message("Éxito", "Producto archivado exitosamente.")
+                else:
+                    self.product_service.restore_product(product.id)
+                    show_info_message("Éxito", "Producto restaurado exitosamente.")
 
-                    # Get fresh data but maintain filters
-                    fresh_products = self.product_service.get_all_products(
-                        active_only=not self.show_archived_checkbox.isChecked()
-                    )
-                    self.filter_products(products=fresh_products)
-                    logger.info(
-                        "Product status updated",
-                        extra={"product_id": product.id, "is_active": not is_active},
-                    )
-                finally:
-                    QApplication.restoreOverrideCursor()
+                # Get fresh data but maintain filters
+                fresh_products = self.product_service.get_all_products(
+                    active_only=not self.show_archived_checkbox.isChecked()
+                )
+                self.filter_products(products=fresh_products)
+                logger.info(
+                    "Product status updated",
+                    extra={"product_id": product.id, "is_active": not is_active},
+                )
         except Exception as e:
             logger.error(f"Error updating product status: {str(e)}")
             raise
@@ -522,8 +508,7 @@ class ProductView(QWidget):
         ValidationException, DatabaseException, UIException, show_dialog=True
     )
     def search_products(self):
-        try:
-            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        with wait_cursor():
             search_term = self.search_input.text().strip()
             search_term = validate_string(search_term, max_length=100)
             # Get fresh data and apply new search
@@ -531,8 +516,6 @@ class ProductView(QWidget):
                 active_only=not self.show_archived_checkbox.isChecked()
             )
             self.filter_products(products=fresh_products, search_term=search_term)
-        finally:
-            QApplication.restoreOverrideCursor()
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(
@@ -543,8 +526,7 @@ class ProductView(QWidget):
         products: list[Product] | None = None,
         search_term: str | None = None,
     ):
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-        try:
+        with wait_cursor():
             # Store current search term if none provided
             if search_term is None:
                 search_term = self.search_input.text().strip()
@@ -577,22 +559,18 @@ class ProductView(QWidget):
 
             self.update_product_table(products)
             logger.info(f"Products filtered: {len(products)} results")
-        finally:
-            QApplication.restoreOverrideCursor()
 
     def refresh(self):
         """Refresh the product view while maintaining current filters."""
         try:
-            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-            fresh_products = self.product_service.get_all_products(
-                active_only=not self.show_archived_checkbox.isChecked()
-            )
-            self.filter_products(products=fresh_products)
+            with wait_cursor():
+                fresh_products = self.product_service.get_all_products(
+                    active_only=not self.show_archived_checkbox.isChecked()
+                )
+                self.filter_products(products=fresh_products)
         except Exception as e:
             logger.error(f"Error in refresh: {str(e)}")
             show_error_message("Error", "Falló al actualizar lista de productos")
-        finally:
-            QApplication.restoreOverrideCursor()
 
     def on_product_deleted(self, product_id: int):
         """Handle product deleted event gracefully."""

@@ -19,7 +19,6 @@ from PySide6.QtCharts import (
 from PySide6.QtCore import QDate, Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence, QPainter
 from PySide6.QtWidgets import (
-    QApplication,
     QComboBox,
     QDateEdit,
     QFormLayout,
@@ -37,7 +36,7 @@ from PySide6.QtWidgets import (
 from services.analytics_service import AnalyticsService
 from utils.decorators import handle_exceptions, ui_operation
 from utils.exceptions import DatabaseException, UIException, ValidationException
-from utils.helpers import create_table, format_price
+from utils.helpers import create_table, format_price, wait_cursor
 from utils.system.logger import logger
 from utils.ui.table_items import (
     NumericTableWidgetItem,
@@ -149,43 +148,41 @@ class AnalyticsView(QWidget):
         end_date = validate_date(self.end_date.date().toString("yyyy-MM-dd"))
         top_n = validate_integer(self.top_n_spinbox.value(), min_value=1, max_value=100)
 
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
-            analytics_functions = {
-                "Ventas por Día de la Semana": lambda: self.show_sales_by_weekday(
-                    start_date, end_date
-                ),
-                "Productos Más Vendidos": lambda: self.show_top_selling_products(
-                    start_date, end_date, top_n
-                ),
-                "Tendencia de Ventas": lambda: self.show_sales_trend(
-                    start_date, end_date
-                ),
-                "Rendimiento por Categoría": lambda: self.show_category_performance(
-                    start_date, end_date
-                ),
-                "Ganancia por Producto": lambda: self.show_profit_by_product(
-                    start_date, end_date, top_n
-                ),
-                "Tendencia de Ganancias": lambda: self.show_profit_trend(
-                    start_date, end_date
-                ),
-                "Distribución Margen Ganancia": lambda: (
-                    self.show_profit_margin_distribution(start_date, end_date)
-                ),
-            }
+            with wait_cursor():
+                analytics_functions = {
+                    "Ventas por Día de la Semana": lambda: self.show_sales_by_weekday(
+                        start_date, end_date
+                    ),
+                    "Productos Más Vendidos": lambda: self.show_top_selling_products(
+                        start_date, end_date, top_n
+                    ),
+                    "Tendencia de Ventas": lambda: self.show_sales_trend(
+                        start_date, end_date
+                    ),
+                    "Rendimiento por Categoría": lambda: self.show_category_performance(
+                        start_date, end_date
+                    ),
+                    "Ganancia por Producto": lambda: self.show_profit_by_product(
+                        start_date, end_date, top_n
+                    ),
+                    "Tendencia de Ganancias": lambda: self.show_profit_trend(
+                        start_date, end_date
+                    ),
+                    "Distribución Margen Ganancia": lambda: (
+                        self.show_profit_margin_distribution(start_date, end_date)
+                    ),
+                }
 
-            if analytics_type in analytics_functions:
-                QTimer.singleShot(0, analytics_functions[analytics_type])
-            else:
-                raise ValidationException(
-                    f"Tipo analítico desconocido: {analytics_type}"
-                )
+                if analytics_type in analytics_functions:
+                    QTimer.singleShot(0, analytics_functions[analytics_type])
+                else:
+                    raise ValidationException(
+                        f"Tipo analítico desconocido: {analytics_type}"
+                    )
         except Exception as e:
             logger.error(f"Error generating analytics: {str(e)}")
             raise UIException(f"Error al generar analítica: {str(e)}") from e
-        finally:
-            QApplication.restoreOverrideCursor()
 
         self.progress_bar.setValue(100)
 

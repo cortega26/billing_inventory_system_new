@@ -1,12 +1,30 @@
 from collections.abc import Callable
+from contextlib import contextmanager
 from decimal import Decimal
 from typing import Any, TypeVar
 
-from PySide6.QtWidgets import QHeaderView, QMessageBox, QTableWidget, QWidget
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QApplication,
+    QHeaderView,
+    QMessageBox,
+    QTableWidget,
+    QWidget,
+)
 
 from utils.system.logger import logger
 
 T = TypeVar("T")
+
+
+@contextmanager
+def wait_cursor():
+    """Show a wait cursor while a block of code runs, restoring it afterwards."""
+    QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+    try:
+        yield
+    finally:
+        QApplication.restoreOverrideCursor()
 
 
 def get_product_ids_from_items(items: list[Any]) -> list[int]:

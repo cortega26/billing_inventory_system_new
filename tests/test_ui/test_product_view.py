@@ -2,7 +2,7 @@ import pytest
 
 pytest.importorskip("PySide6", reason="PySide6 not installed")
 
-from PySide6.QtWidgets import QMessageBox, QPushButton
+from PySide6.QtWidgets import QPushButton
 
 from services.product_service import ProductService
 from ui.product_view import ProductView
@@ -149,8 +149,8 @@ def test_delete_product_does_not_reemit_product_deleted_event(
     qtbot.addWidget(view)
     mocker.patch("ui.product_view.show_info_message")
     mocker.patch(
-        "ui.product_view.QMessageBox.question",
-        return_value=QMessageBox.StandardButton.Yes,
+        "ui.product_view.confirm_action",
+        return_value=True,
     )
 
     def delete_product(_product_id):

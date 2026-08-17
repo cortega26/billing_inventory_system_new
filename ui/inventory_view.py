@@ -4,7 +4,6 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QApplication,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -26,8 +25,17 @@ from services.inventory_service import InventoryService
 from services.product_service import ProductService
 from utils.decorators import handle_exceptions, ui_operation
 from utils.exceptions import DatabaseException, UIException, ValidationException
-from utils.helpers import create_table, show_error_message, show_info_message
-from utils.ui.table_items import NumericTableWidgetItem
+from utils.helpers import (
+    create_table,
+    show_error_message,
+    show_info_message,
+    wait_cursor,
+)
+from utils.ui.table_items import (
+    NumericTableWidgetItem,
+    action_button,
+    build_actions_cell,
+)
 
 
 class EditInventoryDialog(QDialog):
@@ -190,8 +198,7 @@ class InventoryView(QWidget):
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
     def load_inventory(self):
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-        try:
+        with wait_cursor():
             category_id = self.category_filter.currentData()
             # If category is selected, we filter by it. Otherwise all.
             # Inventory service might need get_inventory_by_category or we filter locally.
@@ -229,9 +236,6 @@ class InventoryView(QWidget):
             self.current_inventory = filtered_items
             self.update_table(filtered_items)
 
-        finally:
-            QApplication.restoreOverrideCursor()
-
     def update_table(self, items: list[dict[str, Any]]):
         self.inventory_table.setRowCount(len(items))
         for row, item in enumerate(items):
@@ -250,19 +254,8 @@ class InventoryView(QWidget):
             )
 
             # Actions
-            actions_widget = QWidget()
-            actions_layout = QHBoxLayout(actions_widget)
-            actions_layout.setContentsMargins(0, 0, 0, 0)
-            actions_layout.setSpacing(6)
-            actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-            edit_btn = QPushButton("Editar")
-            edit_btn.setFixedWidth(80)
-            edit_btn.setStyleSheet("padding: 2px 8px;")
-            edit_btn.clicked.connect(lambda _, i=item: self.edit_inventory(i))
-            actions_layout.addWidget(edit_btn)
-
-            self.inventory_table.setCellWidget(row, 5, actions_widget)
+            edit_btn = action_button("Editar", lambda _, i=item: self.edit_inventory(i))
+            self.inventory_table.setCellWidget(row, 5, build_actions_cell(edit_btn))
             self.inventory_table.setRowHeight(row, 36)
 
     @ui_operation(show_dialog=True)

@@ -11,6 +11,7 @@ from services.inventory_service import InventoryService
 from services.mutation_coordinator import MutationCoordinator
 from services.product_service import ProductService
 from services.receipt_service import ReceiptService
+from services.update_sale_workflow import UpdateSaleWorkflow
 from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import DatabaseException, NotFoundException, ValidationException
 from utils.helpers import get_product_ids_from_items
@@ -76,7 +77,7 @@ class SaleService:
             sale_date_str = (
                 validate_date(date) if date else datetime.now().strftime("%Y-%m-%d")
             )
-            self._validate_sale_items(items)
+            self.validate_sale_items(items)
 
             total_amount = sum(
                 FinancialCalculator.calculate_item_total(
@@ -177,7 +178,8 @@ class SaleService:
         logger.warning("Sale not found", extra={"sale_id": sale_id})
         return None
 
-    def _require_sale(self, sale_id: int) -> Sale:
+    def require_sale(self, sale_id: int) -> Sale:
+        """Return the sale with the given ID or raise NotFoundException. Public because the update-sale workflow needs it."""
         sale = self.get_sale(sale_id)
         if sale is not None:
             return sale
@@ -252,7 +254,7 @@ class SaleService:
     @handle_exceptions(DatabaseException, show_dialog=True)
     def delete_sale(self, sale_id: int) -> None:
         sale_id = validate_integer(sale_id, min_value=1)
-        sale = self._require_sale(sale_id)
+        sale = self.require_sale(sale_id)
         if sale.status == "cancelled":
             raise ValidationException(f"Sale {sale_id} is already cancelled")
         items = sale.items
@@ -300,7 +302,7 @@ class SaleService:
         Raises ValidationException if the sale is already cancelled.
         """
         sale_id = validate_integer(sale_id, min_value=1)
-        sale = self._require_sale(sale_id)
+        sale = self.require_sale(sale_id)
         if sale.status == "cancelled":
             raise ValidationException(f"Sale {sale_id} is already cancelled")
 
@@ -341,8 +343,6 @@ class SaleService:
     def update_sale(
         self, sale_id: int, customer_id: int, date: str, items: list[dict[str, Any]]
     ) -> None:
-        from services.update_sale_workflow import UpdateSaleWorkflow
-
         UpdateSaleWorkflow(self).execute(sale_id, customer_id, date, items)
 
     @staticmethod
@@ -424,7 +424,7 @@ class SaleService:
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def generate_receipt(self, sale_id: int) -> str:
         sale_id = validate_integer(sale_id, min_value=1)
-        sale = self._require_sale(sale_id)
+        sale = self.require_sale(sale_id)
 
         if not sale.receipt_id:
             if sale.date is None:
@@ -454,7 +454,7 @@ class SaleService:
         sale_id = validate_integer(sale_id, min_value=1)
         filepath = validate_filepath(filepath)
 
-        sale = self._require_sale(sale_id)
+        sale = self.require_sale(sale_id)
 
         items = self.get_sale_items(sale_id)
 
@@ -487,7 +487,8 @@ class SaleService:
             )
         return f"{date_part}{next_number:03d}"
 
-    def _validate_sale_items(self, items: list[dict[str, Any]]) -> None:
+    def validate_sale_items(self, items: list[dict[str, Any]]) -> None:
+        """Validate a list of sale item dicts and compute each item's profit in place. Part of the update-sale workflow contract."""
         if not items:
             raise ValidationException("Sale must have at least one item")
         if len(items) > MAX_SALE_ITEMS:
@@ -546,9 +547,10 @@ class SaleService:
 
     @staticmethod
     @db_operation(show_dialog=True)
-    def _update_sale(
+    def update_sale_record(
         sale_id: int, customer_id: int, date: str, total_amount: int, total_profit: int
     ) -> None:
+        """Persist the updated sale header row. Part of the update-sale workflow contract."""
         query = "UPDATE sales SET customer_id = ?, date = ?, total_amount = ?, total_profit = ? WHERE id = ?"
         DatabaseManager.execute_query(
             query, (customer_id, date, total_amount, total_profit, sale_id)
@@ -556,7 +558,8 @@ class SaleService:
 
     @staticmethod
     @db_operation(show_dialog=True)
-    def _update_sale_items(sale_id: int, items: list[dict[str, Any]]) -> None:
+    def replace_sale_items(sale_id: int, items: list[dict[str, Any]]) -> None:
+        """Delete and re-insert the sale's items. Part of the update-sale workflow contract."""
         DatabaseManager.execute_query(
             "DELETE FROM sale_items WHERE sale_id = ?", (sale_id,)
         )

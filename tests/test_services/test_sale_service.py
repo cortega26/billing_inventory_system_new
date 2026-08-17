@@ -356,11 +356,13 @@ class TestSaleService:
         sale_id = sale_service.create_sale(**sample_sale_data)
 
         def _should_not_update_sale(*args, **kwargs):
-            raise AssertionError("_update_sale should not run on pre-check failure")
+            raise AssertionError(
+                "update_sale_record should not run on pre-check failure"
+            )
 
         monkeypatch.setattr(
             SaleService,
-            "_update_sale",
+            "update_sale_record",
             staticmethod(_should_not_update_sale),
         )
 

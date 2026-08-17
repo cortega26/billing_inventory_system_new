@@ -8,6 +8,7 @@ from sqlmodel import Field, SQLModel
 
 from utils.exceptions import ValidationException
 from utils.system.logger import logger
+from utils.validation.validators import validate_string
 
 
 class Category(SQLModel, table=True):
@@ -100,28 +101,11 @@ class Category(SQLModel, table=True):
         """
         Validate and normalize category name.
         """
-        if not name:
-            logger.warning("Empty category name provided")
-            raise ValidationException("Category name cannot be empty")
-
-        # Normalize whitespace first
-        normalized_name = " ".join(name.split())
-
-        if len(normalized_name) < Category.NAME_MIN_LENGTH:
-            raise ValidationException("Category name cannot be empty")
-
-        if len(normalized_name) > Category.NAME_MAX_LENGTH:
-            logger.warning(
-                "Category name exceeds maximum length",
-                extra={
-                    "name": normalized_name,
-                    "length": len(normalized_name),
-                    "max_length": Category.NAME_MAX_LENGTH,
-                },
-            )
-            raise ValidationException(
-                f"Category name cannot exceed {Category.NAME_MAX_LENGTH} characters"
-            )
+        normalized_name = validate_string(
+            name,
+            min_length=Category.NAME_MIN_LENGTH,
+            max_length=Category.NAME_MAX_LENGTH,
+        )
 
         if not re.match(Category.NAME_PATTERN, normalized_name):
             logger.warning(

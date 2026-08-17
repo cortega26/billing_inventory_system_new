@@ -115,6 +115,39 @@ def test_edit_customer_does_not_reemit_customer_updated_event(
         event_system.customer_updated.disconnect(handler)
 
 
+def test_edit_customer_by_id_preserves_name_when_blank(qtbot, db_manager, mocker):
+    service = CustomerService()
+    customer_id = service.create_customer("923456783", "Nombre Original", "321")
+    customer = service.get_customer(customer_id)
+
+    class FakeDialog:
+        def __init__(self, *_args, **_kwargs):
+            self.identifier_9_input = StubLineEdit("923456783")
+            self.name_input = StubLineEdit("")
+            self.identifier_3or4_input = StubLineEdit("321")
+
+        def exec(self):
+            return True
+
+    view = CustomerView()
+    qtbot.addWidget(view)
+    mocker.patch("ui.customer_view.EditCustomerDialog", return_value=FakeDialog())
+    mocker.patch("ui.customer_view.show_info_message")
+    mocker.patch.object(view.customer_service, "get_customer", return_value=customer)
+
+    calls = []
+    mocker.patch.object(
+        view.customer_service,
+        "update_customer",
+        side_effect=lambda *_args, **_kwargs: calls.append((_args, _kwargs)),
+    )
+
+    view.edit_customer_by_id(customer_id)
+
+    assert calls
+    assert calls[0][1]["name"] == "Nombre Original"
+
+
 def test_delete_customer_does_not_reemit_customer_deleted_event(
     qtbot, db_manager, mocker
 ):

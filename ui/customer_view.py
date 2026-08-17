@@ -391,7 +391,9 @@ class CustomerView(QWidget):
                     dialog.identifier_3or4_input.text().strip() or None
                 )
                 # Changed to handle empty string case
-                new_name = dialog.name_input.text().strip() or None
+                new_name = dialog.name_input.text().strip()
+                if not new_name:
+                    new_name = customer.name
 
                 # Validate the name before updating
                 if new_name:
@@ -495,44 +497,8 @@ class CustomerView(QWidget):
         """
         if customer is None:
             raise ValidationException("Ningún cliente seleccionado para editar.")
-
-        logger.debug(
-            f"[edit_customer] Starting edit for Customer ID={customer.id}, current name='{customer.name}'"
-        )
-
-        dialog = EditCustomerDialog(customer, self)
-        if dialog.exec():
-            try:
-                new_name = dialog.name_input.text().strip()
-                # If user typed nothing, keep old name
-                if not new_name:
-                    new_name = customer.name
-                    logger.debug(
-                        f"[edit_customer] User left name blank; reusing old name='{new_name}'"
-                    )
-
-                assert customer.id is not None
-                self.customer_service.update_customer(
-                    customer.id,
-                    identifier_9=dialog.identifier_9_input.text().strip(),
-                    name=new_name,
-                    identifier_3or4=dialog.identifier_3or4_input.text().strip() or None,
-                )
-
-                logger.debug(
-                    f"[edit_customer] Done updating DB for ID={customer.id}, calling load_customers() next"
-                )
-
-                self.load_customers()
-
-                show_info_message("Éxito", "Cliente actualizado exitosamente.")
-                logger.info(f"Customer updated successfully: ID {customer.id}")
-
-            except Exception as e:
-                logger.error(
-                    f"[edit_customer] Error updating customer ID={customer.id}: {str(e)}"
-                )
-                raise
+        assert customer.id is not None
+        self.edit_customer_by_id(customer.id)
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(
@@ -541,35 +507,8 @@ class CustomerView(QWidget):
     def delete_customer(self, customer: Customer | None):
         if customer is None:
             raise ValidationException("Ningún cliente seleccionado para eliminar.")
-
-        display_name = customer.get_display_name()
-        is_active = customer.is_active
-        action_text = "archivar" if is_active else "restaurar"
-        title_text = "Archivar Cliente" if is_active else "Restaurar Cliente"
-        reply = QMessageBox.question(
-            self,
-            title_text,
-            f"¿Está seguro que desea {action_text} al cliente {display_name}?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if reply == QMessageBox.StandardButton.Yes:
-            try:
-                assert customer.id is not None
-                if is_active:
-                    self.customer_service.delete_customer(customer.id)
-                    show_info_message("Éxito", "Cliente archivado exitosamente.")
-                else:
-                    self.customer_service.restore_customer(customer.id)
-                    show_info_message("Éxito", "Cliente restaurado exitosamente.")
-                self.load_customers()
-                logger.info(
-                    "Customer status updated",
-                    extra={"customer_id": customer.id, "is_active": not is_active},
-                )
-            except Exception as e:
-                logger.error(f"Error updating customer status: {str(e)}")
-                raise
+        assert customer.id is not None
+        self.delete_customer_by_id(customer.id)
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(

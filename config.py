@@ -160,7 +160,6 @@ class Config:
         return {
             "version": CONFIG_VERSION,
             "theme": "default",
-            "language": "en",
             "backup_interval": 24,
             "backup_dir": "backups",
             "backup_retention_days": 7,
@@ -258,7 +257,6 @@ class Config:
         required_keys = {
             "version": (str, [CONFIG_VERSION]),
             "theme": (str, ["default", "dark", "light"]),
-            "language": (str, ["en", "es"]),
             "backup_interval": (int, (1, 168)),  # 1 hour to 1 week
             "backup_dir": (str, None),
             "backup_retention_days": (int, (1, 365)),

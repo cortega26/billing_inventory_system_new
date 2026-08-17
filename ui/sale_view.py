@@ -48,6 +48,11 @@ from ui.sale_view_tables import (
     render_sale_item_row,
     update_sale_total_label,
 )
+from ui.scan_support import (
+    flash_input_error,
+    on_barcode_length_exceeded,
+    show_product_selection_dialog,
+)
 from ui.styles import DesignTokens
 from utils.decorators import handle_exceptions, ui_operation
 from utils.exceptions import DatabaseException, UIException, ValidationException
@@ -232,12 +237,7 @@ class EditSaleDialog(QDialog):
                     self.add_item(dialog.get_item_data())
                 self.barcode_input.clear()
             else:
-                from ui.styles import DesignTokens
-
-                self.barcode_input.setStyleSheet(
-                    f"background-color: {DesignTokens.COLOR_ERROR_BG};"
-                )
-                QTimer.singleShot(1000, lambda: self.barcode_input.setStyleSheet(""))
+                flash_input_error(self.barcode_input)
                 show_error_message(
                     "Error", f"No se encontró producto con código: {barcode}"
                 )
@@ -259,7 +259,7 @@ class EditSaleDialog(QDialog):
                     if dialog.exec():
                         self.add_item(dialog.get_item_data())
                 else:
-                    product = self.show_product_selection_dialog(products)
+                    product = show_product_selection_dialog(products, self)
                     if product:
                         dialog = SaleItemDialog(product, self)
                         if dialog.exec():
@@ -282,33 +282,6 @@ class EditSaleDialog(QDialog):
         if 0 <= row < len(self.sale_items):
             del self.sale_items[row]
             self.update_items_table()
-
-    def show_product_selection_dialog(self, products: list[Product]) -> Product | None:
-        """Show dialog for selecting from multiple matching products."""
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Seleccionar Producto")
-        layout = QVBoxLayout(dialog)
-
-        product_list = QComboBox()
-        for product in products:
-            display_text = f"{product.name}"
-            if product.barcode:
-                display_text += f" (Código: {product.barcode})"
-            product_list.addItem(display_text, product)
-
-        layout.addWidget(QLabel("Seleccione un producto:"))
-        layout.addWidget(product_list)
-
-        button_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        button_box.accepted.connect(dialog.accept)
-        button_box.rejected.connect(dialog.reject)
-        layout.addWidget(button_box)
-
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            return product_list.currentData()
-        return None
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(
@@ -561,7 +534,9 @@ class SaleView(QWidget):
         self.barcode_input = QLineEdit()
         self.barcode_input.setPlaceholderText("Escanear código...")
         self.barcode_input.returnPressed.connect(self.handle_barcode_scan)
-        self.barcode_input.textChanged.connect(self.handle_barcode_input)
+        self.barcode_input.textChanged.connect(
+            lambda text: on_barcode_length_exceeded(self.barcode_input)
+        )
 
         # Manual search
         self.search_input = QLineEdit()
@@ -742,12 +717,6 @@ class SaleView(QWidget):
         """Show a compact keyboard shortcut guide for cashiers."""
         show_info_message("Atajos de Teclado", build_shortcuts_help_text())
 
-    def handle_barcode_input(self, text: str):
-        """Handle barcode input changes."""
-        # If text is longer than typical barcode, clear it
-        if len(text) > 14:  # EAN-14 is the longest common barcode
-            self.barcode_input.clear()
-
     def handle_barcode_scan(self):
         """Handle barcode scan completion."""
         barcode = self.barcode_input.text().strip()
@@ -800,13 +769,7 @@ class SaleView(QWidget):
                 self.barcode_input.clear()
                 self.barcode_input.setFocus()
             else:
-                # Visual feedback for error
-                from ui.styles import DesignTokens
-
-                self.barcode_input.setStyleSheet(
-                    f"background-color: {DesignTokens.COLOR_ERROR_BG};"
-                )
-                QTimer.singleShot(1000, lambda: self.barcode_input.setStyleSheet(""))
+                flash_input_error(self.barcode_input)
                 show_error_message(
                     "Error", f"No se encontró producto con código: {barcode}"
                 )
@@ -960,7 +923,7 @@ class SaleView(QWidget):
                 return
 
             # If multiple products, show selection dialog
-            product = self.show_product_selection_dialog(products)
+            product = show_product_selection_dialog(products, self)
             if product:
                 dialog = SaleItemDialog(product, self)
                 if dialog.exec():
@@ -969,33 +932,6 @@ class SaleView(QWidget):
         except Exception as e:
             logger.error(f"Error searching products: {str(e)}")
             show_error_message("Error", str(e))
-
-    def show_product_selection_dialog(self, products: list[Product]) -> Product | None:
-        """Show dialog for selecting from multiple matching products."""
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Seleccionar Producto")
-        layout = QVBoxLayout(dialog)
-
-        product_list = QComboBox()
-        for product in products:
-            display_text = f"{product.name}"
-            if product.barcode:
-                display_text += f" (Código: {product.barcode})"
-            product_list.addItem(display_text, product)
-
-        layout.addWidget(QLabel("Seleccione un producto:"))
-        layout.addWidget(product_list)
-
-        button_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        button_box.accepted.connect(dialog.accept)
-        button_box.rejected.connect(dialog.reject)
-        layout.addWidget(button_box)
-
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            return product_list.currentData()
-        return None
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(

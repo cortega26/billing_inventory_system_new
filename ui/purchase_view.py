@@ -5,7 +5,6 @@ from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
-    QComboBox,
     QDateEdit,
     QDialog,
     QDialogButtonBox,
@@ -27,6 +26,11 @@ from PySide6.QtWidgets import (
 from models.purchase import Purchase
 from services.product_service import ProductService
 from services.purchase_service import PurchaseService
+from ui.scan_support import (
+    flash_input_error,
+    on_barcode_length_exceeded,
+    show_product_selection_dialog,
+)
 from utils.decorators import handle_exceptions, ui_operation
 from utils.exceptions import DatabaseException, UIException, ValidationException
 from utils.helpers import (
@@ -155,7 +159,9 @@ class PurchaseView(QWidget):
         self.barcode_input = QLineEdit()
         self.barcode_input.setPlaceholderText("Escanear código...")
         self.barcode_input.returnPressed.connect(self.handle_barcode_scan)
-        self.barcode_input.textChanged.connect(self.handle_barcode_input)
+        self.barcode_input.textChanged.connect(
+            lambda text: on_barcode_length_exceeded(self.barcode_input)
+        )
 
         # Manual search
         self.search_input = QLineEdit()
@@ -260,12 +266,6 @@ class PurchaseView(QWidget):
         refresh_shortcut.triggered.connect(self.load_purchases)
         self.addAction(refresh_shortcut)
 
-    def handle_barcode_input(self, text: str):
-        """Handle barcode input changes."""
-        # If text is longer than typical barcode, clear it
-        if len(text) > 14:  # EAN-14 is the longest common barcode
-            self.barcode_input.clear()
-
     def handle_barcode_scan(self):
         """Handle barcode scan completion."""
         barcode = self.barcode_input.text().strip()
@@ -289,8 +289,7 @@ class PurchaseView(QWidget):
                 self.barcode_input.setFocus()
             else:
                 # Visual feedback for error
-                self.barcode_input.setStyleSheet("background-color: #ffebee;")
-                QTimer.singleShot(1000, lambda: self.barcode_input.setStyleSheet(""))
+                flash_input_error(self.barcode_input)
                 show_error_message(
                     "Error", f"No se encontró producto con código: {barcode}"
                 )
@@ -477,7 +476,7 @@ class PurchaseView(QWidget):
                 return
 
             # If multiple products, show selection dialog
-            product = self.show_product_selection_dialog(products)
+            product = show_product_selection_dialog(products, self)
             if product:
                 dialog = PurchaseItemDialog(product, self)
                 if dialog.exec():
@@ -486,33 +485,6 @@ class PurchaseView(QWidget):
         except Exception as e:
             logger.error(f"Error searching products: {str(e)}")
             show_error_message("Error", str(e))
-
-    def show_product_selection_dialog(self, products: list[Any]) -> Any | None:
-        """Show dialog for selecting from multiple matching products."""
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Seleccionar Producto")
-        layout = QVBoxLayout(dialog)
-
-        product_list = QComboBox()
-        for product in products:
-            display_text = f"{product.name}"
-            if product.barcode:
-                display_text += f" (Código de Barras: {product.barcode})"
-            product_list.addItem(display_text, product)
-
-        layout.addWidget(QLabel("Seleccione un producto:"))
-        layout.addWidget(product_list)
-
-        button_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        button_box.accepted.connect(dialog.accept)
-        button_box.rejected.connect(dialog.reject)
-        layout.addWidget(button_box)
-
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            return product_list.currentData()
-        return None
 
     def show_context_menu(self, position):
         """Show context menu for purchases table."""

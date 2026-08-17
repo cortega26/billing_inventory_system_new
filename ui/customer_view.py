@@ -38,7 +38,11 @@ from utils.ui.table_items import (
     NumericTableWidgetItem,
     PriceTableWidgetItem,
 )
-from utils.validation.validators import validate_string
+from utils.validation.validators import (
+    validate_3or4digit_identifier,
+    validate_9digit_identifier,
+    validate_string,
+)
 
 
 class EditCustomerDialog(QDialog):
@@ -89,17 +93,14 @@ class EditCustomerDialog(QDialog):
     @ui_operation(show_dialog=True)
     @handle_exceptions(ValidationException, show_dialog=True)
     def validate_and_accept(self):
-        try:
-            # Create a temporary customer to validate the input
-            Customer(
-                id=0,
-                identifier_9=self.identifier_9_input.text().strip(),
-                identifier_3or4=self.identifier_3or4_input.text().strip() or None,
-                name=self.name_input.text().strip() or None,
-            )
-            self.accept()
-        except ValidationException as e:
-            raise ValidationException(str(e)) from e
+        validate_9digit_identifier(self.identifier_9_input.text().strip())
+        identifier_3or4 = self.identifier_3or4_input.text().strip() or None
+        if identifier_3or4 is not None:
+            validate_3or4digit_identifier(identifier_3or4)
+        name = self.name_input.text().strip() or None
+        if name is not None:
+            validate_string(name, min_length=1, max_length=50)
+        self.accept()
 
 
 class CustomerView(QWidget):

@@ -1,7 +1,5 @@
 """Models are data containers; business validation is enforced by services.
-
-Do not add ``@model_validator`` blocks expecting them to run at construction —
-SQLModel ``table=True`` skips them.
+Product.validate() runs at construction for load-path safety.
 """
 
 from datetime import datetime
@@ -11,8 +9,8 @@ import sqlalchemy as sa
 from pydantic import PrivateAttr, model_validator
 from sqlmodel import Field, SQLModel
 
-from models.enums import MAX_PRICE_CLP
 from utils.exceptions import ValidationException
+from utils.validation.validators import validate_barcode, validate_money
 
 
 class Product(SQLModel, table=True):
@@ -73,13 +71,6 @@ class Product(SQLModel, table=True):
 
     def __init__(self, **data: Any):
         category_name = data.pop("category_name", None)
-        for field in ("cost_price", "sell_price"):
-            if field in data:
-                val = data[field]
-                if not isinstance(val, int) or isinstance(val, bool):
-                    raise ValidationException(
-                        f"{field} must be an integer (CLP, no decimals)"
-                    )
         super().__init__(**data)
         if category_name is not None:
             self.category_name = category_name
@@ -95,30 +86,8 @@ class Product(SQLModel, table=True):
         if not self.name or len(self.name.strip()) == 0:
             raise ValidationException("Product name is required")
 
-        if not isinstance(self.cost_price, int) or isinstance(self.cost_price, bool):
-            raise ValidationException(
-                "cost_price must be an integer (CLP, no decimals)"
-            )
-        if not isinstance(self.sell_price, int) or isinstance(self.sell_price, bool):
-            raise ValidationException(
-                "sell_price must be an integer (CLP, no decimals)"
-            )
-
-        if self.cost_price < 0:
-            raise ValidationException("Cost price cannot be negative")
-
-        if self.sell_price < 0:
-            raise ValidationException("Sell price cannot be negative")
-
-        if self.cost_price > MAX_PRICE_CLP:
-            raise ValidationException(
-                f"Cost price exceeds maximum ({MAX_PRICE_CLP:,.0f} CLP)"
-            )
-
-        if self.sell_price > MAX_PRICE_CLP:
-            raise ValidationException(
-                f"Sell price exceeds maximum ({MAX_PRICE_CLP:,.0f} CLP)"
-            )
+        validate_money(self.cost_price, "Cost price")
+        validate_money(self.sell_price, "Sell price")
 
         if self.barcode:
             self.validate_barcode(self.barcode)
@@ -126,15 +95,7 @@ class Product(SQLModel, table=True):
     @staticmethod
     def validate_barcode(barcode: str) -> None:
         """Validate barcode format."""
-        if not barcode:
-            return
-
-        if not barcode.isdigit():
-            raise ValidationException("Barcode must contain only digits")
-
-        valid_lengths = {8, 12, 13, 14}
-        if len(barcode) not in valid_lengths:
-            raise ValidationException(f"Barcode must be one of: {valid_lengths} digits")
+        validate_barcode(barcode)
 
     def calculate_profit(self) -> int:
         """Calculate profit in Chilean Pesos."""

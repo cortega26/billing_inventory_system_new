@@ -6,6 +6,7 @@ from utils.exceptions import ValidationException
 from utils.validation.validators import (
     validate_3or4digit_identifier,
     validate_9digit_identifier,
+    validate_barcode,
     validate_date,
     validate_dict,
     validate_filepath,
@@ -152,6 +153,28 @@ class TestValidators:
             validate_3or4digit_identifier("12345")  # Too long
         with pytest.raises(ValidationException):
             validate_3or4digit_identifier("0123")  # Cannot start with 0
+
+    def test_barcode_validation(self):
+        """Test shared barcode validator."""
+        # Valid lengths: 8, 12, 13, 14
+        assert validate_barcode("12345678") == "12345678"
+        assert validate_barcode("123456789012") == "123456789012"
+        assert validate_barcode("1234567890123") == "1234567890123"
+        assert validate_barcode("12345678901234") == "12345678901234"
+        # Whitespace is stripped
+        assert validate_barcode(" 12345678 ") == "12345678"
+        # None / empty are accepted (optional field)
+        assert validate_barcode(None) is None
+        assert validate_barcode("") == ""
+
+        with pytest.raises(ValidationException):
+            validate_barcode("1234567")  # 7 digits - too short
+        with pytest.raises(ValidationException):
+            validate_barcode("123456789012345")  # 15 digits - too long
+        with pytest.raises(ValidationException):
+            validate_barcode("1234567a")  # Non-digit
+        with pytest.raises(ValidationException):
+            validate_barcode(12345678)  # Not a string
 
     def test_list_validation(self):
         """Test list validation."""

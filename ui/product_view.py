@@ -345,9 +345,7 @@ class ProductView(QWidget):
         assert product.id is not None
         self.product_table.setItem(row, 0, NumericTableWidgetItem(product.id))
         self.product_table.setItem(row, 1, QTableWidgetItem(product.name))
-        self.product_table.setItem(
-            row, 2, QTableWidgetItem(product.description or "")
-        )
+        self.product_table.setItem(row, 2, QTableWidgetItem(product.description or ""))
         self.product_table.setItem(
             row,
             3,
@@ -374,9 +372,7 @@ class ProductView(QWidget):
         self.product_table.setItem(
             row,
             7,
-            PercentageTableWidgetItem(
-                float(product.calculate_profit_margin())
-            ),
+            PercentageTableWidgetItem(float(product.calculate_profit_margin())),
         )
 
         # Create action buttons
@@ -390,18 +386,14 @@ class ProductView(QWidget):
         edit_button.setFixedWidth(80)
         edit_button.setFixedHeight(24)
         edit_button.setStyleSheet("padding: 2px 8px;")
-        edit_button.clicked.connect(
-            lambda _, p=product: self.edit_product(p)
-        )
+        edit_button.clicked.connect(lambda _, p=product: self.edit_product(p))
 
         delete_label = "Eliminar" if product.is_active else "Restaurar"
         delete_button = QPushButton(delete_label)
         delete_button.setFixedWidth(80)
         delete_button.setFixedHeight(24)
         delete_button.setStyleSheet("padding: 2px 8px;")
-        delete_button.clicked.connect(
-            lambda _, p=product: self.delete_product(p)
-        )
+        delete_button.clicked.connect(lambda _, p=product: self.delete_product(p))
 
         actions_layout.addWidget(edit_button)
         actions_layout.addWidget(delete_button)

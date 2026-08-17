@@ -273,9 +273,7 @@ class CustomerView(QWidget):
                 try:
                     self._render_customer_row(row, cust)
                 except Exception as e:
-                    logger.warning(
-                        f"Skipping row {row} (customer {cust.id}): {str(e)}"
-                    )
+                    logger.warning(f"Skipping row {row} (customer {cust.id}): {str(e)}")
                     continue
 
             # Resize columns for a neat look
@@ -298,15 +296,13 @@ class CustomerView(QWidget):
 
     def _render_customer_row(self, row: int, cust: Customer) -> None:
         """Render a single customer row. Raises on failure (the caller skips it)."""
-        total_purchases, total_amount = (
-            self.customer_service.get_customer_stats(cust.id)
+        total_purchases, total_amount = self.customer_service.get_customer_stats(
+            cust.id
         )
 
         self.customer_table.setItem(row, 0, NumericTableWidgetItem(cust.id))
 
-        self.customer_table.setItem(
-            row, 1, QTableWidgetItem(cust.identifier_9)
-        )
+        self.customer_table.setItem(row, 1, QTableWidgetItem(cust.identifier_9))
 
         identifier_item = DepartmentIdentifierTableWidgetItem(
             cust.identifier_3or4 or "N/A"
@@ -314,17 +310,13 @@ class CustomerView(QWidget):
         self.customer_table.setItem(row, 2, identifier_item)
 
         name_item = QTableWidgetItem(cust.name or "")
-        name_item.setToolTip(
-            cust.name if cust.name else "No se proporcionó nombre"
-        )
+        name_item.setToolTip(cust.name if cust.name else "No se proporcionó nombre")
         self.customer_table.setItem(row, 3, name_item)
 
         status_text = "Activo" if cust.is_active else "Archivado"
         self.customer_table.setItem(row, 4, QTableWidgetItem(status_text))
 
-        self.customer_table.setItem(
-            row, 5, NumericTableWidgetItem(total_purchases)
-        )
+        self.customer_table.setItem(row, 5, NumericTableWidgetItem(total_purchases))
 
         self.customer_table.setItem(
             row, 6, PriceTableWidgetItem(total_amount, format_price)

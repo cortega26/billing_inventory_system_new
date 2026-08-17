@@ -112,14 +112,15 @@ class InventoryService:
                 event_system.inventory_changed.emit(product_id)
             logger.info(
                 f"Inventory updated for product {product_id}",
-                extra={"quantity_change": quantity_change, "new_quantity": new_quantity},
+                extra={
+                    "quantity_change": quantity_change,
+                    "new_quantity": new_quantity,
+                },
             )
             return
 
         # Round to precision
-        new_quantity = round(
-            inventory.quantity + quantity_change, QUANTITY_PRECISION
-        )
+        new_quantity = round(inventory.quantity + quantity_change, QUANTITY_PRECISION)
         if new_quantity < 0:
             logger.warning(
                 f"Attempted negative inventory for product {product_id}. Current: {inventory.quantity}, Change: {quantity_change}, New: {new_quantity}",

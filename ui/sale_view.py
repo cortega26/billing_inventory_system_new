@@ -737,9 +737,10 @@ class SaleView(QWidget):
                         inventory = inventory_service.get_inventory(product.id)
                         current_stock = inventory.quantity if inventory else 0.0
                         if current_stock < 10:
-                            self.scan_warning_label.setText(
-                                f"⚠️ ¡Advertencia! El producto '{product.name}' tiene stock bajo. Disponible: {current_stock} unidades"
+                            warning = self._build_stock_warning(
+                                product.name, current_stock
                             )
+                            self.scan_warning_label.setText(warning)
                             self.scan_warning_label.setVisible(True)
                             QTimer.singleShot(
                                 5000, lambda: self.scan_warning_label.setVisible(False)
@@ -751,7 +752,7 @@ class SaleView(QWidget):
                             )
                             if callable(show_status_message):
                                 show_status_message(
-                                    f"⚠️ ¡Advertencia! El producto '{product.name}' tiene stock bajo. Disponible: {current_stock} unidades",
+                                    warning,
                                     10000,
                                 )
                     except Exception as e:
@@ -779,6 +780,12 @@ class SaleView(QWidget):
             )
         finally:
             self.barcode_input.clear()
+
+    def _build_stock_warning(self, product_name: str, current_stock: float) -> str:
+        return (
+            f"⚠️ ¡Advertencia! El producto '{product_name}' tiene stock bajo. "
+            f"Disponible: {current_stock} unidades"
+        )
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(

@@ -317,84 +317,83 @@ class ProductView(QWidget):
                 for row, product in enumerate(products):
                     logger.debug(f"Adding row {row}: Product ID={product.id}")
 
-                    try:
-                        assert product.id is not None
-                        self.product_table.setItem(
-                            row, 0, NumericTableWidgetItem(product.id)
-                        )
-                        self.product_table.setItem(
-                            row, 1, QTableWidgetItem(product.name)
-                        )
-                        self.product_table.setItem(
-                            row, 2, QTableWidgetItem(product.description or "")
-                        )
-                        self.product_table.setItem(
-                            row,
-                            3,
-                            QTableWidgetItem(product.category_name or "Sin Categoría"),
-                        )
-                        status_text = "Activo" if product.is_active else "Archivado"
-                        self.product_table.setItem(
-                            row, 4, QTableWidgetItem(status_text)
-                        )
-                        self.product_table.setItem(
-                            row,
-                            5,
-                            PriceTableWidgetItem(
-                                float(product.cost_price) if product.cost_price else 0,
-                                format_price,
-                            ),
-                        )
-                        self.product_table.setItem(
-                            row,
-                            6,
-                            PriceTableWidgetItem(
-                                float(product.sell_price) if product.sell_price else 0,
-                                format_price,
-                            ),
-                        )
-                        self.product_table.setItem(
-                            row,
-                            7,
-                            PercentageTableWidgetItem(
-                                float(product.calculate_profit_margin())
-                            ),
-                        )
+            for row, product in enumerate(products):
+                try:
+                    self._render_product_row(row, product)
+                except Exception as e:
+                    logger.warning(
+                        f"Skipping row {row} (product {product.id}): {str(e)}"
+                    )
+                    continue
 
-                        # Create action buttons
-                        edit_button = action_button(
-                            "Editar",
-                            lambda _, p=product: self.edit_product(p),
-                            height=24,
-                        )
+            # Adjust table display
+            self.product_table.resizeColumnsToContents()
+            self.product_table.horizontalHeader().setSectionResizeMode(
+                8, QHeaderView.ResizeMode.Stretch
+            )
 
-                        delete_label = "Eliminar" if product.is_active else "Restaurar"
-                        delete_button = action_button(
-                            delete_label,
-                            lambda _, p=product: self.delete_product(p),
-                            height=24,
-                        )
-
-                        self.product_table.setCellWidget(
-                            row, 8, build_actions_cell(edit_button, delete_button)
-                        )
-                        self.product_table.setRowHeight(row, 36)
-                    except Exception as e:
-                        logger.error(f"Error updating row {row}: {str(e)}")
-                        continue
-
-                # Adjust table display
-                self.product_table.resizeColumnsToContents()
-                self.product_table.horizontalHeader().setSectionResizeMode(
-                    8, QHeaderView.ResizeMode.Stretch
-                )
-
-                logger.info("Product table updated successfully")
+            logger.info("Product table updated successfully")
         except Exception as e:
             logger.error(f"Error updating product table: {str(e)}")
             raise UIException(
                 f"Error al actualizar la tabla de productos: {str(e)}"
             ) from e
+
+    def _render_product_row(self, row: int, product: Product) -> None:
+        """Render a single product row. Raises on failure (the caller skips it)."""
+        logger.debug(f"Adding row {row}: Product ID={product.id}")
+
+        assert product.id is not None
+        self.product_table.setItem(row, 0, NumericTableWidgetItem(product.id))
+        self.product_table.setItem(row, 1, QTableWidgetItem(product.name))
+        self.product_table.setItem(row, 2, QTableWidgetItem(product.description or ""))
+        self.product_table.setItem(
+            row,
+            3,
+            QTableWidgetItem(product.category_name or "Sin Categoría"),
+        )
+        status_text = "Activo" if product.is_active else "Archivado"
+        self.product_table.setItem(row, 4, QTableWidgetItem(status_text))
+        self.product_table.setItem(
+            row,
+            5,
+            PriceTableWidgetItem(
+                float(product.cost_price) if product.cost_price else 0,
+                format_price,
+            ),
+        )
+        self.product_table.setItem(
+            row,
+            6,
+            PriceTableWidgetItem(
+                float(product.sell_price) if product.sell_price else 0,
+                format_price,
+            ),
+        )
+        self.product_table.setItem(
+            row,
+            7,
+            PercentageTableWidgetItem(float(product.calculate_profit_margin())),
+        )
+
+        # Create action buttons
+        edit_button = action_button(
+            "Editar",
+            lambda _, p=product: self.edit_product(p),
+            height=24,
+        )
+
+        delete_label = "Eliminar" if product.is_active else "Restaurar"
+        delete_button = action_button(
+            delete_label,
+            lambda _, p=product: self.delete_product(p),
+            height=24,
+        )
+
+        self.product_table.setCellWidget(
+            row, 8, build_actions_cell(edit_button, delete_button)
+        )
+        self.product_table.setRowHeight(row, 36)
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(

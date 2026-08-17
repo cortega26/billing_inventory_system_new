@@ -245,14 +245,14 @@ class CustomerView(QWidget):
                 f"(populate_customer_table) Starting with {len(customers)} raw customers"
             )
 
-            # 1) Capture the current sorting state (column + order) if any
+            # Capture the current sorting state (column + order) if any
             prev_col = self.customer_table.horizontalHeader().sortIndicatorSection()
             prev_order = self.customer_table.horizontalHeader().sortIndicatorOrder()
 
-            # 2) Disable sorting while we repopulate rows
+            # Disable sorting while we repopulate rows
             self.customer_table.setSortingEnabled(False)
 
-            # 3) Deduplicate or transform as needed
+            # Deduplicate or transform as needed
             displayed_ids = set()
             unique_customers = []
             for cust in customers:
@@ -266,85 +266,26 @@ class CustomerView(QWidget):
                 f"(populate_customer_table) Unique customers count: {len(unique_customers)}"
             )
 
-            # 4) Clear old rows, set to new count
+            # Clear old rows, set to new count
             self.customer_table.setRowCount(0)
             self.customer_table.setRowCount(len(unique_customers))
 
-            # 5) Fill each row
+            # Fill each row
             for row, cust in enumerate(unique_customers):
                 try:
-                    total_purchases, total_amount = (
-                        self.customer_service.get_customer_stats(cust.id)
-                    )
-
-                    # Column 0: Customer ID
-                    self.customer_table.setItem(row, 0, NumericTableWidgetItem(cust.id))
-
-                    # Column 1: 9-digit Identifier
-                    self.customer_table.setItem(
-                        row, 1, QTableWidgetItem(cust.identifier_9)
-                    )
-
-                    # Column 2: 3 or 4-digit Identifier
-                    identifier_item = DepartmentIdentifierTableWidgetItem(
-                        cust.identifier_3or4 or "N/A"
-                    )
-                    self.customer_table.setItem(row, 2, identifier_item)
-
-                    # Column 3: Name
-                    name_item = QTableWidgetItem(cust.name or "")
-                    name_item.setToolTip(
-                        cust.name if cust.name else "No se proporcionó nombre"
-                    )
-                    self.customer_table.setItem(row, 3, name_item)
-
-                    # Column 4: Estado
-                    status_text = "Activo" if cust.is_active else "Archivado"
-                    self.customer_table.setItem(row, 4, QTableWidgetItem(status_text))
-
-                    # Column 5: Total Purchases
-                    self.customer_table.setItem(
-                        row, 5, NumericTableWidgetItem(total_purchases)
-                    )
-
-                    # Column 6: Total Amount
-                    self.customer_table.setItem(
-                        row, 6, PriceTableWidgetItem(total_amount, format_price)
-                    )
-
-                    # Column 7: Actions (Edit / Archive/Restore)
-                    edit_button = action_button(
-                        "Editar",
-                        lambda _, cid=cust.id: self.edit_customer_by_id(cid),
-                        height=24,
-                    )
-
-                    action_label = "Eliminar" if cust.is_active else "Restaurar"
-                    delete_button = action_button(
-                        action_label,
-                        lambda _, cid=cust.id: self.delete_customer_by_id(cid),
-                        height=24,
-                    )
-
-                    self.customer_table.setCellWidget(
-                        row, 7, build_actions_cell(edit_button, delete_button)
-                    )
-                    self.customer_table.setRowHeight(row, 36)
-
-                except Exception as row_error:
-                    logger.error(
-                        f"Error filling row {row} for customer {cust.id}: {row_error}"
-                    )
+                    self._render_customer_row(row, cust)
+                except Exception as e:
+                    logger.warning(f"Skipping row {row} (customer {cust.id}): {str(e)}")
                     continue
 
-            # 6) Resize columns for a neat look
+            # Resize columns for a neat look
             self.customer_table.resizeColumnsToContents()
 
-            # 7) Re-enable sorting
+            # Re-enable sorting
             self.customer_table.setSortingEnabled(True)
 
-            # 8) Restore the previous sort (column + order), so if the user
-            #    had it sorted by column #2 descending, it stays that way.
+            # Restore the previous sort (column + order), so if the user
+            # had it sorted by column #2 descending, it stays that way.
             self.customer_table.sortItems(prev_col, prev_order)
 
             logger.debug(
@@ -354,6 +295,59 @@ class CustomerView(QWidget):
         except Exception as e:
             logger.error(f"Error populating customer table: {str(e)}")
             raise UIException(f"Failed to populate customer table: {str(e)}") from e
+
+    def _render_customer_row(self, row: int, cust: Customer) -> None:
+        """Render a single customer row. Raises on failure (the caller skips it)."""
+        assert cust.id is not None
+        total_purchases, total_amount = self.customer_service.get_customer_stats(
+            cust.id
+        )
+
+        self.customer_table.setItem(row, 0, NumericTableWidgetItem(cust.id))
+
+        self.customer_table.setItem(row, 1, QTableWidgetItem(cust.identifier_9))
+
+        identifier_item = DepartmentIdentifierTableWidgetItem(
+            cust.identifier_3or4 or "N/A"
+        )
+        self.customer_table.setItem(row, 2, identifier_item)
+
+        name_item = QTableWidgetItem(cust.name or "")
+        name_item.setToolTip(cust.name if cust.name else "No se proporcionó nombre")
+        self.customer_table.setItem(row, 3, name_item)
+
+        status_text = "Activo" if cust.is_active else "Archivado"
+        self.customer_table.setItem(row, 4, QTableWidgetItem(status_text))
+
+        self.customer_table.setItem(row, 5, NumericTableWidgetItem(total_purchases))
+
+        self.customer_table.setItem(
+            row, 6, PriceTableWidgetItem(total_amount, format_price)
+        )
+
+        actions_widget = QWidget()
+        actions_layout = QHBoxLayout(actions_widget)
+        actions_layout.setContentsMargins(0, 0, 0, 0)
+        actions_layout.setSpacing(6)
+        actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        edit_button = action_button(
+            "Editar",
+            lambda _, cid=cust.id: self.edit_customer_by_id(cid),
+            height=24,
+        )
+
+        action_label = "Eliminar" if cust.is_active else "Restaurar"
+        delete_button = action_button(
+            action_label,
+            lambda _, cid=cust.id: self.delete_customer_by_id(cid),
+            height=24,
+        )
+
+        self.customer_table.setCellWidget(
+            row, 7, build_actions_cell(edit_button, delete_button)
+        )
+        self.customer_table.setRowHeight(row, 36)
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(

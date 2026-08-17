@@ -331,20 +331,7 @@ class DashboardView(QWidget):
             f"Causa: {skipped_reason if skipped_reason else '-'}"
         )
 
-        is_at_risk = False
-        if last_skipped:
-            if not last_success:
-                is_at_risk = True
-            else:
-                try:
-                    dt_success = datetime.fromisoformat(last_success)
-                    dt_skipped = datetime.fromisoformat(last_skipped)
-                    if dt_skipped > dt_success:
-                        is_at_risk = True
-                except Exception:
-                    pass
-
-        if is_at_risk:
+        if self._compute_backup_risk(last_success, last_skipped):
             self.backup_status_indicator.setText("⚠️ RIESGO: Backup Omitido/Fallido")
             self.backup_status_indicator.setStyleSheet(
                 "background-color: #3E2723; color: #E57373; font-weight: bold; font-size: 13px; padding: 6px; border-radius: 4px; border: 1px solid #E57373;"
@@ -354,6 +341,19 @@ class DashboardView(QWidget):
             self.backup_status_indicator.setStyleSheet(
                 "background-color: #1B5E20; color: #81C784; font-weight: bold; font-size: 13px; padding: 6px; border-radius: 4px; border: 1px solid #81C784;"
             )
+
+    def _compute_backup_risk(self, last_success: str, last_skipped: str) -> bool:
+        """Return True when the backup is at risk. Early-exits on the first decisive condition."""
+        if not last_skipped:
+            return False
+        if not last_success:
+            return True
+        try:
+            dt_success = datetime.fromisoformat(last_success)
+            dt_skipped = datetime.fromisoformat(last_skipped)
+        except Exception:
+            return False
+        return dt_skipped > dt_success
 
     @ui_operation()
     def update_low_stock(self):

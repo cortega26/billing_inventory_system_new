@@ -261,9 +261,7 @@ class SaleService:
             DatabaseManager.execute_query(
                 "DELETE FROM sale_items WHERE sale_id = ?", (sale_id,)
             )
-            DatabaseManager.execute_query(
-                "DELETE FROM sales WHERE id = ?", (sale_id,)
-            )
+            DatabaseManager.execute_query("DELETE FROM sales WHERE id = ?", (sale_id,))
         logger.info("Sale deleted", extra={"sale_id": sale_id})
         MutationCoordinator.finalize_mutation(
             entity_id=sale_id,

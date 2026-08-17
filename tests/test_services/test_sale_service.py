@@ -140,9 +140,11 @@ class TestSaleService:
     ):
         DatabaseManager.execute_query("DROP TABLE sale_items")
 
-        with caplog.at_level(logging.ERROR):
-            with pytest.raises(DatabaseException) as excinfo:
-                sale_service.create_sale(**sample_sale_data)
+        with (
+            caplog.at_level(logging.ERROR),
+            pytest.raises(DatabaseException) as excinfo,
+        ):
+            sale_service.create_sale(**sample_sale_data)
 
         assert "Failed to create sale:" not in str(excinfo.value)
         error_messages = [
@@ -151,7 +153,9 @@ class TestSaleService:
             if record.levelno >= logging.ERROR and "create_sale" in record.getMessage()
         ]
         assert len(error_messages) == 2
-        assert all("Failed to create sale:" not in message for message in error_messages)
+        assert all(
+            "Failed to create sale:" not in message for message in error_messages
+        )
 
     def test_create_sale_invalid_quantity(self, sale_service, sample_sale_data):
         sample_sale_data["items"][0]["quantity"] = -1

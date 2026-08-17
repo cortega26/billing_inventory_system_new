@@ -1,63 +1,42 @@
-from services.analytics.contracts import Metric
+from services.analytics.contracts import DateRangeMetric, Metric
 from utils.validation.validators import (
-    validate_date,
     validate_float_non_negative,
     validate_integer,
 )
 
+DATE_RANGE_STATUS_PREDICATE = (
+    "date >= ? AND date < date(?, '+1 day') AND status = 'confirmed'"
+)
+DATE_RANGE_STATUS_PREDICATE_ALIASED = (
+    "s.date >= ? AND s.date < date(?, '+1 day') AND s.status = 'confirmed'"
+)
 
-class SalesDailyMetric(Metric):
+
+class SalesDailyMetric(DateRangeMetric):
     @property
     def name(self) -> str:
         return "sales_daily"
 
-    @property
-    def description(self) -> str:
-        return "Daily sales aggregation (revenue and count) for a given date range."
-
-    @property
-    def output_schema(self) -> dict[str, type]:
-        return {"date": str, "total_sales": int, "sale_count": int}
-
-    def validate_params(self, **kwargs) -> None:
-        validate_date(kwargs["start_date"])
-        validate_date(kwargs["end_date"])
-
     def get_query(self, **kwargs) -> str:
-        return """
+        return f"""
             SELECT
                 strftime('%Y-%m-%d', date) as date,
                 SUM(total_amount) as total_sales,
                 COUNT(*) as sale_count
             FROM sales
-            WHERE date >= ? AND date < date(?, '+1 day') AND status = 'confirmed'
+            WHERE {DATE_RANGE_STATUS_PREDICATE}
             GROUP BY strftime('%Y-%m-%d', date)
             ORDER BY date ASC
         """
 
-    def get_parameters(self, **kwargs) -> tuple:
-        return (kwargs["start_date"], kwargs["end_date"])
 
-
-class WeekdaySalesMetric(Metric):
+class WeekdaySalesMetric(DateRangeMetric):
     @property
     def name(self) -> str:
         return "sales_weekday"
 
-    @property
-    def description(self) -> str:
-        return "Sales aggregation grouped by weekday for a given date range."
-
-    @property
-    def output_schema(self) -> dict[str, type]:
-        return {"weekday": str, "total_sales": int, "sale_count": int}
-
-    def validate_params(self, **kwargs) -> None:
-        validate_date(kwargs["start_date"])
-        validate_date(kwargs["end_date"])
-
     def get_query(self, **kwargs) -> str:
-        return """
+        return f"""
             SELECT
                 CASE CAST(strftime('%w', date) AS INTEGER)
                     WHEN 0 THEN 'Sunday'
@@ -71,41 +50,23 @@ class WeekdaySalesMetric(Metric):
                 SUM(total_amount) as total_sales,
                 COUNT(*) as sale_count
             FROM sales
-            WHERE date >= ? AND date < date(?, '+1 day') AND status = 'confirmed'
+            WHERE {DATE_RANGE_STATUS_PREDICATE}
             GROUP BY CAST(strftime('%w', date) AS INTEGER)
             ORDER BY CAST(strftime('%w', date) AS INTEGER)
         """
 
-    def get_parameters(self, **kwargs) -> tuple:
-        return (kwargs["start_date"], kwargs["end_date"])
 
-
-class TopProductsMetric(Metric):
+class TopProductsMetric(DateRangeMetric):
     @property
     def name(self) -> str:
         return "top_products"
 
-    @property
-    def description(self) -> str:
-        return "Top selling products by quantity sold within a date range."
-
-    @property
-    def output_schema(self) -> dict[str, type]:
-        return {
-            "product_id": int,
-            "name": str,
-            "total_quantity": float,
-            "total_revenue": int,
-            "sale_count": int,
-        }
-
     def validate_params(self, **kwargs) -> None:
-        validate_date(kwargs["start_date"])
-        validate_date(kwargs["end_date"])
+        super().validate_params(**kwargs)
         validate_integer(kwargs.get("limit", 10), min_value=1)
 
     def get_query(self, **kwargs) -> str:
-        return """
+        return f"""
             SELECT
                 p.id as product_id,
                 p.name,
@@ -115,7 +76,7 @@ class TopProductsMetric(Metric):
             FROM products p
             JOIN sale_items si ON p.id = si.product_id
             JOIN sales s ON si.sale_id = s.id
-            WHERE s.date >= ? AND s.date < date(?, '+1 day') AND s.status = 'confirmed'
+            WHERE {DATE_RANGE_STATUS_PREDICATE_ALIASED}
             GROUP BY p.id
             ORDER BY total_quantity DESC
             LIMIT ?
@@ -129,14 +90,6 @@ class LowStockMetric(Metric):
     @property
     def name(self) -> str:
         return "low_stock"
-
-    @property
-    def description(self) -> str:
-        return "Products with inventory quantity below a specified threshold."
-
-    @property
-    def output_schema(self) -> dict[str, type]:
-        return {"product_id": int, "name": str, "quantity": float}
 
     def validate_params(self, **kwargs) -> None:
         validate_float_non_negative(kwargs.get("threshold", 10))
@@ -161,19 +114,6 @@ class InventoryAgingMetric(Metric):
     @property
     def name(self) -> str:
         return "inventory_aging"
-
-    @property
-    def description(self) -> str:
-        return "Products with positive stock that haven't been sold in the last N days."
-
-    @property
-    def output_schema(self) -> dict[str, type]:
-        return {
-            "product_id": int,
-            "name": str,
-            "stock_quantity": float,
-            "last_sold_date": str,
-        }
 
     def validate_params(self, **kwargs) -> None:
         validate_integer(kwargs.get("days", 30), min_value=0)
@@ -202,30 +142,13 @@ class InventoryAgingMetric(Metric):
         return (str(kwargs.get("days", 30)),)
 
 
-class DepartmentSalesMetric(Metric):
+class DepartmentSalesMetric(DateRangeMetric):
     @property
     def name(self) -> str:
         return "department_sales"
 
-    @property
-    def description(self) -> str:
-        return "Sales performance grouped by category (department) for a date range."
-
-    @property
-    def output_schema(self) -> dict[str, type]:
-        return {
-            "category": str,
-            "total_sales": int,
-            "units_sold": float,
-            "sale_count": int,
-        }
-
-    def validate_params(self, **kwargs) -> None:
-        validate_date(kwargs["start_date"])
-        validate_date(kwargs["end_date"])
-
     def get_query(self, **kwargs) -> str:
-        return """
+        return f"""
             SELECT
                 COALESCE(c.name, 'Uncategorized') as category,
                 CAST(SUM(ROUND(si.quantity * si.price)) AS INTEGER) as total_sales,
@@ -235,115 +158,60 @@ class DepartmentSalesMetric(Metric):
             LEFT JOIN categories c ON p.category_id = c.id
             JOIN sale_items si ON p.id = si.product_id
             JOIN sales s ON si.sale_id = s.id
-            WHERE s.date >= ? AND s.date < date(?, '+1 day') AND s.status = 'confirmed'
+            WHERE {DATE_RANGE_STATUS_PREDICATE_ALIASED}
             GROUP BY c.id
             ORDER BY total_sales DESC
         """
 
-    def get_parameters(self, **kwargs) -> tuple:
-        return (kwargs["start_date"], kwargs["end_date"])
 
-
-class ProfitTrendMetric(Metric):
+class ProfitTrendMetric(DateRangeMetric):
     @property
     def name(self) -> str:
         return "profit_trend"
 
-    @property
-    def description(self) -> str:
-        return "Daily revenue and profit trend for a given date range."
-
-    @property
-    def output_schema(self) -> dict[str, type]:
-        return {
-            "date": str,
-            "daily_revenue": int,
-            "daily_profit": int,
-            "sale_count": int,
-        }
-
-    def validate_params(self, **kwargs) -> None:
-        validate_date(kwargs["start_date"])
-        validate_date(kwargs["end_date"])
-
     def get_query(self, **kwargs) -> str:
-        return """
+        return f"""
             SELECT
                 strftime('%Y-%m-%d', date) as date,
                 SUM(total_amount) as daily_revenue,
                 SUM(total_profit) as daily_profit,
                 COUNT(*) as sale_count
             FROM sales
-            WHERE date >= ? AND date < date(?, '+1 day') AND status = 'confirmed'
+            WHERE {DATE_RANGE_STATUS_PREDICATE}
             GROUP BY strftime('%Y-%m-%d', date)
             ORDER BY strftime('%Y-%m-%d', date)
         """
 
-    def get_parameters(self, **kwargs) -> tuple:
-        return (kwargs["start_date"], kwargs["end_date"])
 
-
-class WeeklyProfitTrendMetric(Metric):
+class WeeklyProfitTrendMetric(DateRangeMetric):
     @property
     def name(self) -> str:
         return "weekly_profit_trend"
 
-    @property
-    def description(self) -> str:
-        return "Weekly profit trend with a representative week start date."
-
-    @property
-    def output_schema(self) -> dict[str, type]:
-        return {"week": str, "week_start": str, "weekly_profit": int}
-
-    def validate_params(self, **kwargs) -> None:
-        validate_date(kwargs["start_date"])
-        validate_date(kwargs["end_date"])
-
     def get_query(self, **kwargs) -> str:
-        return """
+        return f"""
             SELECT
                 strftime('%Y-%W', date) as week,
                 MIN(date(date)) as week_start,
                 SUM(total_profit) as weekly_profit
             FROM sales
-            WHERE date >= ? AND date < date(?, '+1 day') AND status = 'confirmed'
+            WHERE {DATE_RANGE_STATUS_PREDICATE}
             GROUP BY week
             ORDER BY week
         """
 
-    def get_parameters(self, **kwargs) -> tuple:
-        return (kwargs["start_date"], kwargs["end_date"])
 
-
-class ProductProfitMetric(Metric):
+class ProductProfitMetric(DateRangeMetric):
     @property
     def name(self) -> str:
         return "product_profit"
 
-    @property
-    def description(self) -> str:
-        return "Product profit analytics with revenue, cost, profit, volume, and sale count."
-
-    @property
-    def output_schema(self) -> dict[str, type]:
-        return {
-            "product_id": int,
-            "name": str,
-            "total_revenue": int,
-            "total_cost": int,
-            "total_profit": int,
-            "sales_volume": float,
-            "sale_count": int,
-        }
-
     def validate_params(self, **kwargs) -> None:
-        validate_date(kwargs["start_date"])
-        validate_date(kwargs["end_date"])
+        super().validate_params(**kwargs)
         validate_integer(kwargs.get("limit", 10), min_value=1)
 
     def get_query(self, **kwargs) -> str:
-        return """
+        return f"""
             SELECT
                 p.id as product_id,
                 p.name,
@@ -355,7 +223,7 @@ class ProductProfitMetric(Metric):
             FROM products p
             JOIN sale_items si ON p.id = si.product_id
             JOIN sales s ON si.sale_id = s.id
-            WHERE s.date >= ? AND s.date < date(?, '+1 day') AND s.status = 'confirmed'
+            WHERE {DATE_RANGE_STATUS_PREDICATE_ALIASED}
             GROUP BY p.id
             ORDER BY total_profit DESC
             LIMIT ?
@@ -365,30 +233,13 @@ class ProductProfitMetric(Metric):
         return (kwargs["start_date"], kwargs["end_date"], kwargs.get("limit", 10))
 
 
-class ProfitMarginDistributionMetric(Metric):
+class ProfitMarginDistributionMetric(DateRangeMetric):
     @property
     def name(self) -> str:
         return "profit_margin_distribution"
 
-    @property
-    def description(self) -> str:
-        return "Distribution of products by profit margin range for a date range."
-
-    @property
-    def output_schema(self) -> dict[str, type]:
-        return {
-            "margin_range": str,
-            "product_count": int,
-            "average_margin": float,
-            "total_sales": int,
-        }
-
-    def validate_params(self, **kwargs) -> None:
-        validate_date(kwargs["start_date"])
-        validate_date(kwargs["end_date"])
-
     def get_query(self, **kwargs) -> str:
-        return """
+        return f"""
             SELECT
                 CASE
                     WHEN profit_margin < 0 THEN 'Loss'
@@ -416,7 +267,7 @@ class ProfitMarginDistributionMetric(Metric):
                 FROM products p
                 JOIN sale_items si ON p.id = si.product_id
                 JOIN sales s ON si.sale_id = s.id
-                WHERE s.date >= ? AND s.date < date(?, '+1 day') AND s.status = 'confirmed'
+                WHERE {DATE_RANGE_STATUS_PREDICATE_ALIASED}
                 GROUP BY p.id
             ) as product_margins
             GROUP BY margin_range
@@ -431,35 +282,14 @@ class ProfitMarginDistributionMetric(Metric):
                 END
         """
 
-    def get_parameters(self, **kwargs) -> tuple:
-        return (kwargs["start_date"], kwargs["end_date"])
 
-
-class SalesSummaryMetric(Metric):
+class SalesSummaryMetric(DateRangeMetric):
     @property
     def name(self) -> str:
         return "sales_summary"
 
-    @property
-    def description(self) -> str:
-        return "Summary sales metrics for a date range."
-
-    @property
-    def output_schema(self) -> dict[str, type]:
-        return {
-            "total_sales": int,
-            "total_revenue": int,
-            "total_profit": int,
-            "average_sale_value": int,
-            "unique_customers": int,
-        }
-
-    def validate_params(self, **kwargs) -> None:
-        validate_date(kwargs["start_date"])
-        validate_date(kwargs["end_date"])
-
     def get_query(self, **kwargs) -> str:
-        return """
+        return f"""
             SELECT
                 COUNT(*) as total_sales,
                 COALESCE(SUM(total_amount), 0) as total_revenue,
@@ -467,8 +297,5 @@ class SalesSummaryMetric(Metric):
                 COALESCE(ROUND(AVG(total_amount)), 0) as average_sale_value,
                 COUNT(DISTINCT customer_id) as unique_customers
             FROM sales
-            WHERE date >= ? AND date < date(?, '+1 day') AND status = 'confirmed'
+            WHERE {DATE_RANGE_STATUS_PREDICATE}
         """
-
-    def get_parameters(self, **kwargs) -> tuple:
-        return (kwargs["start_date"], kwargs["end_date"])

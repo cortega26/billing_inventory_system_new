@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
 
+from utils.validation.validators import validate_date
+
 
 @dataclass
 class MetricResult:
@@ -20,18 +22,6 @@ class Metric(ABC):
         """Unique identifier for the metric."""
         pass
 
-    @property
-    @abstractmethod
-    def description(self) -> str:
-        """Human-readable description of what the metric calculates."""
-        pass
-
-    @property
-    @abstractmethod
-    def output_schema(self) -> dict[str, type]:
-        """Expected output fields and their types."""
-        pass
-
     @abstractmethod
     def get_query(self, **kwargs) -> str:
         """Returns the SQL query to execute."""
@@ -46,3 +36,14 @@ class Metric(ABC):
     def validate_params(self, **kwargs) -> None:
         """Optional hook to validate parameters before execution."""
         pass
+
+
+class DateRangeMetric(Metric):
+    """Base for metrics filtered by an inclusive start_date/end_date pair."""
+
+    def validate_params(self, **kwargs) -> None:
+        validate_date(kwargs["start_date"])
+        validate_date(kwargs["end_date"])
+
+    def get_parameters(self, **kwargs) -> tuple:
+        return (kwargs["start_date"], kwargs["end_date"])

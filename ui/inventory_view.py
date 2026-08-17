@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 from services.category_service import CategoryService
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
+from ui.styles import DesignTokens
 from utils.decorators import handle_exceptions, ui_operation
 from utils.exceptions import DatabaseException, UIException, ValidationException
 from utils.helpers import create_table, show_error_message, show_info_message
@@ -298,8 +299,6 @@ class InventoryView(QWidget):
         if not found:
             # Maybe it's not in current filtered list but exists?
             # Or assume we just search the table.
-            from ui.styles import DesignTokens
-
             self.barcode_input.setStyleSheet(
                 f"background-color: {DesignTokens.COLOR_ERROR_BG};"
             )

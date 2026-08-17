@@ -232,8 +232,6 @@ class EditSaleDialog(QDialog):
                     self.add_item(dialog.get_item_data())
                 self.barcode_input.clear()
             else:
-                from ui.styles import DesignTokens
-
                 self.barcode_input.setStyleSheet(
                     f"background-color: {DesignTokens.COLOR_ERROR_BG};"
                 )
@@ -801,8 +799,6 @@ class SaleView(QWidget):
                 self.barcode_input.setFocus()
             else:
                 # Visual feedback for error
-                from ui.styles import DesignTokens
-
                 self.barcode_input.setStyleSheet(
                     f"background-color: {DesignTokens.COLOR_ERROR_BG};"
                 )

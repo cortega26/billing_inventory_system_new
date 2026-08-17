@@ -11,7 +11,7 @@ from PySide6.QtCharts import (
     QValueAxis,
 )
 from PySide6.QtCore import QDate, QMargins, Qt
-from PySide6.QtGui import QPainter
+from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -28,6 +28,7 @@ from services.customer_service import CustomerService
 from services.inventory_service import InventoryService
 from services.purchase_service import PurchaseService
 from services.sale_service import SaleService
+from ui.styles import DesignTokens
 from utils.decorators import ui_operation
 from utils.exceptions import UIException
 from utils.helpers import create_table
@@ -356,10 +357,6 @@ class DashboardView(QWidget):
 
                 # Highlight critical stock
                 if item["quantity"] <= 3:
-                    from PySide6.QtGui import QColor
-
-                    from ui.styles import DesignTokens
-
                     for col in range(3):
                         item_widget = self.low_stock_table.item(row, col)
                         if item_widget is None:

@@ -1,11 +1,14 @@
-import re
 from typing import Any
 
 import sqlalchemy as sa
 from pydantic import PrivateAttr, model_validator
 from sqlmodel import Field, SQLModel
 
-from utils.exceptions import ValidationException
+from utils.validation.validators import (
+    validate_3or4digit_identifier,
+    validate_9digit_identifier,
+    validate_string,
+)
 
 
 class Customer(SQLModel, table=True):
@@ -99,48 +102,22 @@ class Customer(SQLModel, table=True):
         """
         Validate 9-digit identifier.
         """
-        if (
-            not isinstance(identifier, str)
-            or len(identifier) != 9
-            or not identifier.isdigit()
-            or not identifier.startswith("9")
-        ):
-            raise ValidationException("identifier_9 must be a string of 9 digits")
+        validate_9digit_identifier(identifier)
 
     @staticmethod
     def validate_identifier_3or4(identifier: str | None) -> None:
         """
         Validate 3 or 4-digit identifier.
         """
-        if identifier is not None and (
-            not isinstance(identifier, str)
-            or len(identifier) not in (3, 4)
-            or not identifier.isdigit()
-            or identifier.startswith("0")
-        ):
-            raise ValidationException(
-                "identifier_3or4 must be a string of 3 or 4 digits"
-            )
+        if identifier is not None:
+            validate_3or4digit_identifier(identifier)
 
     @staticmethod
     def validate_name(name: str) -> None:
         """
         Validate customer name.
         """
-        if not isinstance(name, str):
-            raise ValidationException("Name must be a string")
-
-        # Remove extra whitespace and normalize
-        name_clean = " ".join(name.split())
-
-        if len(name_clean) > 50:
-            raise ValidationException("Name cannot exceed 50 characters")
-
-        # Validate that name contains only letters, spaces, and Spanish characters
-        if not re.match(r"^[A-Za-zÁÉÍÓÚÑáéíóúñ ]+$", name_clean):
-            raise ValidationException(
-                "Name can only contain letters, accented characters, and spaces"
-            )
+        validate_string(name, min_length=1, max_length=50)
 
     def update_identifier_3or4(self, new_identifier_3or4: str | None) -> None:
         """

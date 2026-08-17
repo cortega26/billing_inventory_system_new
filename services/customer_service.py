@@ -60,9 +60,7 @@ class CustomerService:
             customer_id = cursor.lastrowid
 
             if customer_id is None:
-                raise DatabaseException(
-                    "Failed to get new customer ID after insert."
-                )
+                raise DatabaseException("Failed to get new customer ID after insert.")
 
             self._set_identifier_3or4(customer_id, identifier_3or4)
             AuditService.log_operation(

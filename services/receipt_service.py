@@ -113,5 +113,3 @@ class ReceiptService:
         cursor = DatabaseManager.execute_query(query, (receipt_id, sale_id))
         if cursor.rowcount == 0:
             raise NotFoundException(f"Sale with ID {sale_id} not found")
-
-

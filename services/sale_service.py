@@ -113,7 +113,9 @@ class SaleService:
             ]
             DatabaseManager.executemany(items_query, batch_params)
 
-            receipt_id = self.receipt_service.generate_receipt_id(datetime.strptime(sale_date_str, "%Y-%m-%d"))
+            receipt_id = self.receipt_service.generate_receipt_id(
+                datetime.strptime(sale_date_str, "%Y-%m-%d")
+            )
             update_query = """
                 UPDATE sales
                 SET total_amount = ?, total_profit = ?, receipt_id = ?
@@ -121,7 +123,6 @@ class SaleService:
             """
             DatabaseManager.execute_query(
                 update_query, (total_amount, total_profit, receipt_id, sale_id)
-
             )
 
             InventoryService.apply_batch_updates(

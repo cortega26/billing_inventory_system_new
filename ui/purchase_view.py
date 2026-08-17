@@ -1,5 +1,3 @@
-from typing import Any
-
 from PySide6.QtCore import QDate, Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (

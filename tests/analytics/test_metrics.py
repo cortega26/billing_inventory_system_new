@@ -5,6 +5,8 @@ import pytest
 
 from services.analytics.engine import AnalyticsEngine
 from services.analytics.metrics import (
+    DATE_RANGE_STATUS_PREDICATE,
+    DATE_RANGE_STATUS_PREDICATE_ALIASED,
     DepartmentSalesMetric,
     InventoryAgingMetric,
     LowStockMetric,
@@ -108,6 +110,11 @@ def engine(analytics_db_path):
 
 
 # --- Tests ---
+
+
+def test_date_range_status_predicates_contain_three_placeholders():
+    assert DATE_RANGE_STATUS_PREDICATE.count("?") == 3
+    assert DATE_RANGE_STATUS_PREDICATE_ALIASED.count("?") == 3
 
 
 def test_sales_daily(engine):

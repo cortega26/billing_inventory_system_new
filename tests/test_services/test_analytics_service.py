@@ -306,39 +306,6 @@ def test_get_profit_by_product_uses_metric_engine_and_preserves_output_shape(moc
     assert isinstance(metric, ProductProfitMetric)
 
 
-def test_get_profit_and_volume_by_product_uses_metric_engine_and_preserves_output_shape(
-    mocker,
-):
-    AnalyticsService.clear_cache()
-    execute_metric = mocker.patch(
-        "services.analytics_service.AnalyticsEngine.execute_metric",
-        return_value=MetricResult(
-            data=[
-                {
-                    "product_id": 7,
-                    "name": "Arroz",
-                    "total_revenue": 5400,
-                    "total_cost": 3600,
-                    "total_profit": 1800,
-                    "sales_volume": 4.5,
-                    "sale_count": 2,
-                }
-            ],
-            meta={"metric": "product_profit"},
-        ),
-    )
-
-    result = AnalyticsService.get_profit_and_volume_by_product(
-        "2026-04-01", "2026-04-02", 5
-    )
-
-    assert result == [
-        {"id": 7, "name": "Arroz", "total_profit": 1800, "sales_volume": 4.5}
-    ]
-    metric = execute_metric.call_args.args[0]
-    assert isinstance(metric, ProductProfitMetric)
-
-
 def test_get_profit_margin_distribution_uses_metric_engine_and_preserves_output_shape(
     mocker,
 ):

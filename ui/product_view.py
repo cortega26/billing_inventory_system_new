@@ -367,9 +367,7 @@ class ProductView(QWidget):
                             height=24,
                         )
 
-                        delete_label = (
-                            "Eliminar" if product.is_active else "Restaurar"
-                        )
+                        delete_label = "Eliminar" if product.is_active else "Restaurar"
                         delete_button = action_button(
                             delete_label,
                             lambda _, p=product: self.delete_product(p),

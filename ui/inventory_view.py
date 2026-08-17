@@ -31,7 +31,11 @@ from utils.helpers import (
     show_info_message,
     wait_cursor,
 )
-from utils.ui.table_items import NumericTableWidgetItem, action_button, build_actions_cell
+from utils.ui.table_items import (
+    NumericTableWidgetItem,
+    action_button,
+    build_actions_cell,
+)
 
 
 class EditInventoryDialog(QDialog):
@@ -250,9 +254,7 @@ class InventoryView(QWidget):
             )
 
             # Actions
-            edit_btn = action_button(
-                "Editar", lambda _, i=item: self.edit_inventory(i)
-            )
+            edit_btn = action_button("Editar", lambda _, i=item: self.edit_inventory(i))
             self.inventory_table.setCellWidget(row, 5, build_actions_cell(edit_btn))
             self.inventory_table.setRowHeight(row, 36)
 

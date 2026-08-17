@@ -34,7 +34,6 @@ from utils.helpers import (
     format_price,
     show_error_message,
     show_info_message,
-    wait_cursor,
 )
 from utils.system.logger import logger
 from utils.ui.sound import SoundEffect

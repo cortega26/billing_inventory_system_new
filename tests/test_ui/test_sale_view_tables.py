@@ -59,6 +59,38 @@ def test_update_sale_total_label_uses_clp_rounding(qtbot):
     assert total_label.text() == f"Total: {format_price(2236)}"
 
 
+def test_render_sale_item_row_rounds_half_up_like_services(qtbot):
+    table = create_table(["ID", "Producto", "Cantidad", "Precio", "Total", "Acciones"])
+    qtbot.addWidget(table)
+    table.setRowCount(1)
+
+    render_sale_item_row(
+        table,
+        0,
+        {
+            "product_id": 7,
+            "product_name": "Arroz",
+            "quantity": 0.5,
+            "sell_price": 1501,
+        },
+        lambda _row: None,
+    )
+
+    assert table.item(0, 4).text() == format_price(751)
+
+
+def test_update_sale_total_label_rounds_half_up_like_services(qtbot):
+    total_label = QLabel()
+    qtbot.addWidget(total_label)
+
+    update_sale_total_label(
+        total_label,
+        [{"quantity": 0.5, "sell_price": 1501}],
+    )
+
+    assert total_label.text() == f"Total: {format_price(751)}"
+
+
 def test_render_sale_history_row_handles_deleted_customer_and_action_buttons(qtbot):
     table = create_table(
         [

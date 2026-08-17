@@ -911,8 +911,8 @@ class SaleView(QWidget):
                 item["quantity"] = new_qty
                 product = self.product_service.get_product(item["product_id"])
                 if product and product.cost_price is not None:
-                    item["profit"] = int(
-                        round(new_qty * (item["sell_price"] - product.cost_price))
+                    item["profit"] = FinancialCalculator.calculate_item_profit(
+                        new_qty, item["sell_price"], product.cost_price
                     )
                 self.update_sale_items_table()
                 self.sale_items_table.selectRow(row)

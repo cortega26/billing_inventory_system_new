@@ -37,17 +37,6 @@ TABLE_COUNT_QUERIES = {
     "purchase_items": "SELECT COUNT(*) AS count FROM purchase_items",
 }
 
-TABLE_TOTAL_QUERIES = {
-    "customers": "SELECT COUNT(*) FROM customers",
-    "customer_identifiers": "SELECT COUNT(*) FROM customer_identifiers",
-    "products": "SELECT COUNT(*) FROM products",
-    "inventory": "SELECT COUNT(*) FROM inventory",
-    "sales": "SELECT COUNT(*) FROM sales",
-    "sale_items": "SELECT COUNT(*) FROM sale_items",
-    "purchases": "SELECT COUNT(*) FROM purchases",
-    "purchase_items": "SELECT COUNT(*) FROM purchase_items",
-}
-
 
 def _get_primary_table_counts() -> dict[str, int]:
     counts = {}
@@ -64,7 +53,7 @@ def _count_records_in_database_file(db_path: Path) -> int:
         cursor = connection.cursor()
         for table in STARTUP_GUARD_TABLES:
             try:
-                cursor.execute(TABLE_TOTAL_QUERIES[table])
+                cursor.execute(TABLE_COUNT_QUERIES[table])
                 total += int(cursor.fetchone()[0])
             except sqlite3.Error:
                 continue

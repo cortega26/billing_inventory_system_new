@@ -2,7 +2,7 @@ import json
 from typing import Any
 
 from database.database_manager import DatabaseManager
-from utils.exceptions import DatabaseException, ValidationException
+from utils.exceptions import ValidationException
 
 
 class AuditService:
@@ -59,12 +59,7 @@ class AuditService:
             {where_clause}
             ORDER BY id
         """  # nosec B608
-        try:
-            return DatabaseManager.fetch_all(query, tuple(params))
-        except Exception as e:
-            raise DatabaseException(
-                f"Failed to fetch audit log entries: {str(e)}"
-            ) from e
+        return DatabaseManager.fetch_all(query, tuple(params))
 
     @staticmethod
     def search_entries(
@@ -123,9 +118,4 @@ class AuditService:
         """  # nosec B608
         params.append(normalized_limit)
 
-        try:
-            return DatabaseManager.fetch_all(query, tuple(params))
-        except Exception as e:
-            raise DatabaseException(
-                f"Failed to search audit log entries: {str(e)}"
-            ) from e
+        return DatabaseManager.fetch_all(query, tuple(params))

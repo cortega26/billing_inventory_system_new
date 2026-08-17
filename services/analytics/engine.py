@@ -51,25 +51,20 @@ class AnalyticsEngine:
         Returns:
             MetricResult containing the data rows and metadata.
         """
-        try:
-            metric.validate_params(**kwargs)
-            query = metric.get_query(**kwargs)
-            params = metric.get_parameters(**kwargs)
+        metric.validate_params(**kwargs)
+        query = metric.get_query(**kwargs)
+        params = metric.get_parameters(**kwargs)
 
-            logger.info(f"Executing metric: {metric.name}")
+        logger.info(f"Executing metric: {metric.name}")
 
-            with self._get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute(query, params)
-                rows = cursor.fetchall()
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
 
-                data = [dict(row) for row in rows]
+            data = [dict(row) for row in rows]
 
-                return MetricResult(
-                    data=data,
-                    meta={"metric": metric.name, "count": len(data), "params": kwargs},
-                )
-
-        except Exception as e:
-            logger.error(f"Error executing metric {metric.name}: {e}")
-            raise
+            return MetricResult(
+                data=data,
+                meta={"metric": metric.name, "count": len(data), "params": kwargs},
+            )

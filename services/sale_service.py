@@ -71,91 +71,84 @@ class SaleService:
         3) Calculate final totals, generate receipt_id, and update 'sales' row.
         4) Emit sale_added event so UI (Sales Tab) refreshes automatically.
         """
-        try:
-            customer_id = validate_integer(customer_id, min_value=1)
-            sale_date_str = (
-                validate_date(date) if date else datetime.now().strftime("%Y-%m-%d")
-            )
-            self._validate_sale_items(items)
+        customer_id = validate_integer(customer_id, min_value=1)
+        sale_date_str = (
+            validate_date(date) if date else datetime.now().strftime("%Y-%m-%d")
+        )
+        self._validate_sale_items(items)
 
-            total_amount = sum(
-                FinancialCalculator.calculate_item_total(
-                    item["quantity"], item["sell_price"]
+        total_amount = sum(
+            FinancialCalculator.calculate_item_total(
+                item["quantity"], item["sell_price"]
+            )
+            for item in items
+        )
+        total_profit = sum(int(item["profit"]) for item in items)
+
+        with DatabaseManager.transaction():
+            insert_query = """
+                INSERT INTO sales (customer_id, date, total_amount, total_profit)
+                VALUES (?, ?, 0, 0)
+            """
+            cursor = DatabaseManager.execute_query(
+                insert_query, (customer_id, sale_date_str)
+            )
+            sale_id = cursor.lastrowid
+            if sale_id is None:
+                raise DatabaseException("Failed to get new sale ID after insert.")
+
+            items_query = """
+                INSERT INTO sale_items (sale_id, product_id, quantity, price, profit)
+                VALUES (?, ?, ?, ?, ?)
+            """
+            batch_params = [
+                (
+                    sale_id,
+                    int(item["product_id"]),
+                    float(item["quantity"]),
+                    int(item["sell_price"]),
+                    int(item["profit"]),
                 )
                 for item in items
-            )
-            total_profit = sum(int(item["profit"]) for item in items)
+            ]
+            DatabaseManager.executemany(items_query, batch_params)
 
-            with DatabaseManager.transaction():
-                insert_query = """
-                    INSERT INTO sales (customer_id, date, total_amount, total_profit)
-                    VALUES (?, ?, 0, 0)
-                """
-                cursor = DatabaseManager.execute_query(
-                    insert_query, (customer_id, sale_date_str)
-                )
-                sale_id = cursor.lastrowid
-                if sale_id is None:
-                    raise DatabaseException("Failed to get new sale ID after insert.")
-
-                items_query = """
-                    INSERT INTO sale_items (sale_id, product_id, quantity, price, profit)
-                    VALUES (?, ?, ?, ?, ?)
-                """
-                batch_params = [
-                    (
-                        sale_id,
-                        int(item["product_id"]),
-                        float(item["quantity"]),
-                        int(item["sell_price"]),
-                        int(item["profit"]),
-                    )
-                    for item in items
-                ]
-                DatabaseManager.executemany(items_query, batch_params)
-
-                receipt_id = self._build_receipt_id(sale_date_str)
-                update_query = """
-                    UPDATE sales
-                    SET total_amount = ?, total_profit = ?, receipt_id = ?
-                    WHERE id = ?
-                """
-                DatabaseManager.execute_query(
-                    update_query, (total_amount, total_profit, receipt_id, sale_id)
-                )
-
-                InventoryService.apply_batch_updates(
-                    items, multiplier=-1.0, emit_events=False
-                )
-                AuditService.log_operation(
-                    "create_sale",
-                    "sale",
-                    sale_id,
-                    {
-                        "customer_id": customer_id,
-                        "date": sale_date_str,
-                        "item_count": len(items),
-                        "product_ids": get_product_ids_from_items(items),
-                        "total_amount": total_amount,
-                        "total_profit": total_profit,
-                        "receipt_id": receipt_id,
-                    },
-                )
-
-            MutationCoordinator.finalize_mutation(
-                entity_id=sale_id,
-                items=items,
-                signal=event_system.sale_added,
-                service_cache_clear_fn=self.clear_cache,
+            receipt_id = self._build_receipt_id(sale_date_str)
+            update_query = """
+                UPDATE sales
+                SET total_amount = ?, total_profit = ?, receipt_id = ?
+                WHERE id = ?
+            """
+            DatabaseManager.execute_query(
+                update_query, (total_amount, total_profit, receipt_id, sale_id)
             )
 
-            return sale_id
+            InventoryService.apply_batch_updates(
+                items, multiplier=-1.0, emit_events=False
+            )
+            AuditService.log_operation(
+                "create_sale",
+                "sale",
+                sale_id,
+                {
+                    "customer_id": customer_id,
+                    "date": sale_date_str,
+                    "item_count": len(items),
+                    "product_ids": get_product_ids_from_items(items),
+                    "total_amount": total_amount,
+                    "total_profit": total_profit,
+                    "receipt_id": receipt_id,
+                },
+            )
 
-        except Exception as e:
-            if isinstance(e, (ValidationException, NotFoundException)):
-                raise e
-            logger.error(f"Error in create_sale: {str(e)}", extra={"exc_info": True})
-            raise DatabaseException(f"Failed to create sale: {str(e)}") from e
+        MutationCoordinator.finalize_mutation(
+            entity_id=sale_id,
+            items=items,
+            signal=event_system.sale_added,
+            service_cache_clear_fn=self.clear_cache,
+        )
+
+        return sale_id
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
@@ -207,26 +200,21 @@ class SaleService:
             LIMIT ? OFFSET ?
         """
 
-        try:
-            sales_rows = DatabaseManager.fetch_all(sales_query, (limit, offset))
-            if not sales_rows:
-                return []
+        sales_rows = DatabaseManager.fetch_all(sales_query, (limit, offset))
+        if not sales_rows:
+            return []
 
-            sales = [Sale.from_db_row(row) for row in sales_rows]
-            sale_ids = [sale.id for sale in sales]
+        sales = [Sale.from_db_row(row) for row in sales_rows]
+        sale_ids = [sale.id for sale in sales]
 
-            # Fetch items only for this page's sales — avoids loading the full table
-            _hydrate_sale_items(sales, sale_ids)
+        # Fetch items only for this page's sales — avoids loading the full table
+        _hydrate_sale_items(sales, sale_ids)
 
-            logger.info(
-                f"Retrieved {len(sales)} sales",
-                extra={"limit": limit, "offset": offset},
-            )
-            return sales
-
-        except Exception as e:
-            logger.error(f"Error fetching sales: {str(e)}")
-            raise DatabaseException(f"Failed to fetch sales: {str(e)}") from e
+        logger.info(
+            f"Retrieved {len(sales)} sales",
+            extra={"limit": limit, "offset": offset},
+        )
+        return sales
 
     @staticmethod
     @db_operation(show_dialog=True)
@@ -257,38 +245,32 @@ class SaleService:
             raise ValidationException(f"Sale {sale_id} is already cancelled")
         items = sale.items
 
-        try:
-            with DatabaseManager.transaction():
-                InventoryService.apply_batch_updates(
-                    items, multiplier=1.0, emit_events=False
-                )
-                AuditService.log_operation(
-                    "delete_sale",
-                    "sale",
-                    sale_id,
-                    {
-                        "item_count": len(items),
-                        "product_ids": get_product_ids_from_items(items),
-                    },
-                )
-                DatabaseManager.execute_query(
-                    "DELETE FROM sale_items WHERE sale_id = ?", (sale_id,)
-                )
-                DatabaseManager.execute_query(
-                    "DELETE FROM sales WHERE id = ?", (sale_id,)
-                )
-            logger.info("Sale deleted", extra={"sale_id": sale_id})
-            MutationCoordinator.finalize_mutation(
-                entity_id=sale_id,
-                items=items,
-                signal=event_system.sale_deleted,
-                service_cache_clear_fn=self.clear_cache,
+        with DatabaseManager.transaction():
+            InventoryService.apply_batch_updates(
+                items, multiplier=1.0, emit_events=False
             )
-        except Exception as e:
-            logger.error(
-                "Failed to delete sale", extra={"error": str(e), "sale_id": sale_id}
+            AuditService.log_operation(
+                "delete_sale",
+                "sale",
+                sale_id,
+                {
+                    "item_count": len(items),
+                    "product_ids": get_product_ids_from_items(items),
+                },
             )
-            raise DatabaseException(f"Failed to delete sale: {str(e)}") from e
+            DatabaseManager.execute_query(
+                "DELETE FROM sale_items WHERE sale_id = ?", (sale_id,)
+            )
+            DatabaseManager.execute_query(
+                "DELETE FROM sales WHERE id = ?", (sale_id,)
+            )
+        logger.info("Sale deleted", extra={"sale_id": sale_id})
+        MutationCoordinator.finalize_mutation(
+            entity_id=sale_id,
+            items=items,
+            signal=event_system.sale_deleted,
+            service_cache_clear_fn=self.clear_cache,
+        )
 
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
@@ -306,35 +288,29 @@ class SaleService:
 
         items = sale.items
 
-        try:
-            with DatabaseManager.transaction():
-                InventoryService.apply_batch_updates(
-                    items, multiplier=1.0, emit_events=False
-                )
-                DatabaseManager.execute_query(
-                    "UPDATE sales SET status = 'cancelled' WHERE id = ?", (sale_id,)
-                )
-                AuditService.log_operation(
-                    "cancel_sale",
-                    "sale",
-                    sale_id,
-                    {
-                        "item_count": len(items),
-                        "product_ids": get_product_ids_from_items(items),
-                    },
-                )
-            logger.info("Sale cancelled", extra={"sale_id": sale_id})
-            MutationCoordinator.finalize_mutation(
-                entity_id=sale_id,
-                items=items,
-                signal=event_system.sale_updated,
-                service_cache_clear_fn=self.clear_cache,
+        with DatabaseManager.transaction():
+            InventoryService.apply_batch_updates(
+                items, multiplier=1.0, emit_events=False
             )
-        except Exception as e:
-            logger.error(
-                "Failed to cancel sale", extra={"error": str(e), "sale_id": sale_id}
+            DatabaseManager.execute_query(
+                "UPDATE sales SET status = 'cancelled' WHERE id = ?", (sale_id,)
             )
-            raise DatabaseException(f"Failed to cancel sale: {str(e)}") from e
+            AuditService.log_operation(
+                "cancel_sale",
+                "sale",
+                sale_id,
+                {
+                    "item_count": len(items),
+                    "product_ids": get_product_ids_from_items(items),
+                },
+            )
+        logger.info("Sale cancelled", extra={"sale_id": sale_id})
+        MutationCoordinator.finalize_mutation(
+            entity_id=sale_id,
+            items=items,
+            signal=event_system.sale_updated,
+            service_cache_clear_fn=self.clear_cache,
+        )
 
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)

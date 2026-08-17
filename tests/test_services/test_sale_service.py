@@ -1,3 +1,4 @@
+import logging
 from datetime import date
 
 import pytest
@@ -7,7 +8,7 @@ from services.customer_service import CustomerService
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
 from services.sale_service import SaleService
-from utils.exceptions import NotFoundException, ValidationException
+from utils.exceptions import DatabaseException, NotFoundException, ValidationException
 from utils.system.event_system import event_system
 
 
@@ -133,6 +134,24 @@ class TestSaleService:
 
         assert DatabaseManager.fetch_one("SELECT id FROM sales") is None
         assert DatabaseManager.fetch_one("SELECT id FROM sale_items") is None
+
+    def test_create_sale_db_failure_logs_via_decorator_without_inner_rewrap(
+        self, sale_service, sample_sale_data, caplog
+    ):
+        DatabaseManager.execute_query("DROP TABLE sale_items")
+
+        with caplog.at_level(logging.ERROR):
+            with pytest.raises(DatabaseException) as excinfo:
+                sale_service.create_sale(**sample_sale_data)
+
+        assert "Failed to create sale:" not in str(excinfo.value)
+        error_messages = [
+            record.getMessage()
+            for record in caplog.records
+            if record.levelno >= logging.ERROR and "create_sale" in record.getMessage()
+        ]
+        assert len(error_messages) == 2
+        assert all("Failed to create sale:" not in message for message in error_messages)
 
     def test_create_sale_invalid_quantity(self, sale_service, sample_sale_data):
         sample_sale_data["items"][0]["quantity"] = -1

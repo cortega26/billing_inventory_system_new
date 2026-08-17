@@ -58,6 +58,7 @@ DATABASE_PATH = get_safe_db_path(DATABASE_NAME)
 
 # Business registry (backward compatible: absent from config ⇒ single
 # implicit "default" business using DATABASE_PATH semantics).
+# Must match DASHBOARD_PROFILE_METRICS keys in ui/dashboard_view.py
 DASHBOARD_PROFILES = ("reseller", "production")
 DEFAULT_DASHBOARD_PROFILE = "reseller"
 DEFAULT_BUSINESSES = [

@@ -1,7 +1,7 @@
 from typing import Any
 
 from database.database_manager import DatabaseManager
-from models.enums import QUANTITY_PRECISION
+from models.enums import QUANTITY_PRECISION, SaleStatus
 from services.audit_service import AuditService
 from services.inventory_service import InventoryService
 from services.mutation_coordinator import MutationCoordinator
@@ -37,7 +37,7 @@ class UpdateSaleWorkflow:
 
         # Require that the sale exists
         sale = self.sale_service._require_sale(sale_id)
-        if sale.status == "cancelled":
+        if sale.status == SaleStatus.CANCELLED:
             raise ValidationException(f"Sale {sale_id} is already cancelled")
 
         # Get existing items to perform inventory pre-validation

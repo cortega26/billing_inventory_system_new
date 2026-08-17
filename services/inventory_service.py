@@ -2,7 +2,7 @@ from functools import lru_cache
 from typing import Any
 
 from database.database_manager import DatabaseManager
-from models.enums import QUANTITY_PRECISION, InventoryAction
+from models.enums import QUANTITY_PRECISION, InventoryAction, SaleStatus
 from models.inventory import Inventory
 from services.analytics_service import AnalyticsService
 from services.audit_service import AuditService
@@ -350,7 +350,7 @@ class InventoryService:
             FROM sale_items si
             JOIN sales s ON si.sale_id = s.id
             WHERE si.product_id = ? AND s.date >= ? AND s.date < date(?, '+1 day')
-            AND s.status = 'confirmed'
+            AND s.status = ?
             UNION ALL
             SELECT 'purchase' as type, p.date, pi.quantity as quantity_change,
                    'Purchase' as reason
@@ -359,7 +359,18 @@ class InventoryService:
             WHERE pi.product_id = ? AND p.date >= ? AND p.date < date(?, '+1 day')
             ORDER BY date
         """
-        params = (product_id, start_date, end_date) * 3
+        params = (
+            product_id,
+            start_date,
+            end_date,
+            product_id,
+            start_date,
+            end_date,
+            SaleStatus.CONFIRMED.value,
+            product_id,
+            start_date,
+            end_date,
+        )
         result = DatabaseManager.fetch_all(query, params)
         logger.info(
             "Inventory movements retrieved",
@@ -385,7 +396,7 @@ class InventoryService:
                 SELECT si.product_id, SUM(si.quantity) as total_sold
                 FROM sale_items si
                 JOIN sales s ON si.sale_id = s.id
-                WHERE s.date BETWEEN ? AND ? AND s.status = 'confirmed'
+                WHERE s.date BETWEEN ? AND ? AND s.status = ?
                 GROUP BY si.product_id
             )
             SELECT sd.product_id,
@@ -396,7 +407,9 @@ class InventoryService:
             FROM sales_data sd
             JOIN inventory i ON sd.product_id = i.product_id
         """
-        result = DatabaseManager.fetch_all(query, (start_date, end_date))
+        result = DatabaseManager.fetch_all(
+            query, (start_date, end_date, SaleStatus.CONFIRMED.value)
+        )
         turnover_ratios = {
             row["product_id"]: round(float(row["turnover_ratio"]), 3) for row in result
         }

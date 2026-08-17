@@ -3,7 +3,7 @@ from functools import lru_cache
 from typing import Any
 
 from database.database_manager import DatabaseManager
-from models.enums import MAX_SALE_ITEMS, QUANTITY_PRECISION
+from models.enums import MAX_SALE_ITEMS, QUANTITY_PRECISION, SaleStatus
 from models.sale import Sale, SaleItem
 from services.audit_service import AuditService
 from services.customer_service import CustomerService
@@ -253,7 +253,7 @@ class SaleService:
     def delete_sale(self, sale_id: int) -> None:
         sale_id = validate_integer(sale_id, min_value=1)
         sale = self._require_sale(sale_id)
-        if sale.status == "cancelled":
+        if sale.status == SaleStatus.CANCELLED:
             raise ValidationException(f"Sale {sale_id} is already cancelled")
         items = sale.items
 
@@ -301,7 +301,7 @@ class SaleService:
         """
         sale_id = validate_integer(sale_id, min_value=1)
         sale = self._require_sale(sale_id)
-        if sale.status == "cancelled":
+        if sale.status == SaleStatus.CANCELLED:
             raise ValidationException(f"Sale {sale_id} is already cancelled")
 
         items = sale.items
@@ -312,7 +312,8 @@ class SaleService:
                     items, multiplier=1.0, emit_events=False
                 )
                 DatabaseManager.execute_query(
-                    "UPDATE sales SET status = 'cancelled' WHERE id = ?", (sale_id,)
+                    "UPDATE sales SET status = 'cancelled' WHERE id = ?",  # SaleStatus.CANCELLED
+                    (sale_id,),
                 )
                 AuditService.log_operation(
                     "cancel_sale",
@@ -354,9 +355,11 @@ class SaleService:
         query = """
             SELECT COALESCE(SUM(total_amount), 0) as total
             FROM sales
-            WHERE date BETWEEN ? AND ? AND status = 'confirmed'
+            WHERE date BETWEEN ? AND ? AND status = ?
         """
-        result = DatabaseManager.fetch_one(query, (start_date, end_date))
+        result = DatabaseManager.fetch_one(
+            query, (start_date, end_date, SaleStatus.CONFIRMED.value)
+        )
         total_sales = int(result["total"] if result else 0)
         logger.info(
             "Total sales retrieved",
@@ -378,9 +381,11 @@ class SaleService:
             SELECT COALESCE(ROUND(SUM(si.quantity), 3), 0) as total_units
             FROM sale_items si
             JOIN sales s ON si.sale_id = s.id
-            WHERE s.date BETWEEN ? AND ? AND s.status = 'confirmed'
+            WHERE s.date BETWEEN ? AND ? AND s.status = ?
         """
-        result = DatabaseManager.fetch_one(query, (start_date, end_date))
+        result = DatabaseManager.fetch_one(
+            query, (start_date, end_date, SaleStatus.CONFIRMED.value)
+        )
         total_units = float(result["total_units"] if result else 0)
         logger.info(
             "Total units sold retrieved",
@@ -401,9 +406,11 @@ class SaleService:
         query = """
             SELECT COALESCE(SUM(total_profit), 0) as total
             FROM sales
-            WHERE date BETWEEN ? AND ? AND status = 'confirmed'
+            WHERE date BETWEEN ? AND ? AND status = ?
         """
-        result = DatabaseManager.fetch_one(query, (start_date, end_date))
+        result = DatabaseManager.fetch_one(
+            query, (start_date, end_date, SaleStatus.CONFIRMED.value)
+        )
         total_profits = int(result["total"] if result else 0)
         logger.info(
             "Total profits retrieved",
@@ -616,9 +623,11 @@ class SaleService:
                 SUM(total_amount) as total_amount,
                 SUM(total_profit) as total_profit
             FROM sales
-            WHERE date BETWEEN ? AND ? AND status = 'confirmed'
+            WHERE date BETWEEN ? AND ? AND status = ?
         """
-        result = DatabaseManager.fetch_one(query, (start_date, end_date))
+        result = DatabaseManager.fetch_one(
+            query, (start_date, end_date, SaleStatus.CONFIRMED.value)
+        )
 
         if result:
             return {

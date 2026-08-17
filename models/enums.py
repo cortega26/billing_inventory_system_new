@@ -19,6 +19,11 @@ class TimeInterval(StrEnum):
     MONTH = "month"
 
 
+class SaleStatus(StrEnum):
+    CONFIRMED = "confirmed"
+    CANCELLED = "cancelled"
+
+
 # Constants
 QUANTITY_PRECISION = 3
 MAX_PRICE_CLP = 1_000_000

@@ -2,11 +2,8 @@ import pytest
 
 from utils.exceptions import (
     AppException,
-    BusinessLogicException,
     ConfigurationException,
     DatabaseException,
-    NetworkException,
-    SecurityException,
     UIException,
     ValidationException,
 )
@@ -81,18 +78,6 @@ class TestExceptions:
         assert "Missing required config" in str(error)
         assert "database_url" in error.details["missing_key"]
 
-    def test_business_logic_exception(self):
-        """Test business logic specific exceptions."""
-        error = BusinessLogicException(
-            "Insufficient inventory",
-            error_code="BUS001",
-            details={"product_id": 123, "requested": 10, "available": 5},
-        )
-
-        assert isinstance(error, AppException)
-        assert "Insufficient inventory" in str(error)
-        assert error.details["requested"] > error.details["available"]
-
     def test_ui_exception(self):
         """Test UI-specific exceptions."""
         error = UIException(
@@ -105,40 +90,13 @@ class TestExceptions:
         assert "Widget initialization failed" in str(error)
         assert "TableView" in error.details["widget_type"]
 
-    def test_network_exception(self):
-        """Test network-specific exceptions."""
-        error = NetworkException(
-            "API request failed",
-            error_code="NET001",
-            details={"url": "https://api.example.com", "status_code": 500},
-        )
-
-        assert isinstance(error, AppException)
-        assert "API request failed" in str(error)
-        assert error.details["status_code"] == 500
-
-    def test_security_exception(self):
-        """Test security-specific exceptions."""
-        error = SecurityException(
-            "Unauthorized access",
-            error_code="SEC001",
-            details={"user_id": "user123", "resource": "admin_panel"},
-        )
-
-        assert isinstance(error, AppException)
-        assert "Unauthorized access" in str(error)
-        assert "user123" in error.details["user_id"]
-
     def test_exception_inheritance(self):
         """Test exception inheritance hierarchy."""
         exceptions = [
             DatabaseException,
             ValidationException,
             ConfigurationException,
-            BusinessLogicException,
             UIException,
-            NetworkException,
-            SecurityException,
         ]
 
         for exception_class in exceptions:

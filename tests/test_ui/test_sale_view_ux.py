@@ -68,8 +68,8 @@ def test_non_blocking_low_stock_warning(qtbot, db_manager, mocker):
     mock_main_window.show_status_message = mocker.MagicMock()
     mocker.patch.object(view, "window", return_value=mock_main_window)
 
-    # Ensure QMessageBox.warning is NOT called
-    mock_msg_box = mocker.patch("ui.sale_view.QMessageBox.warning")
+    # Ensure a modal warning box is NOT used
+    mock_msg_box = mocker.patch("utils.helpers.QMessageBox.warning")
 
     view.handle_barcode_scan()
 
@@ -78,7 +78,7 @@ def test_non_blocking_low_stock_warning(qtbot, db_manager, mocker):
     assert "Low Stock Cookie" in view.scan_warning_label.text()
     assert "Disponible: 3" in view.scan_warning_label.text()
 
-    # Verify QMessageBox was never used
+    # Verify no modal message box was used
     mock_msg_box.assert_not_called()
 
     # Verify main window status bar received the warning message

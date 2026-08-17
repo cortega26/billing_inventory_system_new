@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMenu,
-    QMessageBox,
     QProgressBar,
     QPushButton,
     QTableWidgetItem,
@@ -36,6 +35,7 @@ from utils.exceptions import (
     ValidationException,
 )
 from utils.helpers import (
+    confirm_action,
     create_table,
     format_price,
     show_error_message,
@@ -478,33 +478,31 @@ class ProductView(QWidget):
             is_active = product.is_active
             title_text = "Archivar Producto" if is_active else "Restaurar Producto"
             action_text = "archivar" if is_active else "restaurar"
-            reply = QMessageBox.question(
+            if not confirm_action(
                 self,
                 title_text,
                 f"¿Está seguro que desea {action_text} el producto {product.name}?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No,
-            )
+            ):
+                return
 
-            if reply == QMessageBox.StandardButton.Yes:
-                with wait_cursor():
-                    assert product.id is not None
-                    if is_active:
-                        self.product_service.delete_product(product.id)
-                        show_info_message("Éxito", "Producto archivado exitosamente.")
-                    else:
-                        self.product_service.restore_product(product.id)
-                        show_info_message("Éxito", "Producto restaurado exitosamente.")
+            with wait_cursor():
+                assert product.id is not None
+                if is_active:
+                    self.product_service.delete_product(product.id)
+                    show_info_message("Éxito", "Producto archivado exitosamente.")
+                else:
+                    self.product_service.restore_product(product.id)
+                    show_info_message("Éxito", "Producto restaurado exitosamente.")
 
-                    # Get fresh data but maintain filters
-                    fresh_products = self.product_service.get_all_products(
-                        active_only=not self.show_archived_checkbox.isChecked()
-                    )
-                    self.filter_products(products=fresh_products)
-                    logger.info(
-                        "Product status updated",
-                        extra={"product_id": product.id, "is_active": not is_active},
-                    )
+                # Get fresh data but maintain filters
+                fresh_products = self.product_service.get_all_products(
+                    active_only=not self.show_archived_checkbox.isChecked()
+                )
+                self.filter_products(products=fresh_products)
+                logger.info(
+                    "Product status updated",
+                    extra={"product_id": product.id, "is_active": not is_active},
+                )
         except Exception as e:
             logger.error(f"Error updating product status: {str(e)}")
             raise

@@ -27,7 +27,7 @@ from ui.purchase_view import PurchaseView
 from ui.sale_view import SaleView
 from utils.decorators import handle_exceptions, ui_operation
 from utils.exceptions import UIException
-from utils.helpers import show_info_message
+from utils.helpers import confirm_action, show_info_message
 from utils.system.event_system import event_system
 from utils.system.logger import logger
 
@@ -284,22 +284,15 @@ class MainWindow(QMainWindow):
 
     @ui_operation(show_dialog=True)
     def closeEvent(self, event):
-        reply = QMessageBox.question(
-            self,
-            "Salir",
-            "¿Está seguro que desea salir?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-
-        if reply == QMessageBox.StandardButton.Yes:
-            self.settings.setValue("WindowSize", self.size())
-            self.settings.setValue("WindowPosition", self.pos())
-
-            logger.info("Application closed by user")
-            event.accept()
-        else:
+        if not confirm_action(self, "Salir", "¿Está seguro que desea salir?"):
             event.ignore()
+            return
+
+        self.settings.setValue("WindowSize", self.size())
+        self.settings.setValue("WindowPosition", self.pos())
+
+        logger.info("Application closed by user")
+        event.accept()
 
     def show_status_message(self, message: str, timeout: int = 5000):
         self.status_bar.showMessage(message, timeout)

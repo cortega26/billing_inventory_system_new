@@ -16,7 +16,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMenu,
-    QMessageBox,
     QPushButton,
     QSpinBox,
     QTableWidget,
@@ -1294,15 +1293,7 @@ class SaleView(QWidget):
             show_info_message("Detalles de Venta", message)
 
             # Offer to print receipt
-            reply = QMessageBox.question(
-                self,
-                "Imprimir Recibo",
-                "¿Desea imprimir este recibo?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No,
-            )
-
-            if reply == QMessageBox.StandardButton.Yes:
+            if confirm_action(self, "Imprimir Recibo", "¿Desea imprimir este recibo?"):
                 self.print_receipt(sale)
 
         except Exception as e:

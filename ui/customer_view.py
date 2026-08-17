@@ -12,7 +12,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMenu,
-    QMessageBox,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -25,6 +24,7 @@ from services.customer_service import CustomerService
 from utils.decorators import handle_exceptions, ui_operation
 from utils.exceptions import DatabaseException, UIException, ValidationException
 from utils.helpers import (
+    confirm_action,
     create_table,
     format_price,
     show_error_message,
@@ -429,25 +429,23 @@ class CustomerView(QWidget):
             is_active = customer.is_active
             action_text = "archivar" if is_active else "restaurar"
             title_text = "Archivar Cliente" if is_active else "Restaurar Cliente"
-            reply = QMessageBox.question(
+            if not confirm_action(
                 self,
                 title_text,
                 f"¿Está seguro que desea {action_text} al cliente {display_name}?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No,
+            ):
+                return
+            if is_active:
+                self.customer_service.delete_customer(customer_id)
+                show_info_message("Éxito", "Cliente archivado exitosamente.")
+            else:
+                self.customer_service.restore_customer(customer_id)
+                show_info_message("Éxito", "Cliente restaurado exitosamente.")
+            self.load_customers()
+            logger.info(
+                "Customer status updated",
+                extra={"customer_id": customer_id, "is_active": not is_active},
             )
-            if reply == QMessageBox.StandardButton.Yes:
-                if is_active:
-                    self.customer_service.delete_customer(customer_id)
-                    show_info_message("Éxito", "Cliente archivado exitosamente.")
-                else:
-                    self.customer_service.restore_customer(customer_id)
-                    show_info_message("Éxito", "Cliente restaurado exitosamente.")
-                self.load_customers()
-                logger.info(
-                    "Customer status updated",
-                    extra={"customer_id": customer_id, "is_active": not is_active},
-                )
         except Exception as e:
             logger.error(
                 f"[delete_customer_by_id] Error deleting customer ID={customer_id}: {str(e)}"
@@ -539,30 +537,28 @@ class CustomerView(QWidget):
         is_active = customer.is_active
         action_text = "archivar" if is_active else "restaurar"
         title_text = "Archivar Cliente" if is_active else "Restaurar Cliente"
-        reply = QMessageBox.question(
+        if not confirm_action(
             self,
             title_text,
             f"¿Está seguro que desea {action_text} al cliente {display_name}?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if reply == QMessageBox.StandardButton.Yes:
-            try:
-                assert customer.id is not None
-                if is_active:
-                    self.customer_service.delete_customer(customer.id)
-                    show_info_message("Éxito", "Cliente archivado exitosamente.")
-                else:
-                    self.customer_service.restore_customer(customer.id)
-                    show_info_message("Éxito", "Cliente restaurado exitosamente.")
-                self.load_customers()
-                logger.info(
-                    "Customer status updated",
-                    extra={"customer_id": customer.id, "is_active": not is_active},
-                )
-            except Exception as e:
-                logger.error(f"Error updating customer status: {str(e)}")
-                raise
+        ):
+            return
+        try:
+            assert customer.id is not None
+            if is_active:
+                self.customer_service.delete_customer(customer.id)
+                show_info_message("Éxito", "Cliente archivado exitosamente.")
+            else:
+                self.customer_service.restore_customer(customer.id)
+                show_info_message("Éxito", "Cliente restaurado exitosamente.")
+            self.load_customers()
+            logger.info(
+                "Customer status updated",
+                extra={"customer_id": customer.id, "is_active": not is_active},
+            )
+        except Exception as e:
+            logger.error(f"Error updating customer status: {str(e)}")
+            raise
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(

@@ -2,7 +2,7 @@ import pytest
 
 pytest.importorskip("PySide6", reason="PySide6 not installed")
 
-from PySide6.QtWidgets import QMessageBox, QPushButton
+from PySide6.QtWidgets import QPushButton
 
 from services.customer_service import CustomerService
 from ui.customer_view import CustomerView
@@ -126,8 +126,8 @@ def test_delete_customer_does_not_reemit_customer_deleted_event(
     qtbot.addWidget(view)
     mocker.patch("ui.customer_view.show_info_message")
     mocker.patch(
-        "ui.customer_view.QMessageBox.question",
-        return_value=QMessageBox.StandardButton.Yes,
+        "ui.customer_view.confirm_action",
+        return_value=True,
     )
 
     def delete_customer(_customer_id):

@@ -16,7 +16,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMenu,
-    QMessageBox,
     QProgressBar,
     QPushButton,
     QTableWidgetItem,
@@ -30,6 +29,7 @@ from services.purchase_service import PurchaseService
 from utils.decorators import handle_exceptions, ui_operation
 from utils.exceptions import DatabaseException, UIException, ValidationException
 from utils.helpers import (
+    confirm_action,
     create_table,
     format_price,
     show_error_message,
@@ -574,23 +574,21 @@ class PurchaseView(QWidget):
     )
     def delete_purchase(self, purchase: Purchase):
         """Delete a purchase."""
-        reply = QMessageBox.question(
+        if not confirm_action(
             self,
             "Eliminar Compra",
             "¿Está seguro que desea eliminar esta compra? Esta acción no se puede deshacer.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
+        ):
+            return
 
-        if reply == QMessageBox.StandardButton.Yes:
-            try:
-                assert purchase.id is not None
-                self.purchase_service.delete_purchase(purchase.id)
-                self.load_purchases()
-                show_info_message("Éxito", "Compra eliminada exitosamente")
-            except Exception as e:
-                logger.error(f"Error deleting purchase: {str(e)}")
-                raise
+        try:
+            assert purchase.id is not None
+            self.purchase_service.delete_purchase(purchase.id)
+            self.load_purchases()
+            show_info_message("Éxito", "Compra eliminada exitosamente")
+        except Exception as e:
+            logger.error(f"Error deleting purchase: {str(e)}")
+            raise
 
     def clear_purchase(self):
         """Clear current purchase data."""

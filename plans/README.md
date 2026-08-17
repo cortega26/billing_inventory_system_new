@@ -14,6 +14,41 @@ merge), move its file to `plans/archive/` in the same change that marks it done.
 The index below keeps the historical record; the archived files are the record
 of what was executed. Do not delete archived plans.
 
+## Third audit round (2026-08-17, commit `d560e43`) — SOLID/DRY/KISS/Zen
+
+All 28 vetted findings from the design-principles audit (SOLID, DRY, KISS, Zen
+of Python) were net-positive per maintainer decision 2026-08-17. Behavioral
+decisions taken: blank customer-name on edit PRESERVES the old name (036); sale
+item price limits stay uncapped, divergence documented (056); per-row table
+skip behavior preserved (055). Execute in the order below unless dependencies
+say otherwise.
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 034  | Route UI money totals through FinancialCalculator (ROUND_HALF_UP) | P1 | S | — | DONE (executed 2026-08-17, branch advisor/034-ui-money-rounding, reviewed APPROVED) |
+| 035  | Translate user-facing strings to Spanish (incl. receipt PDF) | P1 | S | — | DONE (executed 2026-08-17, branch advisor/035-spanish-strings, reviewed APPROVED) |
+| 036  | Collapse customer_view twin edit/delete (blank name preserves old) | P1 | S | — | DONE (executed 2026-08-17, branch advisor/036-customer-view-twins, reviewed APPROVED) |
+| 037  | Unify barcode lookup on ProductService.get_product_by_barcode | P1 | S | — | DONE (executed 2026-08-17, branch advisor/037-barcode-lookup, reviewed APPROVED) |
+| 038  | Introduce SaleStatus enum; bind status SQL params to enum values | P2 | M | — | DONE (executed 2026-08-17, branch advisor/038-sale-status-enum, reviewed APPROVED) |
+| 039  | Single attribute-based event system API; drop string registry | P2 | S | — | DONE (executed 2026-08-17, branch advisor/039-event-system-api, reviewed APPROVED) |
+| 040  | Reconcile config schema (register backup_min_free_mb; drop dead keys) | P2 | S | — | DONE (executed 2026-08-17, branch advisor/040-config-schema, reviewed APPROVED) |
+| 041  | Dead-ceremony sweep (exceptions, enums, calculator const, main.py dicts) | P2 | S | — | DONE (executed 2026-08-17, branch advisor/041-dead-ceremony-sweep, reviewed APPROVED) |
+| 042  | Housekeeping (dead branches, in-loop imports, stale comments) | P3 | S | — | DONE (executed 2026-08-17, branch advisor/042-housekeeping, reviewed APPROVED) |
+| 043  | Collapse dual validation systems (models delegate to validators.py) | P2 | M | — | DONE (executed 2026-08-17, branch advisor/043-validation-consolidation, reviewed APPROVED) |
+| 044  | Remove catch-log-re-wrap inside decorator-covered service methods | P2 | M | 020 | DONE (executed 2026-08-17, branch advisor/044-remove-redundant-rewrap, reviewed APPROVED) |
+| 045  | Merge PurchaseQueryService into PurchaseService | P2 | M | — | DONE (executed 2026-08-17, branch advisor/045-purchase-service-merge, reviewed APPROVED) |
+| 046  | Honest None-vs-raise contracts (getters None; creators raise) | P2 | S-M | — | DONE (executed 2026-08-17, branch advisor/046-honest-contracts, reviewed APPROVED) |
+| 047  | UpdateSaleWorkflow uses public SaleService methods; drop lazy import | P2 | S | 020 | DONE (executed 2026-08-17, branch advisor/047-workflow-contract, reviewed APPROVED) |
+| 048  | Slim analytics Metric contract; kill metric boilerplate | P2 | M | 038 | DONE (executed 2026-08-17, branch advisor/048-metric-ceremony, reviewed APPROVED; 038 predicate parameterization applied separately at merge) |
+| 049  | Move receipt-ID generation into ReceiptService | P2 | S-M | — | DONE (executed 2026-08-17, branch advisor/049-receipt-subsystem, reviewed APPROVED) |
+| 050  | Remove inventory reporting duplicating the analytics domain | P2 | S | — | DONE (executed 2026-08-17, branch advisor/050-inventory-reporting, reviewed APPROVED; amended: get_inventory_turnover KEPT per real tests found) |
+| 051  | Consolidate table action-cell, WaitCursor, confirm-dialog scaffolding | P2 | M | — | DONE (executed 2026-08-17, branch advisor/051-table-scaffold, reviewed APPROVED) |
+| 052  | Extract shared scan/selection scaffolding; normalize error flash | P2 | M | 037 | DONE (executed 2026-08-17, branch advisor/052-scan-support, reviewed APPROVED) |
+| 053  | Shared model datetime parsing; delete dead Sale/Purchase mutators | P3 | S-M | — | DONE (executed 2026-08-17, branch advisor/053-model-date-helpers, reviewed APPROVED; amended: Purchase.recalculate_total KEPT per live post_init_validation caller) |
+| 054  | Dashboard KPI profile via registry, not if/elif | P3 | S | — | DONE (executed 2026-08-17, branch advisor/054-dashboard-profiles, reviewed APPROVED) |
+| 055  | Flatten worst table-refresh nesting (preserve silent row skip) | P3 | M | — | DONE (executed 2026-08-17, branch advisor/055-flatten-nesting, reviewed APPROVED) |
+| 056  | Shared line-item validation; unify per-item INSERT loops | P3 | S-M | — | DONE (executed 2026-08-17, branch advisor/056-item-validation, reviewed APPROVED) |
+
 ## Status (33 plans; 001-033 all DONE — files archived)
 
 | Plan | Title | Priority | Effort | Depends on | Status |
@@ -62,6 +97,15 @@ Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJE
   pre-007 behavior.
 - 011 depends on 008/009/010: the dead-code sweep must not delete methods that
   the new tests pin. Run the zero-reference guard AFTER the test plans land.
+- **Round 3**: 044/047 run behind plan 020's characterization tests (already
+  landed); 048 builds on 038's bound-status SQL (run 038 first); 052 builds on
+  037's unified barcode lookup; 051 and 055 both touch the table views but
+  target different layers (cell widgets vs loop structure) — either order works,
+  but running 051 first avoids re-touching the same loops twice.
+- **Round 3 P1s first**: 034-037 are the bug/contract fixes; do them before the
+  M-effort refactors (043-052) so the refactors run on clean foundations.
+- 043 touches every model's validation — run it before any future model/schema
+  work; its full-suite gate includes the `db_manager` fixture.
 - 004's migration touches schema.sql/indexes; run `scripts/check_schema_drift.py`
   after it (the plan's own verification covers this).
 - 013 resolves the SPECIFICATIONS.md language contradiction before any future UI

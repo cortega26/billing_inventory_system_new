@@ -59,7 +59,6 @@ def test_edit_inventory_does_not_reemit_inventory_events(qtbot, db_manager, mock
         side_effect=adjust_inventory,
     )
     changed_payloads, changed_handler = capture_signal(event_system.inventory_changed)
-    updated_payloads, updated_handler = capture_signal(event_system.inventory_updated)
 
     try:
         view.edit_inventory(item)
@@ -70,7 +69,5 @@ def test_edit_inventory_does_not_reemit_inventory_events(qtbot, db_manager, mock
             reason="manual set",
         )
         assert changed_payloads == [product_id]
-        assert updated_payloads == []
     finally:
         event_system.inventory_changed.disconnect(changed_handler)
-        event_system.inventory_updated.disconnect(updated_handler)

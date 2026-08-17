@@ -112,10 +112,9 @@ def test_create_backup_emits_event_when_disk_space_low(backup_service, source_db
         backup_path = service.create_backup()
 
         assert backup_path is None
-        mock_event_system.emit_event.assert_called_once()
-        args, _ = mock_event_system.emit_event.call_args
-        assert args[0] == "backup_skipped"
-        assert args[1]["reason"] == "low_disk_space"
+        mock_event_system.backup_skipped.emit.assert_called_once()
+        args, _ = mock_event_system.backup_skipped.emit.call_args
+        assert args[0]["reason"] == "low_disk_space"
 
 
 def test_cleanup_old_backups(backup_service, source_db):

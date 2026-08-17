@@ -39,7 +39,7 @@ class TestEventSystem:
         assert hasattr(event_system, "product_deleted")
         assert hasattr(event_system, "sale_added")
         assert hasattr(event_system, "purchase_added")
-        assert hasattr(event_system, "inventory_updated")
+        assert hasattr(event_system, "inventory_changed")
 
     def test_signal_connection(self, event_system):
         """Test connecting to signals"""

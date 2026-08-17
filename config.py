@@ -163,6 +163,7 @@ class Config:
             "backup_interval": 24,
             "backup_dir": "backups",
             "backup_retention_days": 7,
+            "backup_min_free_mb": 1024,
             "pin_hash": "",
             "pin_failed_attempts": 0,
             "pin_locked_until": "",
@@ -260,6 +261,7 @@ class Config:
             "backup_interval": (int, (1, 168)),  # 1 hour to 1 week
             "backup_dir": (str, None),
             "backup_retention_days": (int, (1, 365)),
+            "backup_min_free_mb": (int, (1, 10240)),
             "pin_hash": (str, None),
             "pin_failed_attempts": (int, None),
             "pin_locked_until": (str, None),

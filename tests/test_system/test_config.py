@@ -366,3 +366,9 @@ class TestBusinessRegistryValidation:
         # Mirror the dashboard profile helper's default path: a missing
         # "dashboard" key resolves to the reseller profile.
         assert entry.get("dashboard", DEFAULT_DASHBOARD_PROFILE) == "reseller"
+
+
+def test_default_config_registers_backup_min_free_mb():
+    """Default config carries the canonical backup_min_free_mb value."""
+    assert Config._get_default_config()["backup_min_free_mb"] == 1024
+    assert Config().get("backup_min_free_mb") == 1024

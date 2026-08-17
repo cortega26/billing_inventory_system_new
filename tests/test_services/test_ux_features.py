@@ -2,7 +2,6 @@ from datetime import datetime
 
 import pytest
 
-from services.category_service import CategoryService
 from services.customer_service import CustomerService
 from services.inventory_service import InventoryService
 from services.mutation_coordinator import MutationCoordinator
@@ -28,48 +27,6 @@ class TestUXFeatures:
         self.sale_service = SaleService()
         self.product_service = ProductService()
         self.customer_service = CustomerService()
-        self.category_service = CategoryService()
-        self.cat_id = self.category_service.create_category("Test Category")
-
-    def test_low_stock_threshold(self):
-        # Create products
-        p1_id = self.product_service.create_product(
-            {
-                "name": "Low Item",
-                "barcode": "11111111",
-                "category_id": self.cat_id,
-                "sell_price": 100,
-                "cost_price": 50,
-                "stock_quantity": 0,
-            }
-        )
-        p2_id = self.product_service.create_product(
-            {
-                "name": "High Item",
-                "barcode": "22222222",
-                "category_id": self.cat_id,
-                "sell_price": 100,
-                "cost_price": 50,
-                "stock_quantity": 0,
-            }
-        )
-
-        # Set inventory
-        self.inventory_service.set_quantity(p1_id, 3.0)
-        self.inventory_service.set_quantity(p2_id, 15.0)
-
-        # Test default threshold (10)
-        low_stock = self.inventory_service.get_low_stock_products()
-        assert len(low_stock) == 1
-        assert low_stock[0]["id"] == p1_id
-
-        # Test custom threshold (20)
-        low_stock_20 = self.inventory_service.get_low_stock_products(threshold=20)
-        assert len(low_stock_20) == 2
-
-        # Test custom threshold (2)
-        low_stock_2 = self.inventory_service.get_low_stock_products(threshold=2)
-        assert len(low_stock_2) == 0
 
     def test_todays_sales(self):
         # Create sale for today

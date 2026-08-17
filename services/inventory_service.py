@@ -409,18 +409,3 @@ class InventoryService:
             },
         )
         return turnover_ratios
-
-    @staticmethod
-    def get_low_stock_products(threshold: int = 10) -> list[dict[str, Any]]:
-        query = """
-            SELECT p.id, p.name, i.quantity
-            FROM products p
-            JOIN inventory i ON p.id = i.product_id
-            WHERE i.quantity < ?
-        """
-        products = DatabaseManager.fetch_all(query, (threshold,))
-        logger.debug(
-            "Retrieved low stock products",
-            extra={"count": len(products), "threshold": threshold},
-        )
-        return products

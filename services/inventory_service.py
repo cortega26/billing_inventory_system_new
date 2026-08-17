@@ -97,22 +97,7 @@ class InventoryService:
 
         inventory = InventoryService.get_inventory(product_id)
 
-        if inventory:
-            # Round to precision
-            new_quantity = round(
-                inventory.quantity + quantity_change, QUANTITY_PRECISION
-            )
-            if new_quantity < 0:
-                logger.warning(
-                    f"Attempted negative inventory for product {product_id}. Current: {inventory.quantity}, Change: {quantity_change}, New: {new_quantity}",
-                )
-                raise ValidationException(
-                    f"Inventory cannot be negative. Product: {product_id}, Current: {inventory.quantity}, Change: {quantity_change}, New: {new_quantity}"
-                )
-            InventoryService._modify_inventory(
-                product_id, new_quantity, action=InventoryAction.UPDATE
-            )
-        else:
+        if not inventory:
             if quantity_change < 0:
                 raise ValidationException(
                     f"Cannot decrease quantity for non-existent inventory item. Product ID: {product_id}"
@@ -122,7 +107,29 @@ class InventoryService:
             InventoryService._modify_inventory(
                 product_id, new_quantity, action=InventoryAction.CREATE
             )
+            if emit_events:
+                InventoryService.clear_cache()
+                event_system.inventory_changed.emit(product_id)
+            logger.info(
+                f"Inventory updated for product {product_id}",
+                extra={"quantity_change": quantity_change, "new_quantity": new_quantity},
+            )
+            return
 
+        # Round to precision
+        new_quantity = round(
+            inventory.quantity + quantity_change, QUANTITY_PRECISION
+        )
+        if new_quantity < 0:
+            logger.warning(
+                f"Attempted negative inventory for product {product_id}. Current: {inventory.quantity}, Change: {quantity_change}, New: {new_quantity}",
+            )
+            raise ValidationException(
+                f"Inventory cannot be negative. Product: {product_id}, Current: {inventory.quantity}, Change: {quantity_change}, New: {new_quantity}"
+            )
+        InventoryService._modify_inventory(
+            product_id, new_quantity, action=InventoryAction.UPDATE
+        )
         if emit_events:
             InventoryService.clear_cache()
             event_system.inventory_changed.emit(product_id)

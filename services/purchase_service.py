@@ -18,6 +18,7 @@ from utils.helpers import get_product_ids_from_items
 from utils.math.financial_calculator import FinancialCalculator
 from utils.system.event_system import event_system
 from utils.system.logger import logger
+from utils.validation.item_validators import validate_item_count, validate_line_item
 from utils.validation.validators import (
     validate_date,
     validate_integer,
@@ -235,37 +236,16 @@ class PurchaseService:
 
     @staticmethod
     def _validate_purchase_items(items: list[dict[str, Any]]) -> None:
-        if not items:
-            raise ValidationException("Purchase must have at least one item")
-        if len(items) > MAX_PURCHASE_ITEMS:  # Prevent DOS attacks
-            raise ValidationException(
-                f"Too many items in single purchase (max {MAX_PURCHASE_ITEMS})"
-            )
-
+        validate_item_count(items, MAX_PURCHASE_ITEMS, "purchase")
         for item in items:
-            PurchaseService._validate_purchase_item(item)
-
-    @staticmethod
-    def _validate_purchase_item(item: dict[str, Any]) -> None:
-        try:
-            product_id = int(item.get("product_id", 0))
-            if product_id <= 0 or product_id > 2147483647:
-                raise ValidationException(f"Invalid product ID: {product_id}")
-
-            quantity = float(item.get("quantity", 0))
-            if quantity <= 0 or quantity > 9999999.999:
-                raise ValidationException(f"Invalid quantity: {quantity}")
-
-            if round(quantity, QUANTITY_PRECISION) != quantity:
-                raise ValidationException(
-                    f"Quantity cannot have more than {QUANTITY_PRECISION} decimal places"
-                )
-
-            cost_price = int(item.get("cost_price", 0))
-            if cost_price < 0 or cost_price > MAX_PRICE_CLP:
-                raise ValidationException(f"Invalid cost price: {cost_price}")
-        except (ValueError, TypeError) as e:
-            raise ValidationException(f"Invalid item data: {str(e)}") from e
+            validate_line_item(
+                item,
+                quantity_min=0.001,
+                quantity_max=9999999.999,
+                price_min=0,
+                price_max=MAX_PRICE_CLP,
+                price_key="cost_price",
+            )
 
     @staticmethod
     @db_operation(show_dialog=True)
@@ -277,17 +257,21 @@ class PurchaseService:
     @staticmethod
     @db_operation(show_dialog=True)
     def _insert_purchase_items(purchase_id: int, items: list[dict[str, Any]]) -> None:
-        for item in items:
-            query = """
-                INSERT INTO purchase_items (purchase_id, product_id, quantity, price)
-                VALUES (?, ?, ?, ?)
-            """
-            # Store quantity as a number (not a string) for consistent typing
-            quantity = round(float(item["quantity"]), QUANTITY_PRECISION)
-            DatabaseManager.execute_query(
-                query,
-                (purchase_id, item["product_id"], quantity, item["cost_price"]),
+        query = """
+            INSERT INTO purchase_items (purchase_id, product_id, quantity, price)
+            VALUES (?, ?, ?, ?)
+        """
+        # Store quantity as a number (not a string) for consistent typing
+        batch_params = [
+            (
+                purchase_id,
+                int(item["product_id"]),
+                round(float(item["quantity"]), QUANTITY_PRECISION),
+                int(item["cost_price"]),
             )
+            for item in items
+        ]
+        DatabaseManager.executemany(query, batch_params)
 
     # _update_inventory and _revert_inventory removed in favor of InventoryService.apply_batch_updates
 

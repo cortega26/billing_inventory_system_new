@@ -163,6 +163,29 @@ class TestSaleService:
         with pytest.raises(ValidationException):
             sale_service.create_sale(**sample_sale_data)
 
+    def test_create_sale_above_max_unit_price(
+        self, sale_service, inventory_service, sample_product, sample_customer
+    ):
+        # Sale line items have NO unit-price cap (documented divergence).
+        # A unit price above MAX_PRICE_CLP must still create the sale.
+        inventory_service.update_quantity(sample_product.id, 1.0)
+
+        sale_id = sale_service.create_sale(
+            sample_customer.id,
+            date.today().isoformat(),
+            [
+                {
+                    "product_id": sample_product.id,
+                    "quantity": 1,
+                    "sell_price": 2_000_000,
+                }
+            ],
+        )
+
+        assert sale_id > 0
+        sale = sale_service.get_sale(sale_id)
+        assert sale.total_amount == 2_000_000
+
     def test_get_sales_by_date_range(
         self, sale_service, sample_sale_data, inventory_service, sample_product
     ):

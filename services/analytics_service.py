@@ -1,7 +1,7 @@
-from datetime import datetime
 from functools import lru_cache
 from typing import Any
 
+from services.analytics.contracts import Metric
 from services.analytics.engine import AnalyticsEngine
 from services.analytics.metrics import (
     DepartmentSalesMetric,
@@ -20,7 +20,6 @@ from utils.decorators import db_operation, handle_exceptions
 from utils.exceptions import DatabaseException, ValidationException
 from utils.system.logger import logger
 from utils.validation.validators import (
-    validate_date,
     validate_float_non_negative,
     validate_integer,
 )
@@ -28,26 +27,25 @@ from utils.validation.validators import (
 
 class AnalyticsService:
     @staticmethod
+    def _execute_metric(metric: Metric, row_mapper, **kwargs) -> list:
+        result = AnalyticsEngine().execute_metric(metric, **kwargs)
+        return [row_mapper(row) for row in result.data]
+
+    @staticmethod
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def get_sales_by_weekday(start_date: str, end_date: str) -> list[dict[str, Any]]:
-        start_date = validate_date(start_date)
-        end_date = validate_date(end_date)
-        AnalyticsService._validate_date_range(start_date, end_date)
-        metric_result = AnalyticsEngine().execute_metric(
+        result = AnalyticsService._execute_metric(
             WeekdaySalesMetric(),
-            start_date=start_date,
-            end_date=end_date,
-        )
-        result = [
-            {
+            lambda row: {
                 "weekday": row["weekday"],
                 "total_sales": row["total_sales"],
                 "sale_count": row["sale_count"],
-            }
-            for row in metric_result.data
-        ]
+            },
+            start_date=start_date,
+            end_date=end_date,
+        )
         logger.info(
             "Sales by weekday retrieved",
             extra={"start_date": start_date, "end_date": end_date},
@@ -61,27 +59,21 @@ class AnalyticsService:
     def get_top_selling_products(
         start_date: str, end_date: str, limit: int = 10
     ) -> list[dict[str, Any]]:
-        start_date = validate_date(start_date)
-        end_date = validate_date(end_date)
-        AnalyticsService._validate_date_range(start_date, end_date)
         limit = validate_integer(limit, min_value=1, max_value=1000)
-        metric_result = AnalyticsEngine().execute_metric(
+        result = AnalyticsService._execute_metric(
             TopProductsMetric(),
-            start_date=start_date,
-            end_date=end_date,
-            limit=limit,
-        )
-        result = [
-            {
+            lambda row: {
                 "id": row["product_id"],
                 "product_id": row["product_id"],
                 "name": row["name"],
                 "total_quantity": row["total_quantity"],
                 "total_revenue": row["total_revenue"],
                 "sale_count": row["sale_count"],
-            }
-            for row in metric_result.data
-        ]
+            },
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
+        )
         logger.info(
             "Top selling products retrieved",
             extra={"start_date": start_date, "end_date": end_date, "limit": limit},
@@ -100,22 +92,16 @@ class AnalyticsService:
         Returns a list of { 'date': 'YYYY-MM-DD', 'daily_sales': sum_of_that_day, 'sale_count': ...}
         ensuring the line chart can parse date with "yyyy-MM-dd" and sums daily totals.
         """
-        start_date = validate_date(start_date)
-        end_date = validate_date(end_date)
-        AnalyticsService._validate_date_range(start_date, end_date)
-        metric_result = AnalyticsEngine().execute_metric(
+        result = AnalyticsService._execute_metric(
             SalesDailyMetric(),
-            start_date=start_date,
-            end_date=end_date,
-        )
-        result = [
-            {
+            lambda row: {
                 "date": row["date"],
                 "daily_sales": row["total_sales"],
                 "sale_count": row["sale_count"],
-            }
-            for row in metric_result.data
-        ]
+            },
+            start_date=start_date,
+            end_date=end_date,
+        )
         logger.info(
             "Sales trend retrieved",
             extra={"start_date": start_date, "end_date": end_date},
@@ -127,22 +113,16 @@ class AnalyticsService:
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def get_weekly_profit_trend(start_date: str, end_date: str) -> list[dict[str, Any]]:
-        start_date = validate_date(start_date)
-        end_date = validate_date(end_date)
-        AnalyticsService._validate_date_range(start_date, end_date)
-        metric_result = AnalyticsEngine().execute_metric(
+        result = AnalyticsService._execute_metric(
             WeeklyProfitTrendMetric(),
-            start_date=start_date,
-            end_date=end_date,
-        )
-        result = [
-            {
+            lambda row: {
                 "week": row["week"],
                 "week_start": row["week_start"],
                 "weekly_profit": row["weekly_profit"],
-            }
-            for row in metric_result.data
-        ]
+            },
+            start_date=start_date,
+            end_date=end_date,
+        )
         logger.info(
             "Weekly profit trend retrieved",
             extra={"start_date": start_date, "end_date": end_date},
@@ -156,25 +136,19 @@ class AnalyticsService:
     def get_profit_and_volume_by_product(
         start_date: str, end_date: str, limit: int = 5
     ) -> list[dict[str, Any]]:
-        start_date = validate_date(start_date)
-        end_date = validate_date(end_date)
-        AnalyticsService._validate_date_range(start_date, end_date)
         limit = validate_integer(limit, min_value=1, max_value=100)
-        metric_result = AnalyticsEngine().execute_metric(
+        result = AnalyticsService._execute_metric(
             ProductProfitMetric(),
-            start_date=start_date,
-            end_date=end_date,
-            limit=limit,
-        )
-        result = [
-            {
+            lambda row: {
                 "id": row["product_id"],
                 "name": row["name"],
                 "total_profit": row["total_profit"],
                 "sales_volume": row["sales_volume"],
-            }
-            for row in metric_result.data
-        ]
+            },
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
+        )
         logger.info(f"Retrieved profit and volume by product: {len(result)} products")
         return result
 
@@ -185,23 +159,17 @@ class AnalyticsService:
     def get_category_performance(
         start_date: str, end_date: str
     ) -> list[dict[str, Any]]:
-        start_date = validate_date(start_date)
-        end_date = validate_date(end_date)
-        AnalyticsService._validate_date_range(start_date, end_date)
-        metric_result = AnalyticsEngine().execute_metric(
+        result = AnalyticsService._execute_metric(
             DepartmentSalesMetric(),
-            start_date=start_date,
-            end_date=end_date,
-        )
-        result = [
-            {
+            lambda row: {
                 "category": row["category"],
                 "total_sales": row["total_sales"],
                 "number_of_products_sold": row["units_sold"],
                 "sale_count": row["sale_count"],
-            }
-            for row in metric_result.data
-        ]
+            },
+            start_date=start_date,
+            end_date=end_date,
+        )
         logger.info(
             "Category performance retrieved",
             extra={"start_date": start_date, "end_date": end_date},
@@ -215,18 +183,10 @@ class AnalyticsService:
     def get_profit_by_product(
         start_date: str, end_date: str, limit: int = 10
     ) -> list[dict[str, Any]]:
-        start_date = validate_date(start_date)
-        end_date = validate_date(end_date)
-        AnalyticsService._validate_date_range(start_date, end_date)
         limit = validate_integer(limit, min_value=1, max_value=1000)
-        metric_result = AnalyticsEngine().execute_metric(
+        result = AnalyticsService._execute_metric(
             ProductProfitMetric(),
-            start_date=start_date,
-            end_date=end_date,
-            limit=limit,
-        )
-        result = [
-            {
+            lambda row: {
                 "id": row["product_id"],
                 "product_id": row["product_id"],
                 "name": row["name"],
@@ -234,9 +194,11 @@ class AnalyticsService:
                 "total_cost": row["total_cost"],
                 "total_profit": row["total_profit"],
                 "sale_count": row["sale_count"],
-            }
-            for row in metric_result.data
-        ]
+            },
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit,
+        )
         logger.info(f"Retrieved profit by product: {len(result)} products")
         return result
 
@@ -245,23 +207,17 @@ class AnalyticsService:
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def get_profit_trend(start_date: str, end_date: str) -> list[dict[str, Any]]:
-        start_date = validate_date(start_date)
-        end_date = validate_date(end_date)
-        AnalyticsService._validate_date_range(start_date, end_date)
-        metric_result = AnalyticsEngine().execute_metric(
+        result = AnalyticsService._execute_metric(
             ProfitTrendMetric(),
-            start_date=start_date,
-            end_date=end_date,
-        )
-        result = [
-            {
+            lambda row: {
                 "date": row["date"],
                 "daily_revenue": row["daily_revenue"],
                 "daily_profit": row["daily_profit"],
                 "sale_count": row["sale_count"],
-            }
-            for row in metric_result.data
-        ]
+            },
+            start_date=start_date,
+            end_date=end_date,
+        )
         logger.info(f"Retrieved profit trend: {len(result)} days")
         return result
 
@@ -272,23 +228,17 @@ class AnalyticsService:
     def get_profit_margin_distribution(
         start_date: str, end_date: str
     ) -> list[dict[str, Any]]:
-        start_date = validate_date(start_date)
-        end_date = validate_date(end_date)
-        AnalyticsService._validate_date_range(start_date, end_date)
-        metric_result = AnalyticsEngine().execute_metric(
+        result = AnalyticsService._execute_metric(
             ProfitMarginDistributionMetric(),
-            start_date=start_date,
-            end_date=end_date,
-        )
-        result = [
-            {
+            lambda row: {
                 "margin_range": row["margin_range"],
                 "product_count": row["product_count"],
                 "average_margin": row["average_margin"],
                 "total_sales": row["total_sales"],
-            }
-            for row in metric_result.data
-        ]
+            },
+            start_date=start_date,
+            end_date=end_date,
+        )
         logger.info(f"Retrieved profit margin distribution: {len(result)} ranges")
         return result
 
@@ -298,17 +248,15 @@ class AnalyticsService:
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def get_low_stock(threshold: float = 10) -> list[dict[str, Any]]:
         threshold = validate_float_non_negative(threshold)
-        metric_result = AnalyticsEngine().execute_metric(
-            LowStockMetric(), threshold=threshold
-        )
-        result = [
-            {
+        result = AnalyticsService._execute_metric(
+            LowStockMetric(),
+            lambda row: {
                 "id": row["product_id"],
                 "name": row["name"],
                 "quantity": row["quantity"],
-            }
-            for row in metric_result.data
-        ]
+            },
+            threshold=threshold,
+        )
         logger.info(f"Retrieved low stock products: {len(result)}")
         return result
 
@@ -318,18 +266,16 @@ class AnalyticsService:
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def get_inventory_aging(days: int = 30) -> list[dict[str, Any]]:
         days = validate_integer(days, min_value=0)
-        metric_result = AnalyticsEngine().execute_metric(
-            InventoryAgingMetric(), days=days
-        )
-        result = [
-            {
+        result = AnalyticsService._execute_metric(
+            InventoryAgingMetric(),
+            lambda row: {
                 "id": row["product_id"],
                 "name": row["name"],
                 "stock_quantity": row["stock_quantity"],
                 "last_sold_date": row["last_sold_date"],
-            }
-            for row in metric_result.data
-        ]
+            },
+            days=days,
+        )
         logger.info(f"Retrieved inventory aging: {len(result)} products")
         return result
 
@@ -337,15 +283,19 @@ class AnalyticsService:
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def get_sales_summary(start_date: str, end_date: str) -> dict[str, Any]:
-        start_date = validate_date(start_date)
-        end_date = validate_date(end_date)
-        AnalyticsService._validate_date_range(start_date, end_date)
-        metric_result = AnalyticsEngine().execute_metric(
+        result = AnalyticsService._execute_metric(
             SalesSummaryMetric(),
+            lambda row: {
+                "total_sales": row["total_sales"],
+                "total_revenue": row["total_revenue"],
+                "total_profit": row["total_profit"],
+                "average_sale_value": row["average_sale_value"],
+                "unique_customers": row["unique_customers"],
+            },
             start_date=start_date,
             end_date=end_date,
         )
-        if not metric_result.data:
+        if not result:
             logger.warning(f"No sales data found for period {start_date} to {end_date}")
             return {
                 "total_sales": 0,
@@ -354,15 +304,9 @@ class AnalyticsService:
                 "average_sale_value": 0,
                 "unique_customers": 0,
             }
-        result = metric_result.data[0]
+        summary = result[0]
         logger.info(f"Retrieved sales summary from {start_date} to {end_date}")
-        return {
-            "total_sales": result["total_sales"],
-            "total_revenue": result["total_revenue"],
-            "total_profit": result["total_profit"],
-            "average_sale_value": result["average_sale_value"],
-            "unique_customers": result["unique_customers"],
-        }
+        return summary
 
     @classmethod
     def clear_cache(cls) -> None:
@@ -378,19 +322,3 @@ class AnalyticsService:
         AnalyticsService.get_low_stock.cache_clear()
         AnalyticsService.get_inventory_aging.cache_clear()
         logger.debug("Analytics cache cleared")
-
-    @staticmethod
-    def _validate_date_range(start_date: str, end_date: str) -> None:
-        """Validate date range for analytics queries."""
-        try:
-            start = datetime.fromisoformat(start_date)
-            end = datetime.fromisoformat(end_date)
-            today = datetime.now()
-
-            if start > today or end > today:
-                raise ValidationException("Date range cannot be in the future")
-            if start > end:
-                raise ValidationException("Start date must be before end date")
-
-        except ValueError as e:
-            raise ValidationException(f"Invalid date format: {str(e)}") from e

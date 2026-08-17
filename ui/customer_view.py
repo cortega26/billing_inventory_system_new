@@ -296,6 +296,7 @@ class CustomerView(QWidget):
 
     def _render_customer_row(self, row: int, cust: Customer) -> None:
         """Render a single customer row. Raises on failure (the caller skips it)."""
+        assert cust.id is not None
         total_purchases, total_amount = self.customer_service.get_customer_stats(
             cust.id
         )

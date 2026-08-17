@@ -75,6 +75,26 @@ class MetricWidget(QFrame):
         self.value_widget.setText(str(value))
 
 
+def _production_metrics(view) -> list:
+    return [
+        MetricWidget("Unidades Vendidas", view.get_total_units_sold),
+        MetricWidget("Ventas de Hoy", view.get_todays_sales),
+    ]
+
+
+def _reseller_metrics(view) -> list:
+    return [
+        MetricWidget("Valor Inventario", view.get_inventory_value),
+        MetricWidget("Ventas de Hoy", view.get_todays_sales),
+    ]
+
+
+DASHBOARD_PROFILE_METRICS = {
+    "production": _production_metrics,
+    "reseller": _reseller_metrics,
+}
+
+
 class DashboardView(QWidget):
     def __init__(self):
         super().__init__()
@@ -268,15 +288,10 @@ class DashboardView(QWidget):
             MetricWidget("Ganancia Total", self.get_total_profits),
             MetricWidget("Margen Ganancia", self.get_profit_margin),
         ]
-        if profile == "production":
-            return common + [
-                MetricWidget("Unidades Vendidas", self.get_total_units_sold),
-                MetricWidget("Ventas de Hoy", self.get_todays_sales),
-            ]
-        return common + [
-            MetricWidget("Valor Inventario", self.get_inventory_value),
-            MetricWidget("Ventas de Hoy", self.get_todays_sales),
-        ]
+        builder = DASHBOARD_PROFILE_METRICS.get(profile)
+        if builder is None:
+            raise ValueError(f"Unknown dashboard profile: {profile!r}")
+        return common + builder(self)
 
     @ui_operation()
     def get_total_units_sold(self) -> str:

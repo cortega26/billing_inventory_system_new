@@ -62,3 +62,12 @@ def test_production_profile_shows_units_card(qtbot, set_dashboard_profile):
     labels = _metric_labels(view)
     assert "Unidades Vendidas" in labels
     assert "Valor Inventario" not in labels
+
+
+def test_unknown_profile_raises_value_error(qtbot, monkeypatch):
+    def fake_get_active_business():
+        return {"id": "default", "name": "Principal", "dashboard": "bogus"}
+
+    monkeypatch.setattr(config, "get_active_business", fake_get_active_business)
+    with pytest.raises(ValueError, match="Unknown dashboard profile"):
+        DashboardView()

@@ -1,9 +1,11 @@
+from types import SimpleNamespace
+
 import pytest
 
 from database.database_manager import DatabaseManager
 from services.audit_service import AuditService
 from services.customer_service import CustomerService
-from utils.exceptions import NotFoundException, ValidationException
+from utils.exceptions import DatabaseException, NotFoundException, ValidationException
 from utils.system.event_system import event_system
 
 
@@ -325,3 +327,17 @@ class TestCustomerService:
         assert "912345678" not in combined
         assert "123" not in combined
         assert "Jane Doe" not in combined
+
+    def test_create_customer_raises_when_lastrowid_missing(
+        self, customer_service, mocker
+    ):
+        mocker.patch.object(
+            DatabaseManager,
+            "execute_query",
+            return_value=SimpleNamespace(lastrowid=None),
+        )
+
+        with pytest.raises(DatabaseException):
+            customer_service.create_customer(
+                identifier_9="923456789", name="Test Customer"
+            )

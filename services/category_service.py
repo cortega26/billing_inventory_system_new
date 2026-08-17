@@ -14,12 +14,14 @@ class CategoryService:
     @staticmethod
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
-    def create_category(name: str) -> int | None:
+    def create_category(name: str) -> int:
         name = validate_string(name, min_length=1, max_length=50)
         name = sanitize_html(name)
         query = "INSERT INTO categories (name) VALUES (?)"
         cursor = DatabaseManager.execute_query(query, (name,))
         category_id = cursor.lastrowid
+        if category_id is None:
+            raise DatabaseException("Failed to get new category ID after insert.")
         CategoryService.clear_cache()
         logger.info(
             "Category created", extra={"category_id": category_id, "name": name}
@@ -37,9 +39,8 @@ class CategoryService:
         if row:
             logger.info("Category retrieved", extra={"category_id": category_id})
             return Category.from_db_row(row)
-        else:
-            logger.warning("Category not found", extra={"category_id": category_id})
-            raise NotFoundException(f"Category with ID {category_id} not found")
+        logger.warning("Category not found", extra={"category_id": category_id})
+        return None
 
     @staticmethod
     @lru_cache(maxsize=1)
@@ -113,9 +114,8 @@ class CategoryService:
         if row:
             logger.info("Category retrieved by name", extra={"name": name})
             return Category.from_db_row(row)
-        else:
-            logger.warning("Category not found by name", extra={"name": name})
-            raise NotFoundException(f"Category with name '{name}' not found")
+        logger.warning("Category not found by name", extra={"name": name})
+        return None
 
     @classmethod
     def clear_cache(cls) -> None:

@@ -376,16 +376,13 @@ class PurchaseView(QWidget):
 
         try:
             date_str = self.date_input.date().toString("yyyy-MM-dd")
-            purchase_id = self.purchase_service.create_purchase(
+            self.purchase_service.create_purchase(
                 supplier, date_str, self.purchase_items
             )
 
-            if purchase_id:
-                self.load_purchases()
-                self.clear_purchase()
-                show_info_message("Éxito", "Compra completada exitosamente")
-            else:
-                raise DatabaseException("Falló al crear compra")
+            self.load_purchases()
+            self.clear_purchase()
+            show_info_message("Éxito", "Compra completada exitosamente")
 
         except Exception as e:
             logger.error(f"Error completing purchase: {str(e)}")

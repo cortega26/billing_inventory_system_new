@@ -1014,15 +1014,11 @@ class SaleView(QWidget):
             date = validate_date(self.date_input.date().toString("yyyy-MM-dd"))
             processed_items = prepare_processed_sale_items(self.sale_items)
 
-            sale_id = self.sale_service.create_sale(customer_id, date, processed_items)
+            self.sale_service.create_sale(customer_id, date, processed_items)
 
-            if sale_id:
-                self.load_sales()
-                self.clear_sale()
-                show_info_message("Éxito", "Venta completada exitosamente")
-
-            else:
-                raise DatabaseException("Error al crear la venta")
+            self.load_sales()
+            self.clear_sale()
+            show_info_message("Éxito", "Venta completada exitosamente")
 
         except Exception as e:
             logger.error(f"Error completing sale: {str(e)}")

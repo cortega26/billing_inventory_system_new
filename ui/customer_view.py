@@ -476,12 +476,9 @@ class CustomerView(QWidget):
                     name=dialog.name_input.text().strip() or None,
                     identifier_3or4=dialog.identifier_3or4_input.text().strip() or None,
                 )
-                if customer_id is not None:
-                    self.load_customers()
-                    show_info_message("Éxito", "Cliente agregado exitosamente.")
-                    logger.info(f"Customer added successfully: ID {customer_id}")
-                else:
-                    raise DatabaseException("Error al agregar cliente.")
+                self.load_customers()
+                show_info_message("Éxito", "Cliente agregado exitosamente.")
+                logger.info(f"Customer added successfully: ID {customer_id}")
             except Exception as e:
                 logger.error(f"Error adding customer: {str(e)}")
                 raise

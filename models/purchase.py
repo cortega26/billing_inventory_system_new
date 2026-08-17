@@ -70,10 +70,7 @@ class PurchaseItem(SQLModel, table=True):
         """
         Validate that the price is a positive integer.
         """
-        if not isinstance(price, int):
-            raise ValidationException("Price must be an integer")
-        if price < 0:
-            raise ValidationException("Price cannot be negative")
+        validate_money(price)
 
     def total_price(self) -> int:
         """Calculate total price ensuring proper CLP rounding."""

@@ -105,10 +105,7 @@ class SaleItem(SQLModel, table=True):
     @staticmethod
     def validate_price(price: int) -> None:
         """Validate price value."""
-        if not isinstance(price, int):
-            raise ValidationException("Price must be an integer")
-        if price < 0:
-            raise ValidationException("Price cannot be negative")
+        validate_money(price)
 
     @staticmethod
     def validate_profit(profit: int) -> None:

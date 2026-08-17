@@ -61,7 +61,6 @@ class ReceiptService:
             c.drawString(250, y, str(item.quantity))
             c.drawString(350, y, f"${item.unit_price:,}".replace(",", "."))
 
-            # item.total_price() is a method on SaleItem usually
             total_line = (
                 item.total_price()
                 if hasattr(item, "total_price")

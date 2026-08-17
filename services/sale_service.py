@@ -563,10 +563,10 @@ class SaleService:
             query, (start_date, end_date, SaleStatus.CONFIRMED.value)
         )
 
-        if result:
-            return {
-                "total_sales": result["total_sales"] or 0,
-                "total_amount": result["total_amount"] or 0,
-                "total_profit": result["total_profit"] or 0,
-            }
-        return {"total_sales": 0, "total_amount": 0, "total_profit": 0}
+        if not result:
+            return {"total_sales": 0, "total_amount": 0, "total_profit": 0}
+        return {
+            "total_sales": result["total_sales"] or 0,
+            "total_amount": result["total_amount"] or 0,
+            "total_profit": result["total_profit"] or 0,
+        }

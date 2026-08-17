@@ -165,11 +165,6 @@ class MainWindow(QMainWindow):
         help_menu = self.create_menu(
             "&Ayuda",
             [
-                (
-                    "&Guía de Usuario",
-                    QKeySequence.StandardKey.HelpContents,
-                    self.show_user_guide,
-                ),
                 ("&Acerca de", None, self.show_about_dialog),
             ],
         )
@@ -464,10 +459,3 @@ class MainWindow(QMainWindow):
         except Exception as e:
             logger.error(f"Error refreshing current tab: {str(e)}")
             raise UIException(f"Failed to refresh current tab: {str(e)}") from e
-
-    @ui_operation(show_dialog=True)
-    def show_user_guide(self):
-        QMessageBox.information(
-            self, "Guía de Usuario", "El contenido de la guía de usuario va aquí."
-        )
-        # TODO: Implement actual user guide content or link to documentation

@@ -441,14 +441,13 @@ class CustomerService:
             WHERE customer_id = ?
         """
         result = DatabaseManager.fetch_one(query, (customer_id,))
-        if result:
-            logger.info("Customer stats retrieved", extra={"customer_id": customer_id})
-            return result["total_purchases"], result["total_amount"]
-        else:
+        if result is None:
             logger.warning(
                 "Customer stats not found", extra={"customer_id": customer_id}
             )
             return 0, 0
+        logger.info("Customer stats retrieved", extra={"customer_id": customer_id})
+        return result["total_purchases"], result["total_amount"]
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)

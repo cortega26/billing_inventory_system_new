@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 from services.category_service import CategoryService
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
+from ui.styles import DesignTokens
 from utils.decorators import handle_exceptions, ui_operation
 from utils.exceptions import DatabaseException, UIException, ValidationException
 from utils.helpers import (
@@ -201,8 +202,7 @@ class InventoryView(QWidget):
         with wait_cursor():
             category_id = self.category_filter.currentData()
             # If category is selected, we filter by it. Otherwise all.
-            # Inventory service might need get_inventory_by_category or we filter locally.
-            # Assuming get_inventory_status returns all and we filter.
+            # Filter the full inventory list locally by category/barcode/search.
 
             items = self.inventory_service.get_all_inventory()
 
@@ -295,8 +295,6 @@ class InventoryView(QWidget):
                 }
                 self.edit_inventory(item)
             else:
-                from ui.styles import DesignTokens
-
                 self.barcode_input.setStyleSheet(
                     f"background-color: {DesignTokens.COLOR_ERROR_BG};"
                 )

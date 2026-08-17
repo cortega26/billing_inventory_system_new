@@ -499,7 +499,7 @@ class AnalyticsView(QWidget):
                         bar_sets[metric].append(item.get(metric, 0))
 
             else:
-                # SINGLE-COLUMN BARS (old approach)
+                # Single-series bar chart (one value per category).
                 bar_set = QBarSet("")
                 for item in data:
                     if y_key is not None:
@@ -549,7 +549,7 @@ class AnalyticsView(QWidget):
 
             if y_values:
                 max_val = max(y_values)
-                axis_y.setRange(0, max_val * 1.1)  # or just max_val
+                axis_y.setRange(0, max_val * 1.1)
             axis_y.setLabelFormat("%.0f")
             chart.addAxis(axis_y, Qt.AlignmentFlag.AlignLeft)
             series.attachAxis(axis_y)

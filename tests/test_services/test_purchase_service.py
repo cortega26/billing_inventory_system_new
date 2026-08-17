@@ -6,7 +6,6 @@ import pytest
 from database.database_manager import DatabaseManager
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
-from services.purchase_query_service import PurchaseQueryService
 from services.purchase_service import PurchaseService
 from utils.exceptions import DatabaseException, NotFoundException, ValidationException
 from utils.helpers import get_product_ids_from_items as helpers
@@ -320,12 +319,12 @@ class TestPurchaseService:
         source = inspect.getsource(inspect.getmodule(helpers))
         assert source.count("def get_product_ids_from_items") == 1
 
-    def test_purchase_query_service_reads_history_with_items(
+    def test_purchase_service_reads_history_with_items(
         self, purchase_service, sample_purchase_data, sample_product
     ):
         purchase_id = purchase_service.create_purchase(**sample_purchase_data)
 
-        history = PurchaseQueryService.get_purchase_history(
+        history = PurchaseService.get_purchase_history(
             sample_purchase_data["date"], sample_purchase_data["date"]
         )
 

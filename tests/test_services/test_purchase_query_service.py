@@ -3,7 +3,6 @@ import pytest
 from services.category_service import CategoryService
 from services.inventory_service import InventoryService
 from services.product_service import ProductService
-from services.purchase_query_service import PurchaseQueryService
 from services.purchase_service import PurchaseService
 from utils.exceptions import ValidationException
 
@@ -76,9 +75,7 @@ class TestGetPurchaseTrends:
             purchase_service, sample_product, "Proveedor B", "2026-08-12", 3, 700
         )
 
-        trends = PurchaseQueryService.get_purchase_trends(
-            "2026-08-01", "2026-08-15", "day"
-        )
+        trends = PurchaseService.get_purchase_trends("2026-08-01", "2026-08-15", "day")
 
         assert trends == [
             {"period": "2026-08-05", "purchase_count": 1, "total_amount": 9000},
@@ -88,14 +85,10 @@ class TestGetPurchaseTrends:
 
     def test_invalid_interval_raises(self):
         with pytest.raises(ValidationException):
-            PurchaseQueryService.get_purchase_trends(
-                "2026-08-01", "2026-08-15", "bogus"
-            )
+            PurchaseService.get_purchase_trends("2026-08-01", "2026-08-15", "bogus")
 
     def test_empty_range_returns_empty_list(self):
-        trends = PurchaseQueryService.get_purchase_trends(
-            "2026-08-01", "2026-08-15", "day"
-        )
+        trends = PurchaseService.get_purchase_trends("2026-08-01", "2026-08-15", "day")
 
         assert trends == []
 
@@ -112,7 +105,7 @@ class TestGetPurchasesBySupplier:
             purchase_service, sample_product, "Proveedor B", "2026-08-12", 3, 700
         )
 
-        purchases = PurchaseQueryService.get_purchases_by_supplier(
+        purchases = PurchaseService.get_purchases_by_supplier(
             "Proveedor A", "2026-08-01", "2026-08-15"
         )
 

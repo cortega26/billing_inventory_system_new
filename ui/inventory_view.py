@@ -195,8 +195,7 @@ class InventoryView(QWidget):
         try:
             category_id = self.category_filter.currentData()
             # If category is selected, we filter by it. Otherwise all.
-            # Inventory service might need get_inventory_by_category or we filter locally.
-            # Assuming get_inventory_status returns all and we filter.
+            # Filter the full inventory list locally by category/barcode/search.
 
             items = self.inventory_service.get_all_inventory()
 

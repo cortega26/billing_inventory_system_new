@@ -529,7 +529,6 @@ class SaleView(QWidget):
         self.customer_info_label = QLabel()
         # Note: Styling handled by global stylesheet (QLabel in QFrame context if needed, but default is fine)
         # We can simulate the "box" look by making it a frame or just using QSS on specific object name if highly unique
-        # For now, let's keep it simple and clean, potentially adding a generic class if needed.
         self.customer_info_label.setFrameShape(QLabel.Shape.Box)  # Use native frame
         self.customer_info_label.setFrameShadow(QLabel.Shadow.Sunken)
         self.customer_info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)

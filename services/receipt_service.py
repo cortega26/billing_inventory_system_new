@@ -11,9 +11,6 @@ from utils.validation.validators import (
 
 class ReceiptService:
     def __init__(self):
-        # We might need customer service if we want to fetch customer details inside receipt generation,
-        # but Sale object passed usually has what we need or we pass the data.
-        # For now, let's keep it simple.
         pass
 
     def generate_pdf(self, sale: Sale, items: list, filepath: str) -> None:
@@ -60,7 +57,6 @@ class ReceiptService:
                 c.drawString(250, y, str(item.quantity))
                 c.drawString(350, y, f"${item.unit_price:,}".replace(",", "."))
 
-                # item.total_price() is a method on SaleItem usually
                 total_line = (
                     item.total_price()
                     if hasattr(item, "total_price")
@@ -74,7 +70,6 @@ class ReceiptService:
             c.drawString(450, y - 20, f"${sale.total_amount:,}".replace(",", "."))
 
             # Profit (Internal use only really, but was in original code)
-            # Keeping it to preserve behavior, though usually hidden from customers.
             c.drawString(350, y - 40, "Profit:")
             c.drawString(450, y - 40, f"${sale.total_profit:,}".replace(",", "."))
 

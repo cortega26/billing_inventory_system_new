@@ -211,15 +211,10 @@ class PurchaseQueryService:
             """,
             (start_date, end_date),
         )
-        if not row:
-            return {
-                "total_purchases": 0,
-                "total_amount": 0,
-                "suppliers": PurchaseQueryService.get_suppliers(),
-            }
+        row = row or {}
         return {
-            "total_purchases": row["total_purchases"],
-            "total_amount": row["total_amount"],
+            "total_purchases": row.get("total_purchases", 0),
+            "total_amount": row.get("total_amount", 0),
             "suppliers": PurchaseQueryService.get_suppliers(),
         }
 

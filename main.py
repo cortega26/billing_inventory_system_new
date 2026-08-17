@@ -173,11 +173,6 @@ class Application:
             logger.critical(f"Failed to initialize database: {e}")
             raise AppException(f"Failed to initialize database: {e}") from e
 
-    # @staticmethod
-    # def run():
-    #     # Logic moved to main block
-    #     pass
-
 
 if __name__ == "__main__":
     # Create QApplication first to ensure UI elemens (like error dialogs) can be created

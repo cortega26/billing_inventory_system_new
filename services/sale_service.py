@@ -17,10 +17,10 @@ from utils.helpers import get_product_ids_from_items
 from utils.math.financial_calculator import FinancialCalculator
 from utils.system.event_system import event_system
 from utils.system.logger import logger
+from utils.validation.item_validators import validate_item_count, validate_line_item
 from utils.validation.validators import (
     validate_date,
     validate_filepath,
-    validate_float,
     validate_integer,
     validate_string,
 )
@@ -488,59 +488,49 @@ class SaleService:
         return f"{date_part}{next_number:03d}"
 
     def _validate_sale_items(self, items: list[dict[str, Any]]) -> None:
-        if not items:
-            raise ValidationException("Sale must have at least one item")
-        if len(items) > MAX_SALE_ITEMS:
-            raise ValidationException(
-                f"Too many items in single sale (max {MAX_SALE_ITEMS})"
-            )
+        # Intentional divergence: sale line items have NO price or quantity upper
+        # cap. Discounted sales may exceed the 1_000_000 unit-price ceiling, so
+        # price_max/quantity_max stay None here (see validate_line_item docstring).
+        validate_item_count(items, MAX_SALE_ITEMS, "sale")
         for item in items:
-            try:
-                # Validate quantity as float with precision
-                quantity = validate_float(float(item["quantity"]), min_value=0.001)
-                if round(quantity, QUANTITY_PRECISION) != quantity:
-                    raise ValidationException(
-                        f"Quantity cannot have more than {QUANTITY_PRECISION} decimal places"
-                    )
+            validate_line_item(
+                item,
+                quantity_min=0.001,
+                quantity_max=None,
+                price_min=1,
+                price_max=None,
+                price_key="sell_price",
+            )
 
-                # Validate price as integer
-                sell_price = validate_integer(item["sell_price"], min_value=1)
-                if not isinstance(sell_price, int):
-                    raise ValidationException("Item sell price must be an integer")
-
-                # Compute profit server-side; ignore any client-supplied value
-                product = self.product_service.get_product(item["product_id"])
-                if product is None:
-                    raise ValidationException(
-                        f"Product with ID {item['product_id']} not found"
-                    )
-                item["profit"] = FinancialCalculator.calculate_item_profit(
-                    quantity, sell_price, product.cost_price
+            # Compute profit server-side; ignore any client-supplied value
+            product = self.product_service.get_product(item["product_id"])
+            if product is None:
+                raise ValidationException(
+                    f"Product with ID {item['product_id']} not found"
                 )
-
-            except (ValueError, TypeError):
-                raise ValidationException("Invalid quantity or price format") from None
+            item["profit"] = FinancialCalculator.calculate_item_profit(
+                item["quantity"], item["sell_price"], product.cost_price
+            )
 
     @staticmethod
     @db_operation(show_dialog=True)
     def _insert_sale_items(sale_id: int, items: list[dict[str, Any]]) -> None:
-        for item in items:
-            # Store quantity as a number (not a string) for consistent typing
-            quantity = round(float(item["quantity"]), QUANTITY_PRECISION)
-            query = """
-                INSERT INTO sale_items (sale_id, product_id, quantity, price, profit)
-                VALUES (?, ?, ?, ?, ?)
-            """
-            DatabaseManager.execute_query(
-                query,
-                (
-                    sale_id,
-                    item["product_id"],
-                    quantity,
-                    item["sell_price"],
-                    item["profit"],
-                ),
+        query = """
+            INSERT INTO sale_items (sale_id, product_id, quantity, price, profit)
+            VALUES (?, ?, ?, ?, ?)
+        """
+        # Store quantity as a number (not a string) for consistent typing
+        batch_params = [
+            (
+                sale_id,
+                int(item["product_id"]),
+                round(float(item["quantity"]), QUANTITY_PRECISION),
+                int(item["sell_price"]),
+                int(item["profit"]),
             )
+            for item in items
+        ]
+        DatabaseManager.executemany(query, batch_params)
 
     # _update_inventory and _revert_inventory removed in favor of InventoryService.apply_batch_updates
 

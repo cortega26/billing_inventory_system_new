@@ -33,10 +33,10 @@ class UpdateSaleWorkflow:
         sale_id = validate_integer(sale_id, min_value=1)
         customer_id = validate_integer(customer_id, min_value=1)
         date = validate_date(date)
-        self.sale_service._validate_sale_items(items)
+        self.sale_service.validate_sale_items(items)
 
         # Require that the sale exists
-        sale = self.sale_service._require_sale(sale_id)
+        sale = self.sale_service.require_sale(sale_id)
         if sale.status == SaleStatus.CANCELLED:
             raise ValidationException(f"Sale {sale_id} is already cancelled")
 
@@ -45,7 +45,7 @@ class UpdateSaleWorkflow:
         self._validate_inventory_for_sale_update(old_items, items)
 
         # 2. Financial Calculations
-        # Note: item["profit"] was calculated during _validate_sale_items
+        # Note: item["profit"] was calculated during validate_sale_items
         total_amount = sum(
             FinancialCalculator.calculate_item_total(
                 item["quantity"], item["sell_price"]
@@ -62,12 +62,12 @@ class UpdateSaleWorkflow:
             )
 
             # Update sale record
-            self.sale_service._update_sale(
+            self.sale_service.update_sale_record(
                 sale_id, customer_id, date, total_amount, total_profit
             )
 
             # Update sale items (deletes old, inserts new)
-            self.sale_service._update_sale_items(sale_id, items)
+            self.sale_service.replace_sale_items(sale_id, items)
 
             # Apply new stock deduction
             InventoryService.apply_batch_updates(

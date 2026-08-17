@@ -1,16 +1,9 @@
 from enum import StrEnum
 
 
-class StockMovementType(StrEnum):
-    SALE = "sale"
-    PURCHASE = "purchase"
-    ADJUSTMENT = "adjustment"
-
-
 class InventoryAction(StrEnum):
     CREATE = "create"
     UPDATE = "update"
-    SET = "set"
 
 
 class TimeInterval(StrEnum):

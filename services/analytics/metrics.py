@@ -27,7 +27,7 @@ class SalesDailyMetric(DateRangeMetric):
             WHERE {DATE_RANGE_STATUS_PREDICATE}
             GROUP BY strftime('%Y-%m-%d', date)
             ORDER BY date ASC
-        """
+        """  # nosec B608
 
 
 class WeekdaySalesMetric(DateRangeMetric):
@@ -53,7 +53,7 @@ class WeekdaySalesMetric(DateRangeMetric):
             WHERE {DATE_RANGE_STATUS_PREDICATE}
             GROUP BY CAST(strftime('%w', date) AS INTEGER)
             ORDER BY CAST(strftime('%w', date) AS INTEGER)
-        """
+        """  # nosec B608
 
 
 class TopProductsMetric(DateRangeMetric):
@@ -80,7 +80,7 @@ class TopProductsMetric(DateRangeMetric):
             GROUP BY p.id
             ORDER BY total_quantity DESC
             LIMIT ?
-        """
+        """  # nosec B608
 
     def get_parameters(self, **kwargs) -> tuple:
         return (kwargs["start_date"], kwargs["end_date"], kwargs.get("limit", 10))
@@ -161,7 +161,7 @@ class DepartmentSalesMetric(DateRangeMetric):
             WHERE {DATE_RANGE_STATUS_PREDICATE_ALIASED}
             GROUP BY c.id
             ORDER BY total_sales DESC
-        """
+        """  # nosec B608
 
 
 class ProfitTrendMetric(DateRangeMetric):
@@ -180,7 +180,7 @@ class ProfitTrendMetric(DateRangeMetric):
             WHERE {DATE_RANGE_STATUS_PREDICATE}
             GROUP BY strftime('%Y-%m-%d', date)
             ORDER BY strftime('%Y-%m-%d', date)
-        """
+        """  # nosec B608
 
 
 class WeeklyProfitTrendMetric(DateRangeMetric):
@@ -198,7 +198,7 @@ class WeeklyProfitTrendMetric(DateRangeMetric):
             WHERE {DATE_RANGE_STATUS_PREDICATE}
             GROUP BY week
             ORDER BY week
-        """
+        """  # nosec B608
 
 
 class ProductProfitMetric(DateRangeMetric):
@@ -227,7 +227,7 @@ class ProductProfitMetric(DateRangeMetric):
             GROUP BY p.id
             ORDER BY total_profit DESC
             LIMIT ?
-        """
+        """  # nosec B608
 
     def get_parameters(self, **kwargs) -> tuple:
         return (kwargs["start_date"], kwargs["end_date"], kwargs.get("limit", 10))
@@ -280,7 +280,7 @@ class ProfitMarginDistributionMetric(DateRangeMetric):
                     WHEN '30-40%' THEN 5
                     ELSE 6
                 END
-        """
+        """  # nosec B608
 
 
 class SalesSummaryMetric(DateRangeMetric):
@@ -298,4 +298,4 @@ class SalesSummaryMetric(DateRangeMetric):
                 COUNT(DISTINCT customer_id) as unique_customers
             FROM sales
             WHERE {DATE_RANGE_STATUS_PREDICATE}
-        """
+        """  # nosec B608

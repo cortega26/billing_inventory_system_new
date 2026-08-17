@@ -23,7 +23,6 @@ def temp_config_file(tmp_path):
             {
                 "version": "1.0",
                 "theme": "default",
-                "language": "en",
                 "backup_interval": 24,
                 "database.path": "test.db",
                 "database.backup_path": "backups/",
@@ -59,7 +58,6 @@ class TestConfig:
     def test_get_config_value(self, config):
         """Test getting configuration values."""
         assert config.get("theme") == "default"
-        assert config.get("language") == "en"
         assert config.get("backup_interval") == 24
         assert config.get("backup_dir") == "backups"
         assert config.get("backup_retention_days") == 7
@@ -368,3 +366,9 @@ class TestBusinessRegistryValidation:
         # Mirror the dashboard profile helper's default path: a missing
         # "dashboard" key resolves to the reseller profile.
         assert entry.get("dashboard", DEFAULT_DASHBOARD_PROFILE) == "reseller"
+
+
+def test_default_config_registers_backup_min_free_mb():
+    """Default config carries the canonical backup_min_free_mb value."""
+    assert Config._get_default_config()["backup_min_free_mb"] == 1024
+    assert Config().get("backup_min_free_mb") == 1024

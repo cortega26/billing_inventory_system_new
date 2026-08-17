@@ -4,7 +4,6 @@ import os
 import re
 import threading
 import time
-from enum import IntEnum
 from json.decoder import JSONDecodeError
 from pathlib import Path
 from typing import Any, Optional
@@ -72,25 +71,6 @@ DEFAULT_ACTIVE_BUSINESS = "default"
 
 
 # Debug Level configuration
-class DebugLevel(IntEnum):
-    """Enum representing different debug levels for the application."""
-
-    CRITICAL = 1
-    ERROR = 2
-    WARNING = 3
-    INFO = 4
-    DEBUG = 5
-
-
-DEBUG_LEVEL_MAP: dict[DebugLevel, int] = {
-    DebugLevel.CRITICAL: logging.CRITICAL,
-    DebugLevel.ERROR: logging.ERROR,
-    DebugLevel.WARNING: logging.WARNING,
-    DebugLevel.INFO: logging.INFO,
-    DebugLevel.DEBUG: logging.DEBUG,
-}
-
-# Set the desired debug level
 DEBUG_LEVEL = logging.INFO  # This should control the global level
 
 
@@ -180,10 +160,10 @@ class Config:
         return {
             "version": CONFIG_VERSION,
             "theme": "default",
-            "language": "en",
             "backup_interval": 24,
             "backup_dir": "backups",
             "backup_retention_days": 7,
+            "backup_min_free_mb": 1024,
             "pin_hash": "",
             "pin_failed_attempts": 0,
             "pin_locked_until": "",
@@ -278,10 +258,10 @@ class Config:
         required_keys = {
             "version": (str, [CONFIG_VERSION]),
             "theme": (str, ["default", "dark", "light"]),
-            "language": (str, ["en", "es"]),
             "backup_interval": (int, (1, 168)),  # 1 hour to 1 week
             "backup_dir": (str, None),
             "backup_retention_days": (int, (1, 365)),
+            "backup_min_free_mb": (int, (1, 10240)),
             "pin_hash": (str, None),
             "pin_failed_attempts": (int, None),
             "pin_locked_until": (str, None),

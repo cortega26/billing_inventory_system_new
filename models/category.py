@@ -6,6 +6,7 @@ import sqlalchemy as sa
 from pydantic import model_validator
 from sqlmodel import Field, SQLModel
 
+from utils.dates import parse_datetime_cell
 from utils.exceptions import ValidationException
 from utils.system.logger import logger
 
@@ -58,16 +59,8 @@ class Category(SQLModel, table=True):
             return cls(
                 id=int(row["id"]),
                 name=str(row["name"]),
-                created_at=(
-                    datetime.fromisoformat(row["created_at"])
-                    if "created_at" in row and row["created_at"]
-                    else datetime.now()
-                ),
-                updated_at=(
-                    datetime.fromisoformat(row["updated_at"])
-                    if "updated_at" in row and row["updated_at"]
-                    else datetime.now()
-                ),
+                created_at=parse_datetime_cell(row, "created_at"),
+                updated_at=parse_datetime_cell(row, "updated_at"),
             )
         except (KeyError, ValueError, TypeError) as e:
             logger.error(

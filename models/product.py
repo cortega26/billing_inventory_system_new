@@ -12,6 +12,7 @@ from pydantic import PrivateAttr, model_validator
 from sqlmodel import Field, SQLModel
 
 from models.enums import MAX_PRICE_CLP
+from utils.dates import parse_datetime_cell
 from utils.exceptions import ValidationException
 
 
@@ -162,16 +163,8 @@ class Product(SQLModel, table=True):
             category_name=row.get("category_name") or "Uncategorized",
             is_active=bool(row.get("is_active", 1)),
             deleted_at=row.get("deleted_at"),
-            created_at=(
-                datetime.fromisoformat(row["created_at"])
-                if "created_at" in row and row["created_at"]
-                else datetime.now()
-            ),
-            updated_at=(
-                datetime.fromisoformat(row["updated_at"])
-                if "updated_at" in row and row["updated_at"]
-                else datetime.now()
-            ),
+            created_at=parse_datetime_cell(row, "created_at"),
+            updated_at=parse_datetime_cell(row, "updated_at"),
         )
 
     def to_dict(self) -> dict[str, Any]:

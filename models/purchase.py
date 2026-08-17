@@ -5,6 +5,7 @@ import sqlalchemy as sa
 from pydantic import model_validator
 from sqlmodel import Field, Relationship, SQLModel
 
+from utils.dates import parse_date_cell, parse_datetime_cell
 from utils.exceptions import ValidationException
 from utils.system.logger import logger
 from utils.validation.validators import validate_money, validate_money_multiplication
@@ -126,21 +127,14 @@ class Purchase(SQLModel, table=True):
     def from_db_row(cls, row: dict[str, Any]) -> "Purchase":
         try:
             # Parse date string
-            try:
-                date_val = datetime.strptime(row["date"], "%Y-%m-%d")
-            except ValueError:
-                date_val = datetime.fromisoformat(row["date"])
+            date_val = parse_date_cell(row, "date")
 
             return cls(
                 id=int(row["id"]),
                 supplier=str(row["supplier"]),
                 date=date_val,
                 total_amount=int(row.get("total_amount", 0)),
-                created_at=(
-                    datetime.fromisoformat(row["created_at"])
-                    if "created_at" in row and row["created_at"]
-                    else datetime.now()
-                ),
+                created_at=parse_datetime_cell(row, "created_at"),
             )
         except (ValueError, TypeError) as e:
             logger.error(f"Error creating Purchase from row: {row}")

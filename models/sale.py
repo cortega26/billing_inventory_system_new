@@ -5,6 +5,7 @@ import sqlalchemy as sa
 from pydantic import PrivateAttr, model_validator
 from sqlmodel import Column, Field, Integer, Relationship, SQLModel
 
+from utils.dates import parse_date_cell, parse_datetime_cell
 from utils.exceptions import ValidationException
 from utils.system.logger import logger
 from utils.validation.validators import validate_money, validate_money_multiplication
@@ -74,11 +75,7 @@ class SaleItem(SQLModel, table=True):
                 unit_price=int(row["price"]),
                 profit=int(row["profit"]),
                 product_name=row.get("product_name"),
-                created_at=(
-                    datetime.fromisoformat(row["created_at"])
-                    if "created_at" in row and row["created_at"]
-                    else datetime.now()
-                ),
+                created_at=parse_datetime_cell(row, "created_at"),
             )
         except (ValueError, TypeError) as e:
             logger.error(f"Error creating SaleItem from row: {row}")
@@ -200,10 +197,7 @@ class Sale(SQLModel, table=True):
     def from_db_row(cls, row: dict[str, Any]) -> "Sale":
         try:
             # Parse date string
-            try:
-                date_val = datetime.strptime(row["date"], "%Y-%m-%d")
-            except ValueError:
-                date_val = datetime.fromisoformat(row["date"])
+            date_val = parse_date_cell(row, "date")
 
             return cls(
                 id=int(row["id"]),
@@ -217,11 +211,7 @@ class Sale(SQLModel, table=True):
                 total_profit=int(row["total_profit"]),
                 receipt_id=row.get("receipt_id"),
                 status=row.get("status", "confirmed"),
-                created_at=(
-                    datetime.fromisoformat(row["created_at"])
-                    if "created_at" in row and row["created_at"]
-                    else datetime.now()
-                ),
+                created_at=parse_datetime_cell(row, "created_at"),
             )
         except (ValueError, TypeError) as e:
             logger.error(f"Error creating Sale from row: {row}")

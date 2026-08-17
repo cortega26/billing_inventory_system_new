@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 from models.customer import Customer
 from models.sale import Sale
 from utils.helpers import format_price
+from utils.math.financial_calculator import FinancialCalculator
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
 
 RemoveSaleItemHandler = Callable[[int], None]
@@ -37,7 +38,9 @@ def render_sale_item_row(
     table.setItem(row, 2, quantity_item)
     table.setItem(row, 3, PriceTableWidgetItem(item["sell_price"], format_price))
 
-    total = int(round(item["quantity"] * item["sell_price"]))
+    total = FinancialCalculator.calculate_item_total(
+        item["quantity"], item["sell_price"]
+    )
     table.setItem(row, 4, PriceTableWidgetItem(total, format_price))
     table.setCellWidget(row, 5, _build_remove_action_widget(row, remove_handler))
     table.setRowHeight(row, 36)
@@ -49,7 +52,8 @@ def update_sale_total_label(
 ) -> None:
     """Update the total label for the current sale using CLP rounding rules."""
     total_amount = sum(
-        int(round(item["quantity"] * item["sell_price"])) for item in sale_items
+        FinancialCalculator.calculate_item_total(item["quantity"], item["sell_price"])
+        for item in sale_items
     )
     total_label.setText(f"Total: {format_price(total_amount)}")
 

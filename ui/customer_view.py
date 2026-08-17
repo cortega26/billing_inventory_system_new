@@ -30,6 +30,7 @@ from utils.helpers import (
     format_price,
     show_error_message,
     show_info_message,
+    wait_cursor,
 )
 from utils.system.event_system import event_system
 from utils.system.logger import logger
@@ -37,6 +38,8 @@ from utils.ui.table_items import (
     DepartmentIdentifierTableWidgetItem,
     NumericTableWidgetItem,
     PriceTableWidgetItem,
+    action_button,
+    build_actions_cell,
 )
 from utils.validation.validators import validate_string
 
@@ -311,32 +314,22 @@ class CustomerView(QWidget):
                     )
 
                     # Column 7: Actions (Edit / Archive/Restore)
-                    actions_widget = QWidget()
-                    actions_layout = QHBoxLayout(actions_widget)
-                    actions_layout.setContentsMargins(0, 0, 0, 0)
-                    actions_layout.setSpacing(6)
-                    actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-                    edit_button = QPushButton("Editar")
-                    edit_button.setFixedWidth(80)
-                    edit_button.setFixedHeight(24)
-                    edit_button.setStyleSheet("padding: 2px 8px;")
-                    edit_button.clicked.connect(
-                        lambda _, cid=cust.id: self.edit_customer_by_id(cid)
+                    edit_button = action_button(
+                        "Editar",
+                        lambda _, cid=cust.id: self.edit_customer_by_id(cid),
+                        height=24,
                     )
 
                     action_label = "Eliminar" if cust.is_active else "Restaurar"
-                    delete_button = QPushButton(action_label)
-                    delete_button.setFixedWidth(80)
-                    delete_button.setFixedHeight(24)
-                    delete_button.setStyleSheet("padding: 2px 8px;")
-                    delete_button.clicked.connect(
-                        lambda _, cid=cust.id: self.delete_customer_by_id(cid)
+                    delete_button = action_button(
+                        action_label,
+                        lambda _, cid=cust.id: self.delete_customer_by_id(cid),
+                        height=24,
                     )
 
-                    actions_layout.addWidget(edit_button)
-                    actions_layout.addWidget(delete_button)
-                    self.customer_table.setCellWidget(row, 7, actions_widget)
+                    self.customer_table.setCellWidget(
+                        row, 7, build_actions_cell(edit_button, delete_button)
+                    )
                     self.customer_table.setRowHeight(row, 36)
 
                 except Exception as row_error:

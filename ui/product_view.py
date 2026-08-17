@@ -41,6 +41,7 @@ from utils.helpers import (
     format_price,
     show_error_message,
     show_info_message,
+    wait_cursor,
 )
 from utils.system.event_system import event_system
 from utils.system.logger import logger
@@ -48,6 +49,8 @@ from utils.ui.table_items import (
     NumericTableWidgetItem,
     PercentageTableWidgetItem,
     PriceTableWidgetItem,
+    action_button,
+    build_actions_cell,
 )
 from utils.validation.validators import validate_float, validate_string
 
@@ -358,32 +361,22 @@ class ProductView(QWidget):
                     )
 
                     # Create action buttons
-                    actions_widget = QWidget()
-                    actions_layout = QHBoxLayout(actions_widget)
-                    actions_layout.setContentsMargins(0, 0, 0, 0)
-                    actions_layout.setSpacing(6)
-                    actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-                    edit_button = QPushButton("Editar")
-                    edit_button.setFixedWidth(80)
-                    edit_button.setFixedHeight(24)
-                    edit_button.setStyleSheet("padding: 2px 8px;")
-                    edit_button.clicked.connect(
-                        lambda _, p=product: self.edit_product(p)
+                    edit_button = action_button(
+                        "Editar",
+                        lambda _, p=product: self.edit_product(p),
+                        height=24,
                     )
 
                     delete_label = "Eliminar" if product.is_active else "Restaurar"
-                    delete_button = QPushButton(delete_label)
-                    delete_button.setFixedWidth(80)
-                    delete_button.setFixedHeight(24)
-                    delete_button.setStyleSheet("padding: 2px 8px;")
-                    delete_button.clicked.connect(
-                        lambda _, p=product: self.delete_product(p)
+                    delete_button = action_button(
+                        delete_label,
+                        lambda _, p=product: self.delete_product(p),
+                        height=24,
                     )
 
-                    actions_layout.addWidget(edit_button)
-                    actions_layout.addWidget(delete_button)
-                    self.product_table.setCellWidget(row, 8, actions_widget)
+                    self.product_table.setCellWidget(
+                        row, 8, build_actions_cell(edit_button, delete_button)
+                    )
                     self.product_table.setRowHeight(row, 36)
                 except Exception as e:
                     logger.error(f"Error updating row {row}: {str(e)}")

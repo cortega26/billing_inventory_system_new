@@ -2,19 +2,17 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (
-    QHBoxLayout,
-    QLabel,
-    QPushButton,
-    QTableWidget,
-    QTableWidgetItem,
-    QWidget,
-)
+from PySide6.QtWidgets import QLabel, QTableWidget, QTableWidgetItem, QWidget
 
 from models.customer import Customer
 from models.sale import Sale
 from utils.helpers import format_price
-from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
+from utils.ui.table_items import (
+    NumericTableWidgetItem,
+    PriceTableWidgetItem,
+    action_button,
+    build_actions_cell,
+)
 
 RemoveSaleItemHandler = Callable[[int], None]
 SaleActionHandler = Callable[[Sale | None], None]
@@ -106,18 +104,8 @@ def _build_remove_action_widget(
     row: int,
     remove_handler: RemoveSaleItemHandler,
 ) -> QWidget:
-    actions_widget = QWidget()
-    actions_layout = QHBoxLayout(actions_widget)
-    actions_layout.setContentsMargins(0, 0, 0, 0)
-    actions_layout.setSpacing(6)
-    actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-    remove_button = QPushButton("Eliminar")
-    remove_button.setFixedWidth(80)
-    remove_button.setStyleSheet("padding: 2px 8px;")
-    remove_button.clicked.connect(lambda: remove_handler(row))
-    actions_layout.addWidget(remove_button)
-    return actions_widget
+    remove_button = action_button("Eliminar", lambda: remove_handler(row))
+    return build_actions_cell(remove_button)
 
 
 def _build_sale_history_actions_widget(
@@ -127,24 +115,20 @@ def _build_sale_history_actions_widget(
     on_print: SaleActionHandler,
     on_delete: SaleActionHandler,
 ) -> QWidget:
-    actions_widget = QWidget()
-    actions_layout = QHBoxLayout(actions_widget)
-    actions_layout.setContentsMargins(0, 0, 0, 0)
-    actions_layout.setSpacing(4)
-    actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
     button_specs = [
         ("👁", on_view, "View sale details"),
         ("✏", on_edit, "Edit sale"),
         ("🖨", on_print, "Print receipt"),
         ("🗑", on_delete, "Delete this sale"),
     ]
+    buttons = []
     for label, handler, tooltip in button_specs:
-        button = QPushButton(label)
-        button.clicked.connect(lambda _, current_handler=handler: current_handler(sale))
+        button = action_button(
+            label,
+            lambda _, current_handler=handler: current_handler(sale),
+            width=36,
+            style="padding: 2px 4px;",
+        )
         button.setToolTip(tooltip)
-        button.setFixedWidth(36)
-        button.setStyleSheet("padding: 2px 4px;")
-        actions_layout.addWidget(button)
-
-    return actions_widget
+        buttons.append(button)
+    return build_actions_cell(*buttons, spacing=4)

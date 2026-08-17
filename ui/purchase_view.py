@@ -34,10 +34,16 @@ from utils.helpers import (
     format_price,
     show_error_message,
     show_info_message,
+    wait_cursor,
 )
 from utils.system.logger import logger
 from utils.ui.sound import SoundEffect
-from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
+from utils.ui.table_items import (
+    NumericTableWidgetItem,
+    PriceTableWidgetItem,
+    action_button,
+    build_actions_cell,
+)
 from utils.validation.validators import validate_float, validate_string
 
 
@@ -331,19 +337,12 @@ class PurchaseView(QWidget):
             )
 
             # Actions
-            actions_widget = QWidget()
-            actions_layout = QHBoxLayout(actions_widget)
-            actions_layout.setContentsMargins(0, 0, 0, 0)
-            actions_layout.setSpacing(6)
-            actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-            remove_button = QPushButton("Eliminar")
-            remove_button.setFixedWidth(80)
-            remove_button.setStyleSheet("padding: 2px 8px;")
-            remove_button.clicked.connect(lambda _, i=row: self.remove_purchase_item(i))
-            actions_layout.addWidget(remove_button)
-
-            self.purchase_items_table.setCellWidget(row, 5, actions_widget)
+            remove_button = action_button(
+                "Eliminar", lambda _, i=row: self.remove_purchase_item(i)
+            )
+            self.purchase_items_table.setCellWidget(
+                row, 5, build_actions_cell(remove_button)
+            )
             self.purchase_items_table.setRowHeight(row, 36)
 
         self.total_amount_label.setText(f"Total: {format_price(total_amount)}")
@@ -412,28 +411,18 @@ class PurchaseView(QWidget):
             )
 
             # Actions
-            actions_widget = QWidget()
-            actions_layout = QHBoxLayout(actions_widget)
-            actions_layout.setContentsMargins(0, 0, 0, 0)
-            actions_layout.setSpacing(6)
-            actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-            view_button = QPushButton("Ver")
-            view_button.setFixedWidth(80)
-            view_button.setStyleSheet("padding: 2px 8px;")
-            view_button.clicked.connect(lambda _, p=purchase: self.view_purchase(p))
+            view_button = action_button(
+                "Ver", lambda _, p=purchase: self.view_purchase(p)
+            )
             view_button.setToolTip("Ver detalles de compra")
-
-            delete_button = QPushButton("Eliminar")
-            delete_button.setFixedWidth(80)
-            delete_button.setStyleSheet("padding: 2px 8px;")
-            delete_button.clicked.connect(lambda _, p=purchase: self.delete_purchase(p))
+            delete_button = action_button(
+                "Eliminar", lambda _, p=purchase: self.delete_purchase(p)
+            )
             delete_button.setToolTip("Eliminar esta compra")
 
-            for btn in [view_button, delete_button]:
-                actions_layout.addWidget(btn)
-
-            self.purchase_table.setCellWidget(row, 4, actions_widget)
+            self.purchase_table.setCellWidget(
+                row, 4, build_actions_cell(view_button, delete_button)
+            )
             self.purchase_table.setRowHeight(row, 36)
 
     @ui_operation(show_dialog=True)

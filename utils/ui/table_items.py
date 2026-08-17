@@ -2,7 +2,7 @@ from collections.abc import Callable
 from typing import Any
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QTableWidgetItem
+from PySide6.QtWidgets import QHBoxLayout, QPushButton, QTableWidgetItem, QWidget
 
 
 class NumericTableWidgetItem(QTableWidgetItem):
@@ -71,6 +71,36 @@ class DateTableWidgetItem(QTableWidgetItem):
                 return self.date < other.date
             return bool(self.date) < bool(other.date)  # None dates sort last
         return super().__lt__(other)
+
+
+def build_actions_cell(*buttons: QPushButton, spacing: int = 6) -> QWidget:
+    """Wrap buttons in a centered actions cell for a table row."""
+    widget = QWidget()
+    layout = QHBoxLayout(widget)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(spacing)
+    layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    for button in buttons:
+        layout.addWidget(button)
+    return widget
+
+
+def action_button(
+    label: str,
+    on_click,
+    *,
+    width: int = 80,
+    height: int | None = None,
+    style: str = "padding: 2px 8px;",
+) -> QPushButton:
+    """Standard table action button."""
+    button = QPushButton(label)
+    button.setFixedWidth(width)
+    if height is not None:
+        button.setFixedHeight(height)
+    button.setStyleSheet(style)
+    button.clicked.connect(on_click)
+    return button
 
 
 class CheckboxTableWidgetItem(QTableWidgetItem):

@@ -80,7 +80,7 @@ def test_resolve_customer_by_identifier_deduplicates_short_matches_before_choosi
 
 
 def test_resolve_customer_by_identifier_rejects_invalid_lengths():
-    with pytest.raises(ValidationException, match="3/4-digit or 9-digit"):
+    with pytest.raises(ValidationException, match="3/4 o 9 dígitos"):
         resolve_customer_by_identifier("12", object(), lambda _customers: None)
 
 

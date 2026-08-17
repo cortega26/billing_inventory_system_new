@@ -287,29 +287,32 @@ class InventoryView(QWidget):
         if not barcode:
             return
 
-        found = False
-        # Try to find in current list
-        for item in self.current_inventory:
-            if item.get("barcode") == barcode:
+        try:
+            product = self.product_service.get_product_by_barcode(barcode)
+            if product:
+                if product.id is None:
+                    raise ValidationException("Producto sin ID válido")
+                inventory = self.inventory_service.get_inventory(product.id)
+                item = {
+                    "product_id": product.id,
+                    "product_name": product.name,
+                    "category_name": product.category_name or "Sin Categoría",
+                    "barcode": product.barcode,
+                    "quantity": float(inventory.quantity) if inventory else 0.0,
+                }
                 self.edit_inventory(item)
-                found = True
-                break
+            else:
+                from ui.styles import DesignTokens
 
-        if not found:
-            # Maybe it's not in current filtered list but exists?
-            # Or assume we just search the table.
-            from ui.styles import DesignTokens
-
-            self.barcode_input.setStyleSheet(
-                f"background-color: {DesignTokens.COLOR_ERROR_BG};"
-            )
-            QTimer.singleShot(1000, lambda: self.barcode_input.setStyleSheet(""))
-            show_error_message(
-                "Error",
-                f"Producto con código {barcode} no encontrado en la vista actual",
-            )
-
-        self.barcode_input.clear()
+                self.barcode_input.setStyleSheet(
+                    f"background-color: {DesignTokens.COLOR_ERROR_BG};"
+                )
+                QTimer.singleShot(1000, lambda: self.barcode_input.setStyleSheet(""))
+                show_error_message(
+                    "Error", f"Producto con código {barcode} no encontrado"
+                )
+        finally:
+            self.barcode_input.clear()
 
     def search_products(self):
         self.load_inventory()

@@ -274,7 +274,7 @@ class PurchaseView(QWidget):
 
         try:
             # Find product by barcode
-            product = self.find_product_by_barcode(barcode)
+            product = self.product_service.get_product_by_barcode(barcode)
             if product:
                 # Play success sound
                 self.scan_sound.play()
@@ -299,11 +299,6 @@ class PurchaseView(QWidget):
             show_error_message("Error", f"Error procesando código de barras: {str(e)}")
         finally:
             self.barcode_input.clear()
-
-    def find_product_by_barcode(self, barcode: str) -> Any | None:
-        """Find a product by its barcode."""
-        products = self.product_service.get_all_products()
-        return next((p for p in products if p.barcode == barcode), None)
 
     def update_purchase_items_table(self):
         """Update the purchase items table."""

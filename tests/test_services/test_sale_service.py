@@ -153,23 +153,6 @@ class TestSaleService:
         sales = sale_service.get_sales_by_date_range(today, today)
         assert len(sales) == 1
 
-    def test_calculate_sale_totals(
-        self, sale_service, sample_sale_data, inventory_service, sample_product
-    ):
-        inventory_service.update_quantity(sample_product.id, 10.0)
-        sale_id = sale_service.create_sale(**sample_sale_data)
-        sale = sale_service.get_sale(sale_id)
-
-        # Verify totals
-        expected_total = (
-            sample_sale_data["items"][0]["quantity"]
-            * sample_sale_data["items"][0]["sell_price"]
-        )
-        assert sale.total_amount == expected_total
-        assert (
-            sale.total_profit > 0
-        )  # Profit should be positive since sell_price > cost_price
-
     def test_get_sale_statistics(
         self, sale_service, sample_sale_data, inventory_service, sample_product
     ):

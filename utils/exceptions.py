@@ -34,79 +34,13 @@ class ConfigurationException(AppException):
     pass
 
 
-class BusinessLogicException(AppException):
-    """Exception raised for business logic errors."""
-
-    pass
-
-
 class UIException(AppException):
     """Exception raised for UI-related errors."""
 
     pass
 
 
-class NetworkException(AppException):
-    """Exception raised for network-related errors."""
-
-    pass
-
-
-class SecurityException(AppException):
-    """Exception raised for security-related errors."""
-
-    pass
-
-
 class NotFoundException(AppException):
     """Exception raised when a requested resource is not found."""
-
-    pass
-
-
-class ExternalServiceException(AppException):
-    """Exception raised for external service-related errors."""
-
-    pass
-
-
-class FileOperationException(AppException):
-    """Exception raised for file operation errors."""
-
-    pass
-
-
-class AuthenticationException(AppException):
-    """Exception raised for authentication-related errors."""
-
-    pass
-
-
-class AuthorizationException(AppException):
-    """Exception raised for authorization-related errors."""
-
-    pass
-
-
-class DataFormatException(AppException):
-    """Exception raised for data format errors."""
-
-    pass
-
-
-class SystemConfigurationException(AppException):
-    """Exception raised for system configuration errors."""
-
-    pass
-
-
-class ResourceException(AppException):
-    """Exception raised for resource-related errors."""
-
-    pass
-
-
-class ConcurrencyException(AppException):
-    """Exception raised for concurrency-related errors."""
 
     pass

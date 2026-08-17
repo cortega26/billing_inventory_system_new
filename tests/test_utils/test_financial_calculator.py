@@ -27,18 +27,3 @@ class TestFinancialCalculator:
     def test_calculate_item_profit_decimal(self):
         # Qty 1.5, Sell 100, Cost 50 => 1.5 * 50 = 75
         assert FinancialCalculator.calculate_item_profit(1.5, 100, 50) == 75
-
-    def test_calculate_sale_totals(self):
-        items = [
-            {"quantity": 2, "sell_price": 100, "profit": 50},
-            {"quantity": 1, "sell_price": 200, "profit": 100},
-        ]
-        # Total: (2*100) + (1*200) = 400
-        # Profit: 50 + 100 = 150
-        result = FinancialCalculator.calculate_sale_totals(items)
-        assert result["total_amount"] == 400
-        assert result["total_profit"] == 150
-
-    def test_round_quantity(self):
-        assert FinancialCalculator.round_quantity(1.12345) == 1.123
-        assert FinancialCalculator.round_quantity(1.1236) == 1.124

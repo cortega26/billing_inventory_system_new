@@ -18,20 +18,14 @@ class CategoryService:
         name = validate_string(name, min_length=1, max_length=50)
         name = sanitize_html(name)
         query = "INSERT INTO categories (name) VALUES (?)"
-        try:
-            cursor = DatabaseManager.execute_query(query, (name,))
-            category_id = cursor.lastrowid
-            CategoryService.clear_cache()
-            logger.info(
-                "Category created", extra={"category_id": category_id, "name": name}
-            )
-            event_system.category_added.emit(category_id)
-            return category_id
-        except Exception as e:
-            logger.error(
-                "Failed to create category", extra={"error": str(e), "name": name}
-            )
-            raise DatabaseException(f"Failed to create category: {str(e)}") from e
+        cursor = DatabaseManager.execute_query(query, (name,))
+        category_id = cursor.lastrowid
+        CategoryService.clear_cache()
+        logger.info(
+            "Category created", extra={"category_id": category_id, "name": name}
+        )
+        event_system.category_added.emit(category_id)
+        return category_id
 
     @staticmethod
     @db_operation(show_dialog=True)
@@ -68,21 +62,14 @@ class CategoryService:
         name = validate_string(name, min_length=1, max_length=50)
         name = sanitize_html(name)
         query = "UPDATE categories SET name = ? WHERE id = ?"
-        try:
-            cursor = DatabaseManager.execute_query(query, (name, category_id))
-            if cursor.rowcount == 0:
-                raise NotFoundException(f"Category with ID {category_id} not found")
-            CategoryService.clear_cache()
-            logger.info(
-                "Category updated", extra={"category_id": category_id, "new_name": name}
-            )
-            event_system.category_updated.emit(category_id)
-        except Exception as e:
-            logger.error(
-                "Failed to update category",
-                extra={"error": str(e), "category_id": category_id},
-            )
-            raise DatabaseException(f"Failed to update category: {str(e)}") from e
+        cursor = DatabaseManager.execute_query(query, (name, category_id))
+        if cursor.rowcount == 0:
+            raise NotFoundException(f"Category with ID {category_id} not found")
+        CategoryService.clear_cache()
+        logger.info(
+            "Category updated", extra={"category_id": category_id, "new_name": name}
+        )
+        event_system.category_updated.emit(category_id)
 
     @staticmethod
     @db_operation(show_dialog=True)
@@ -90,19 +77,12 @@ class CategoryService:
     def delete_category(category_id: int) -> None:
         category_id = validate_integer(category_id, min_value=1)
         query = "DELETE FROM categories WHERE id = ?"
-        try:
-            cursor = DatabaseManager.execute_query(query, (category_id,))
-            if cursor.rowcount == 0:
-                raise NotFoundException(f"Category with ID {category_id} not found")
-            CategoryService.clear_cache()
-            logger.info("Category deleted", extra={"category_id": category_id})
-            event_system.category_deleted.emit(category_id)
-        except Exception as e:
-            logger.error(
-                "Failed to delete category",
-                extra={"error": str(e), "category_id": category_id},
-            )
-            raise DatabaseException(f"Failed to delete category: {str(e)}") from e
+        cursor = DatabaseManager.execute_query(query, (category_id,))
+        if cursor.rowcount == 0:
+            raise NotFoundException(f"Category with ID {category_id} not found")
+        CategoryService.clear_cache()
+        logger.info("Category deleted", extra={"category_id": category_id})
+        event_system.category_deleted.emit(category_id)
 
     @staticmethod
     @db_operation(show_dialog=True)

@@ -48,17 +48,9 @@ class InventoryService:
 
             p_id, qty = normalized_item
 
-            try:
-                InventoryService._apply_batch_item_update(
-                    p_id, qty, multiplier, emit_events
-                )
-            except ValidationException:
-                raise
-            except Exception as e:
-                logger.error(f"Failed to update inventory for product {p_id}: {str(e)}")
-                raise ValidationException(
-                    f"Inventory update failed for product {p_id}: {str(e)}"
-                ) from e
+            InventoryService._apply_batch_item_update(
+                p_id, qty, multiplier, emit_events
+            )
 
     @staticmethod
     def _normalize_batch_item(item: Any) -> tuple[Any, Any] | None:
@@ -192,26 +184,21 @@ class InventoryService:
             ORDER BY p.name
         """
 
-        try:
-            rows = DatabaseManager.fetch_all(query)
-            inventory_items = []
+        rows = DatabaseManager.fetch_all(query)
+        inventory_items = []
 
-            for row in rows:
-                item = {
-                    "product_id": row["product_id"],
-                    "product_name": row["product_name"],
-                    "category_id": row["category_id"],  # Added category_id
-                    "category_name": row["category_name"],
-                    "quantity": float(row["quantity"]),
-                    "barcode": row["barcode"] or "No barcode",
-                }
-                inventory_items.append(item)
+        for row in rows:
+            item = {
+                "product_id": row["product_id"],
+                "product_name": row["product_name"],
+                "category_id": row["category_id"],  # Added category_id
+                "category_name": row["category_name"],
+                "quantity": float(row["quantity"]),
+                "barcode": row["barcode"] or "No barcode",
+            }
+            inventory_items.append(item)
 
-            return inventory_items
-
-        except Exception as e:
-            logger.error(f"Error fetching inventory: {str(e)}")
-            raise DatabaseException(f"Failed to fetch inventory: {str(e)}") from e
+        return inventory_items
 
     @staticmethod
     @db_operation(show_dialog=True)

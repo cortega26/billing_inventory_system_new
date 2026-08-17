@@ -32,23 +32,13 @@ class ProductService:
             self._validate_product_data(product_data, is_create=True)
         )
 
-        try:
-            with DatabaseManager.transaction():
-                product_id = self._insert_product_with_inventory(validated_data)
-                self._log_product_creation(product_id, validated_data)
+        with DatabaseManager.transaction():
+            product_id = self._insert_product_with_inventory(validated_data)
+            self._log_product_creation(product_id, validated_data)
 
-            self._finalize_product_creation(product_id, validated_data["name"])
+        self._finalize_product_creation(product_id, validated_data["name"])
 
-            return product_id
-
-        except Exception as e:
-            logger.error(
-                "Failed to create product",
-                extra={"error": str(e), "data": validated_data},
-            )
-            if isinstance(e, (ValidationException, DatabaseException)):
-                raise
-            raise DatabaseException(f"Failed to create product: {str(e)}") from e
+        return product_id
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
@@ -99,17 +89,13 @@ class ProductService:
         WHERE (? = 0 OR p.is_active = 1)
         ORDER BY p.id
         """
-        try:
-            rows = DatabaseManager.fetch_all(query, (1 if active_only else 0,))
-            products = [Product.from_db_row(row) for row in rows]
-            logger.info(
-                "Products retrieved",
-                extra={"count": len(products), "active_only": active_only},
-            )
-            return products
-        except Exception as e:
-            logger.error(f"Error retrieving products: {str(e)}")
-            raise DatabaseException(f"Failed to retrieve products: {str(e)}") from e
+        rows = DatabaseManager.fetch_all(query, (1 if active_only else 0,))
+        products = [Product.from_db_row(row) for row in rows]
+        logger.info(
+            "Products retrieved",
+            extra={"count": len(products), "active_only": active_only},
+        )
+        return products
 
     @db_operation(show_dialog=True)
     @handle_exceptions(
@@ -143,22 +129,15 @@ class ProductService:
             product_id, validated_data
         )
 
-        try:
-            with DatabaseManager.transaction():
-                DatabaseManager.execute_query(query, params)
-                AuditService.log_operation(
-                    "update_product",
-                    "product",
-                    product_id,
-                    {"updated_fields": updated_fields},
-                )
-            self._finalize_product_update(product_id, updated_fields)
-        except Exception as e:
-            logger.error(
-                "Failed to update product",
-                extra={"error": str(e), "product_id": product_id},
+        with DatabaseManager.transaction():
+            DatabaseManager.execute_query(query, params)
+            AuditService.log_operation(
+                "update_product",
+                "product",
+                product_id,
+                {"updated_fields": updated_fields},
             )
-            raise DatabaseException(f"Failed to update product: {str(e)}") from e
+        self._finalize_product_update(product_id, updated_fields)
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
@@ -166,75 +145,56 @@ class ProductService:
         """Archive a product instead of hard-deleting ledger references."""
         product_id = validate_integer(product_id, min_value=1)
 
-        try:
-            with DatabaseManager.transaction():
-                cursor = DatabaseManager.execute_query(
-                    """
-                    UPDATE products
-                    SET is_active = 0,
-                        deleted_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                    """,
-                    (product_id,),
-                )
-                if cursor.rowcount == 0:
-                    raise NotFoundException(f"Product with ID {product_id} not found")
-                AuditService.log_operation(
-                    "delete_product",
-                    "product",
-                    product_id,
-                    {"mode": "archive"},
-                )
-
-            self.clear_cache()
-            event_system.product_deleted.emit(product_id)
-            logger.info("Product archived", extra={"product_id": product_id})
-
-        except Exception as e:
-            logger.error(
-                "Failed to archive product",
-                extra={"error": str(e), "product_id": product_id},
+        with DatabaseManager.transaction():
+            cursor = DatabaseManager.execute_query(
+                """
+                UPDATE products
+                SET is_active = 0,
+                    deleted_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (product_id,),
             )
-            if isinstance(e, NotFoundException):
-                raise
-            raise DatabaseException(f"Failed to archive product: {str(e)}") from e
+            if cursor.rowcount == 0:
+                raise NotFoundException(f"Product with ID {product_id} not found")
+            AuditService.log_operation(
+                "delete_product",
+                "product",
+                product_id,
+                {"mode": "archive"},
+            )
+
+        self.clear_cache()
+        event_system.product_deleted.emit(product_id)
+        logger.info("Product archived", extra={"product_id": product_id})
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
     def restore_product(self, product_id: int) -> None:
         """Restore an archived product."""
         product_id = validate_integer(product_id, min_value=1)
-        try:
-            with DatabaseManager.transaction():
-                cursor = DatabaseManager.execute_query(
-                    """
-                    UPDATE products
-                    SET is_active = 1,
-                        deleted_at = NULL
-                    WHERE id = ?
-                    """,
-                    (product_id,),
-                )
-                if cursor.rowcount == 0:
-                    raise NotFoundException(f"Product with ID {product_id} not found")
-                AuditService.log_operation(
-                    "restore_product",
-                    "product",
-                    product_id,
-                    None,
-                )
-
-            self.clear_cache()
-            event_system.product_updated.emit(product_id)
-            logger.info("Product restored", extra={"product_id": product_id})
-        except Exception as e:
-            logger.error(
-                "Failed to restore product",
-                extra={"error": str(e), "product_id": product_id},
+        with DatabaseManager.transaction():
+            cursor = DatabaseManager.execute_query(
+                """
+                UPDATE products
+                SET is_active = 1,
+                    deleted_at = NULL
+                WHERE id = ?
+                """,
+                (product_id,),
             )
-            if isinstance(e, NotFoundException):
-                raise
-            raise DatabaseException(f"Failed to restore product: {str(e)}") from e
+            if cursor.rowcount == 0:
+                raise NotFoundException(f"Product with ID {product_id} not found")
+            AuditService.log_operation(
+                "restore_product",
+                "product",
+                product_id,
+                None,
+            )
+
+        self.clear_cache()
+        event_system.product_updated.emit(product_id)
+        logger.info("Product restored", extra={"product_id": product_id})
 
     @db_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, show_dialog=True)
@@ -292,15 +252,11 @@ class ProductService:
             WHERE p.barcode = ?
               AND (? = 0 OR p.is_active = 1)
         """
-        try:
-            row = DatabaseManager.fetch_one(query, (barcode, 1 if active_only else 0))
-            if row:
-                product = Product.from_db_row(row)
-                return product
-            return None
-        except Exception as e:
-            logger.error(f"Error getting product by barcode: {str(e)}")
-            raise DatabaseException(f"Failed to get product: {str(e)}") from e
+        row = DatabaseManager.fetch_one(query, (barcode, 1 if active_only else 0))
+        if row:
+            product = Product.from_db_row(row)
+            return product
+        return None
 
     @classmethod
     def clear_cache(cls) -> None:

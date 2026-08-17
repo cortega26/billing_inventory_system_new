@@ -44,16 +44,17 @@ class TestProduct:
             product.validate()
 
     def test_float_price_rejected(self):
+        product = Product(
+            id=1,
+            name="Test Product",
+            description="Test",
+            category_id=1,
+            cost_price=1000.5,
+            sell_price=1500,
+            barcode="12345678",
+        )
         with pytest.raises(ValidationException):
-            Product(
-                id=1,
-                name="Test Product",
-                description="Test",
-                category_id=1,
-                cost_price=1000.5,
-                sell_price=1500,
-                barcode="12345678",
-            )
+            product.validate()
 
     def test_profit_margin_calculation(self, sample_product):
         # Expected margin: (1500 - 1000) / 1500 * 100 = 33.33%

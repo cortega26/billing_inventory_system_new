@@ -21,7 +21,11 @@ from utils.exceptions import (
 )
 from utils.system.event_system import event_system
 from utils.system.logger import logger
-from utils.validation.validators import validate_integer, validate_string
+from utils.validation.validators import (
+    validate_barcode,
+    validate_integer,
+    validate_string,
+)
 
 
 class ProductService:
@@ -412,28 +416,7 @@ class ProductService:
         Raises:
             ValidationException: If barcode format is invalid.
         """
-        if not barcode:
-            return
-
-        if not isinstance(barcode, str):
-            raise ValidationException("Barcode must be a string")
-
-        # Remove any whitespace
-        barcode = barcode.strip()
-
-        if len(barcode) == 0:
-            return
-
-        # Check if barcode contains only digits
-        if not barcode.isdigit():
-            raise ValidationException("Barcode must contain only digits")
-
-        # Validate length - accept common barcode lengths
-        valid_lengths = {8, 12, 13, 14}  # EAN-8, UPC-A, EAN-13, EAN-14
-        if len(barcode) not in valid_lengths:
-            raise ValidationException(
-                f"Invalid barcode length. Must be one of: {valid_lengths}"
-            )
+        validate_barcode(barcode)
 
     def _validate_barcode_unique(self, barcode: str) -> None:
         """

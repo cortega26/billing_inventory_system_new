@@ -49,7 +49,11 @@ from utils.ui.table_items import (
     PercentageTableWidgetItem,
     PriceTableWidgetItem,
 )
-from utils.validation.validators import validate_float, validate_string
+from utils.validation.validators import (
+    validate_barcode,
+    validate_float,
+    validate_string,
+)
 
 
 class EditProductDialog(QDialog):
@@ -135,10 +139,7 @@ class EditProductDialog(QDialog):
         # Get barcode value and validate if not empty
         barcode = self.barcode_input.text().strip()
         if barcode:
-            try:
-                Product.validate_barcode(barcode)
-            except ValidationException as e:
-                raise ValidationException(str(e)) from e
+            validate_barcode(barcode)
 
         self.product_data = {
             "name": name,

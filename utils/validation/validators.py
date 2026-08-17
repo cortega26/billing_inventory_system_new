@@ -278,6 +278,28 @@ def validate_3or4digit_identifier(value: str) -> str:
     return value
 
 
+def validate_barcode(barcode: str | None) -> str | None:
+    """Validate a barcode (EAN-8, UPC-A, EAN-13, EAN-14) format."""
+    if barcode is None:
+        return None
+    if not isinstance(barcode, str):
+        raise ValidationException("Barcode must be a string")
+
+    # Remove any whitespace
+    barcode = barcode.strip()
+    if len(barcode) == 0:
+        return barcode
+
+    if not barcode.isdigit():
+        raise ValidationException("Barcode must contain only digits")
+
+    valid_lengths = {8, 12, 13, 14}
+    if len(barcode) not in valid_lengths:
+        raise ValidationException(f"Barcode must be one of: {valid_lengths} digits")
+
+    return barcode
+
+
 def validate_list(
     value: Any,
     item_validator: Callable[[Any], Any],

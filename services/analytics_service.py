@@ -133,29 +133,6 @@ class AnalyticsService:
     @lru_cache(maxsize=32)
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
-    def get_profit_and_volume_by_product(
-        start_date: str, end_date: str, limit: int = 5
-    ) -> list[dict[str, Any]]:
-        limit = validate_integer(limit, min_value=1, max_value=100)
-        result = AnalyticsService._execute_metric(
-            ProductProfitMetric(),
-            lambda row: {
-                "id": row["product_id"],
-                "name": row["name"],
-                "total_profit": row["total_profit"],
-                "sales_volume": row["sales_volume"],
-            },
-            start_date=start_date,
-            end_date=end_date,
-            limit=limit,
-        )
-        logger.info(f"Retrieved profit and volume by product: {len(result)} products")
-        return result
-
-    @staticmethod
-    @lru_cache(maxsize=32)
-    @db_operation(show_dialog=True)
-    @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def get_category_performance(
         start_date: str, end_date: str
     ) -> list[dict[str, Any]]:
@@ -314,7 +291,6 @@ class AnalyticsService:
         AnalyticsService.get_top_selling_products.cache_clear()
         AnalyticsService.get_sales_trend.cache_clear()
         AnalyticsService.get_weekly_profit_trend.cache_clear()
-        AnalyticsService.get_profit_and_volume_by_product.cache_clear()
         AnalyticsService.get_category_performance.cache_clear()
         AnalyticsService.get_profit_by_product.cache_clear()
         AnalyticsService.get_profit_trend.cache_clear()

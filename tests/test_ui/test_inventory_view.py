@@ -19,6 +19,39 @@ def capture_signal(signal):
     return payloads, handler
 
 
+def test_barcode_scan_finds_product_outside_filtered_list(qtbot, db_manager, mocker):
+    product_id = ProductService().create_product(
+        {
+            "name": "Producto Fuera Del Filtro",
+            "description": "Prueba escaneo",
+            "cost_price": 400,
+            "sell_price": 800,
+            "barcode": "999999999999",
+        }
+    )
+    QApplication.processEvents()  # flush deferred refresh so caches are reloaded
+
+    view = InventoryView()
+    qtbot.addWidget(view)
+
+    view.search_input.setText("zzz-no-match")
+    view.load_inventory()
+    assert all(item["product_id"] != product_id for item in view.current_inventory)
+
+    edit_mock = mocker.patch.object(view, "edit_inventory")
+    mocker.patch("ui.inventory_view.show_error_message")
+
+    view.barcode_input.setText("999999999999")
+    view.handle_barcode_scan()
+
+    edit_mock.assert_called_once()
+    item = edit_mock.call_args[0][0]
+    assert item["product_id"] == product_id
+    assert item["product_name"] == "Producto Fuera Del Filtro"
+    assert item["barcode"] == "999999999999"
+    assert view.barcode_input.text() == ""
+
+
 def test_edit_inventory_does_not_reemit_inventory_events(qtbot, db_manager, mocker):
     product_id = ProductService().create_product(
         {

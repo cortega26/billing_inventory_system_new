@@ -845,7 +845,7 @@ class SaleView(QWidget):
                 self.barcode_input.setFocus()  # Move focus to barcode input
             else:
                 show_error_message(
-                    "Error", "No customer found with the given identifier"
+                    "Error", "No se encontró cliente con el identificador indicado"
                 )
                 self.customer_info_label.clear()
 
@@ -948,7 +948,8 @@ class SaleView(QWidget):
             products = self.product_service.search_products(search_term)
             if not products:
                 show_error_message(
-                    "Not Found", "No products found matching the search term"
+                    "No Encontrado",
+                    "No se encontraron productos que coincidan con la búsqueda",
                 )
                 return
 
@@ -1150,9 +1151,9 @@ class SaleView(QWidget):
 
         if not confirm_action(
             self,
-            "Delete Sale",
-            f"Are you sure you want to delete sale {sale.receipt_id or sale.id}?\n"
-            f"Total amount: {format_price(sale.total_amount)}",
+            "Eliminar Venta",
+            f"¿Está seguro que desea eliminar la venta {sale.receipt_id or sale.id}?\n"
+            f"Total: {format_price(sale.total_amount)}",
         ):
             return
 
@@ -1219,7 +1220,7 @@ class SaleView(QWidget):
         """Print a sale receipt with proper money formatting."""
         try:
             file_path, _ = QFileDialog.getSaveFileName(
-                self, "Save Receipt", f"receipt_{sale.id}.pdf", "PDF Files (*.pdf)"
+                self, "Guardar Recibo", f"receipt_{sale.id}.pdf", "PDF Files (*.pdf)"
             )
 
             if file_path:

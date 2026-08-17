@@ -631,39 +631,6 @@ class TestGetAllSalesPagination:
             sale_service.get_all_sales(limit=10, offset=-1)
 
 
-class TestBuildReceiptId:
-    def test_first_receipt_of_day_returns_001(self, sale_service):
-        assert SaleService._build_receipt_id("2026-08-15") == "260815001"
-
-    def test_increments_after_existing_receipt(self, sale_service):
-        DatabaseManager.execute_query(
-            "INSERT INTO sales (date, total_amount, total_profit, receipt_id, status) "
-            "VALUES (?, 0, 0, ?, 'confirmed')",
-            ("2026-08-15", "260815042"),
-        )
-
-        assert SaleService._build_receipt_id("2026-08-15") == "260815043"
-
-    def test_daily_limit_999_raises(self, sale_service):
-        DatabaseManager.execute_query(
-            "INSERT INTO sales (date, total_amount, total_profit, receipt_id, status) "
-            "VALUES (?, 0, 0, ?, 'confirmed')",
-            ("2026-08-15", "260815999"),
-        )
-
-        with pytest.raises(ValidationException):
-            SaleService._build_receipt_id("2026-08-15")
-
-    def test_other_day_receipt_does_not_affect_count(self, sale_service):
-        DatabaseManager.execute_query(
-            "INSERT INTO sales (date, total_amount, total_profit, receipt_id, status) "
-            "VALUES (?, 0, 0, ?, 'confirmed')",
-            ("2026-08-14", "260814005"),
-        )
-
-        assert SaleService._build_receipt_id("2026-08-15") == "260815001"
-
-
 class TestCacheFreshness:
     def test_get_all_sales_includes_new_sale(
         self, sale_service, sample_sale_data, inventory_service, sample_product

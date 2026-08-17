@@ -33,18 +33,18 @@ class ReceiptService:
 
             # Set up the document
             c.setFont("Helvetica-Bold", 16)
-            c.drawString(50, height - 50, f"Receipt #{sale.receipt_id}")
+            c.drawString(50, height - 50, f"Recibo #{sale.receipt_id}")
 
             c.setFont("Helvetica", 12)
             date_str = sale.date.strftime("%Y-%m-%d") if sale.date is not None else ""
-            c.drawString(50, height - 80, f"Date: {date_str}")
-            c.drawString(50, height - 100, f"Customer ID: {sale.customer_id}")
+            c.drawString(50, height - 80, f"Fecha: {date_str}")
+            c.drawString(50, height - 100, f"ID Cliente: {sale.customer_id}")
 
             # Draw items header
             y = height - 150
-            c.drawString(50, y, "Product")
-            c.drawString(250, y, "Quantity")
-            c.drawString(350, y, "Price")
+            c.drawString(50, y, "Producto")
+            c.drawString(250, y, "Cantidad")
+            c.drawString(350, y, "Precio")
             c.drawString(450, y, "Total")
 
             y -= 20
@@ -53,7 +53,7 @@ class ReceiptService:
                 p_name = (
                     item.product_name
                     if hasattr(item, "product_name") and item.product_name
-                    else f"Product ID: {item.product_id}"
+                    else f"ID Producto: {item.product_id}"
                 )
 
                 c.drawString(50, y, p_name)
@@ -75,7 +75,7 @@ class ReceiptService:
 
             # Profit (Internal use only really, but was in original code)
             # Keeping it to preserve behavior, though usually hidden from customers.
-            c.drawString(350, y - 40, "Profit:")
+            c.drawString(350, y - 40, "Ganancia:")
             c.drawString(450, y - 40, f"${sale.total_profit:,}".replace(",", "."))
 
             c.save()

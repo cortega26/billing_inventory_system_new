@@ -116,7 +116,7 @@ def resolve_customer_by_identifier(
             return chooser(unique_customers)
         return None
 
-    raise ValidationException("Please enter a 3/4-digit or 9-digit identifier")
+    raise ValidationException("Ingrese un identificador de 3/4 o 9 dígitos")
 
 
 def build_quick_scan_item_data(product: Product) -> dict[str, Any]:

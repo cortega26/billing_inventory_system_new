@@ -134,10 +134,10 @@ def _build_sale_history_actions_widget(
     actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
     button_specs = [
-        ("👁", on_view, "View sale details"),
-        ("✏", on_edit, "Edit sale"),
-        ("🖨", on_print, "Print receipt"),
-        ("🗑", on_delete, "Delete this sale"),
+        ("👁", on_view, "Ver detalle de venta"),
+        ("✏", on_edit, "Editar venta"),
+        ("🖨", on_print, "Imprimir recibo"),
+        ("🗑", on_delete, "Eliminar venta"),
     ]
     for label, handler, tooltip in button_specs:
         button = QPushButton(label)

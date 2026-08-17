@@ -35,6 +35,7 @@ from utils.helpers import (
     show_error_message,
     show_info_message,
 )
+from utils.math.financial_calculator import FinancialCalculator
 from utils.system.logger import logger
 from utils.ui.sound import SoundEffect
 from utils.ui.table_items import NumericTableWidgetItem, PriceTableWidgetItem
@@ -102,7 +103,7 @@ class PurchaseItemDialog(QDialog):
     def update_total(self):
         quantity = self.quantity_input.value()
         price = self.cost_price_input.value()
-        total = round(quantity * price)
+        total = FinancialCalculator.calculate_item_total(quantity, int(price))
         self.total_label.setText(format_price(total))
 
     @ui_operation(show_dialog=True)
@@ -324,7 +325,9 @@ class PurchaseView(QWidget):
                 row, 3, PriceTableWidgetItem(item["cost_price"], format_price)
             )
 
-            item_total = round(item["quantity"] * item["cost_price"])
+            item_total = FinancialCalculator.calculate_item_total(
+                item["quantity"], item["cost_price"]
+            )
             total_amount += item_total
             self.purchase_items_table.setItem(
                 row, 4, PriceTableWidgetItem(item_total, format_price)

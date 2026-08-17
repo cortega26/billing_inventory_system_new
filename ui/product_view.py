@@ -315,78 +315,12 @@ class ProductView(QWidget):
             self.product_table.setRowCount(len(products))
 
             for row, product in enumerate(products):
-                logger.debug(f"Adding row {row}: Product ID={product.id}")
-
                 try:
-                    assert product.id is not None
-                    self.product_table.setItem(
-                        row, 0, NumericTableWidgetItem(product.id)
-                    )
-                    self.product_table.setItem(row, 1, QTableWidgetItem(product.name))
-                    self.product_table.setItem(
-                        row, 2, QTableWidgetItem(product.description or "")
-                    )
-                    self.product_table.setItem(
-                        row,
-                        3,
-                        QTableWidgetItem(product.category_name or "Sin Categoría"),
-                    )
-                    status_text = "Activo" if product.is_active else "Archivado"
-                    self.product_table.setItem(row, 4, QTableWidgetItem(status_text))
-                    self.product_table.setItem(
-                        row,
-                        5,
-                        PriceTableWidgetItem(
-                            float(product.cost_price) if product.cost_price else 0,
-                            format_price,
-                        ),
-                    )
-                    self.product_table.setItem(
-                        row,
-                        6,
-                        PriceTableWidgetItem(
-                            float(product.sell_price) if product.sell_price else 0,
-                            format_price,
-                        ),
-                    )
-                    self.product_table.setItem(
-                        row,
-                        7,
-                        PercentageTableWidgetItem(
-                            float(product.calculate_profit_margin())
-                        ),
-                    )
-
-                    # Create action buttons
-                    actions_widget = QWidget()
-                    actions_layout = QHBoxLayout(actions_widget)
-                    actions_layout.setContentsMargins(0, 0, 0, 0)
-                    actions_layout.setSpacing(6)
-                    actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-                    edit_button = QPushButton("Editar")
-                    edit_button.setFixedWidth(80)
-                    edit_button.setFixedHeight(24)
-                    edit_button.setStyleSheet("padding: 2px 8px;")
-                    edit_button.clicked.connect(
-                        lambda _, p=product: self.edit_product(p)
-                    )
-
-                    delete_label = "Eliminar" if product.is_active else "Restaurar"
-                    delete_button = QPushButton(delete_label)
-                    delete_button.setFixedWidth(80)
-                    delete_button.setFixedHeight(24)
-                    delete_button.setStyleSheet("padding: 2px 8px;")
-                    delete_button.clicked.connect(
-                        lambda _, p=product: self.delete_product(p)
-                    )
-
-                    actions_layout.addWidget(edit_button)
-                    actions_layout.addWidget(delete_button)
-                    self.product_table.setCellWidget(row, 8, actions_widget)
-                    self.product_table.setRowHeight(row, 36)
+                    self._render_product_row(row, product)
                 except Exception as e:
-                    logger.error(f"Error updating row {row}: {str(e)}")
+                    logger.warning(
+                        f"Skipping row {row} (product {product.id}): {str(e)}"
+                    )
                     continue
 
             # Adjust table display
@@ -403,6 +337,76 @@ class ProductView(QWidget):
             ) from e
         finally:
             QApplication.restoreOverrideCursor()
+
+    def _render_product_row(self, row: int, product: Product) -> None:
+        """Render a single product row. Raises on failure (the caller skips it)."""
+        logger.debug(f"Adding row {row}: Product ID={product.id}")
+
+        assert product.id is not None
+        self.product_table.setItem(row, 0, NumericTableWidgetItem(product.id))
+        self.product_table.setItem(row, 1, QTableWidgetItem(product.name))
+        self.product_table.setItem(
+            row, 2, QTableWidgetItem(product.description or "")
+        )
+        self.product_table.setItem(
+            row,
+            3,
+            QTableWidgetItem(product.category_name or "Sin Categoría"),
+        )
+        status_text = "Activo" if product.is_active else "Archivado"
+        self.product_table.setItem(row, 4, QTableWidgetItem(status_text))
+        self.product_table.setItem(
+            row,
+            5,
+            PriceTableWidgetItem(
+                float(product.cost_price) if product.cost_price else 0,
+                format_price,
+            ),
+        )
+        self.product_table.setItem(
+            row,
+            6,
+            PriceTableWidgetItem(
+                float(product.sell_price) if product.sell_price else 0,
+                format_price,
+            ),
+        )
+        self.product_table.setItem(
+            row,
+            7,
+            PercentageTableWidgetItem(
+                float(product.calculate_profit_margin())
+            ),
+        )
+
+        # Create action buttons
+        actions_widget = QWidget()
+        actions_layout = QHBoxLayout(actions_widget)
+        actions_layout.setContentsMargins(0, 0, 0, 0)
+        actions_layout.setSpacing(6)
+        actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        edit_button = QPushButton("Editar")
+        edit_button.setFixedWidth(80)
+        edit_button.setFixedHeight(24)
+        edit_button.setStyleSheet("padding: 2px 8px;")
+        edit_button.clicked.connect(
+            lambda _, p=product: self.edit_product(p)
+        )
+
+        delete_label = "Eliminar" if product.is_active else "Restaurar"
+        delete_button = QPushButton(delete_label)
+        delete_button.setFixedWidth(80)
+        delete_button.setFixedHeight(24)
+        delete_button.setStyleSheet("padding: 2px 8px;")
+        delete_button.clicked.connect(
+            lambda _, p=product: self.delete_product(p)
+        )
+
+        actions_layout.addWidget(edit_button)
+        actions_layout.addWidget(delete_button)
+        self.product_table.setCellWidget(row, 8, actions_widget)
+        self.product_table.setRowHeight(row, 36)
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(

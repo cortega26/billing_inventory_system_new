@@ -5,6 +5,7 @@ import sqlalchemy as sa
 from pydantic import model_validator
 from sqlmodel import Field, Relationship, SQLModel
 
+from utils.dates import parse_date_cell, parse_datetime_cell
 from utils.exceptions import ValidationException
 from utils.system.logger import logger
 from utils.validation.validators import validate_money, validate_money_multiplication
@@ -123,21 +124,14 @@ class Purchase(SQLModel, table=True):
     def from_db_row(cls, row: dict[str, Any]) -> "Purchase":
         try:
             # Parse date string
-            try:
-                date_val = datetime.strptime(row["date"], "%Y-%m-%d")
-            except ValueError:
-                date_val = datetime.fromisoformat(row["date"])
+            date_val = parse_date_cell(row, "date")
 
             return cls(
                 id=int(row["id"]),
                 supplier=str(row["supplier"]),
                 date=date_val,
                 total_amount=int(row.get("total_amount", 0)),
-                created_at=(
-                    datetime.fromisoformat(row["created_at"])
-                    if "created_at" in row and row["created_at"]
-                    else datetime.now()
-                ),
+                created_at=parse_datetime_cell(row, "created_at"),
             )
         except (ValueError, TypeError) as e:
             logger.error(f"Error creating Purchase from row: {row}")
@@ -162,26 +156,6 @@ class Purchase(SQLModel, table=True):
         if date > datetime.now():
             raise ValidationException("Purchase date cannot be in the future")
 
-    def add_item(self, item: PurchaseItem) -> None:
-        """
-        Add a purchase item and update total.
-        """
-        self.items.append(item)
-        self.total_amount += item.total_price()
-
-    def remove_item(self, item_id: int) -> None:
-        """
-        Remove a purchase item and update total.
-        """
-        item = next((item for item in self.items if item.id == item_id), None)
-        if item:
-            self.items.remove(item)
-            self.total_amount -= item.total_price()
-        else:
-            raise ValidationException(
-                f"Item with id {item_id} not found in the purchase"
-            )
-
     def recalculate_total(self) -> None:
         """Recalculate total amount ensuring proper CLP handling."""
         try:
@@ -191,13 +165,6 @@ class Purchase(SQLModel, table=True):
         except Exception as e:
             logger.error(f"Error calculating total: {str(e)}")
             raise ValidationException("Error calculating total amount") from e
-
-    def update_date(self, new_date: datetime) -> None:
-        """
-        Update purchase date with validation.
-        """
-        self.validate_date(new_date)
-        self.date = new_date
 
     def to_dict(self) -> dict[str, Any]:
         """

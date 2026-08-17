@@ -6,6 +6,7 @@ from pydantic import PrivateAttr, model_validator
 from sqlmodel import Column, Field, Integer, Relationship, SQLModel
 
 from models.enums import SaleStatus
+from utils.dates import parse_date_cell, parse_datetime_cell
 from utils.exceptions import ValidationException
 from utils.system.logger import logger
 from utils.validation.validators import validate_money, validate_money_multiplication
@@ -75,11 +76,7 @@ class SaleItem(SQLModel, table=True):
                 unit_price=int(row["price"]),
                 profit=int(row["profit"]),
                 product_name=row.get("product_name"),
-                created_at=(
-                    datetime.fromisoformat(row["created_at"])
-                    if "created_at" in row and row["created_at"]
-                    else datetime.now()
-                ),
+                created_at=parse_datetime_cell(row, "created_at"),
             )
         except (ValueError, TypeError) as e:
             logger.error(f"Error creating SaleItem from row: {row}")
@@ -201,10 +198,7 @@ class Sale(SQLModel, table=True):
     def from_db_row(cls, row: dict[str, Any]) -> "Sale":
         try:
             # Parse date string
-            try:
-                date_val = datetime.strptime(row["date"], "%Y-%m-%d")
-            except ValueError:
-                date_val = datetime.fromisoformat(row["date"])
+            date_val = parse_date_cell(row, "date")
 
             return cls(
                 id=int(row["id"]),
@@ -218,11 +212,7 @@ class Sale(SQLModel, table=True):
                 total_profit=int(row["total_profit"]),
                 receipt_id=row.get("receipt_id"),
                 status=row.get("status", "confirmed"),
-                created_at=(
-                    datetime.fromisoformat(row["created_at"])
-                    if "created_at" in row and row["created_at"]
-                    else datetime.now()
-                ),
+                created_at=parse_datetime_cell(row, "created_at"),
             )
         except (ValueError, TypeError) as e:
             logger.error(f"Error creating Sale from row: {row}")
@@ -259,35 +249,6 @@ class Sale(SQLModel, table=True):
             raise ValidationException(
                 f"Invalid sale status '{status}'. Must be one of: {sorted(VALID_STATUSES)}"
             )
-
-    def add_item(self, item: SaleItem) -> None:
-        self.items.append(item)
-        self.recalculate_total()
-
-    def remove_item(self, item_id: int) -> None:
-        self.items = [item for item in self.items if item.id != item_id]
-        self.recalculate_total()
-
-    def recalculate_total(self) -> None:
-        """Recalculate totals ensuring proper CLP handling."""
-        self.total_amount = sum(item.total_price() for item in self.items)
-        # Validate final total — no upper cap; totals can exceed any single unit price
-        self.total_amount = validate_money(
-            self.total_amount, "Total amount", max_value=None
-        )
-
-        # Profit can be negative (selling below cost) — only require integer type
-        self.total_profit = sum(item.profit for item in self.items)
-        if not isinstance(self.total_profit, int):
-            raise ValidationException("Total profit must be an integer")
-
-    def update_date(self, new_date: datetime) -> None:
-        self.validate_date(new_date)
-        self.date = new_date
-
-    def update_customer(self, new_customer_id: int | None) -> None:
-        self.validate_customer_id(new_customer_id)
-        self.customer_id = new_customer_id
 
     def to_dict(self) -> dict[str, Any]:
         return {

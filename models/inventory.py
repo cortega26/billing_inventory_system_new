@@ -7,6 +7,7 @@ from pydantic import model_validator
 from sqlmodel import Field, SQLModel
 
 from models.enums import QUANTITY_PRECISION
+from utils.dates import parse_datetime_cell
 from utils.exceptions import ValidationException
 from utils.validation.validators import validate_float_non_negative
 
@@ -96,16 +97,8 @@ class Inventory(SQLModel, table=True):
                 id=int(row["id"]),
                 product_id=int(row["product_id"]),
                 quantity=float(str(row["quantity"])),
-                created_at=(
-                    datetime.fromisoformat(row["created_at"])
-                    if "created_at" in row and row["created_at"]
-                    else datetime.now()
-                ),
-                updated_at=(
-                    datetime.fromisoformat(row["updated_at"])
-                    if "updated_at" in row and row["updated_at"]
-                    else datetime.now()
-                ),
+                created_at=parse_datetime_cell(row, "created_at"),
+                updated_at=parse_datetime_cell(row, "updated_at"),
             )
         except (KeyError, ValueError, TypeError) as e:
             raise ValidationException(f"Invalid inventory data: {str(e)}") from e

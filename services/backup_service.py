@@ -71,8 +71,7 @@ class BackupService:
                 logger.error(
                     "Skipping backup: not enough free disk space in backup directory"
                 )
-                event_system.emit_event(
-                    "backup_skipped",
+                event_system.backup_skipped.emit(
                     {
                         "reason": "low_disk_space",
                         "backup_dir": str(backup_dir),
@@ -105,7 +104,7 @@ class BackupService:
 
                 config.set("last_backup_success", datetime.now().isoformat())
                 config.save()
-                event_system.emit_event("backup_completed", str(backup_path))
+                event_system.backup_completed.emit(str(backup_path))
 
                 return str(backup_path)
             finally:

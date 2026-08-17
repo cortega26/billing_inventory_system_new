@@ -29,7 +29,7 @@ class CustomerService:
         identifier_9: str,
         name: str | None = None,
         identifier_3or4: str | None = None,
-    ) -> int | None:
+    ) -> int:
         """
         Create a new customer.
 
@@ -39,7 +39,7 @@ class CustomerService:
             identifier_3or4 (Optional[str]): The 3 or 4-digit identifier.
 
         Returns:
-            Optional[int]: The ID of the created customer.
+            int: The ID of the created customer.
 
         Raises:
             ValidationException: If validation fails.
@@ -60,18 +60,22 @@ class CustomerService:
                 cursor = DatabaseManager.execute_query(query, params)
                 customer_id = cursor.lastrowid
 
-                if customer_id is not None:
-                    self._set_identifier_3or4(customer_id, identifier_3or4)
-                    AuditService.log_operation(
-                        "create_customer",
-                        "customer",
-                        customer_id,
-                        {
-                            "identifier_9": identifier_9,
-                            "has_name": name is not None,
-                            "identifier_3or4": identifier_3or4,
-                        },
+                if customer_id is None:
+                    raise DatabaseException(
+                        "Failed to get new customer ID after insert."
                     )
+
+                self._set_identifier_3or4(customer_id, identifier_3or4)
+                AuditService.log_operation(
+                    "create_customer",
+                    "customer",
+                    customer_id,
+                    {
+                        "identifier_9": identifier_9,
+                        "has_name": name is not None,
+                        "identifier_3or4": identifier_3or4,
+                    },
+                )
 
             self.clear_cache()
             logger.info(

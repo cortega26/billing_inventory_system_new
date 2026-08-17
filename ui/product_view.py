@@ -418,17 +418,14 @@ class ProductView(QWidget):
                 product_id = self.product_service.create_product(product_data)
                 logger.debug(f"Product created with ID: {product_id}")
 
-                if product_id is not None:
-                    # Get fresh data but maintain filters
-                    fresh_products = self.product_service.get_all_products(
-                        active_only=not self.show_archived_checkbox.isChecked()
-                    )
-                    self.filter_products(products=fresh_products)
+                # Get fresh data but maintain filters
+                fresh_products = self.product_service.get_all_products(
+                    active_only=not self.show_archived_checkbox.isChecked()
+                )
+                self.filter_products(products=fresh_products)
 
-                    show_info_message("Éxito", "Producto agregado exitosamente.")
-                    logger.info(f"Product added successfully: ID {product_id}")
-                else:
-                    raise DatabaseException("Error al agregar producto.")
+                show_info_message("Éxito", "Producto agregado exitosamente.")
+                logger.info(f"Product added successfully: ID {product_id}")
         except Exception as e:
             logger.error(f"Error adding product: {str(e)}")
             raise

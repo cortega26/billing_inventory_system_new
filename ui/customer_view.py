@@ -3,7 +3,6 @@ import contextlib
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
-    QApplication,
     QCheckBox,
     QDialog,
     QDialogButtonBox,
@@ -215,24 +214,23 @@ class CustomerView(QWidget):
         """
         logger.debug(f"(load_customers) Called with _ignored_id={_ignored_id}")
 
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
-            # Force a fresh read from DB
-            self.customer_service.clear_cache()
-            customers = self.customer_service.get_all_customers(
-                active_only=not self.show_archived_checkbox.isChecked()
-            )
-            logger.debug(f"(load_customers) Fetched {len(customers)} customers from DB")
+            with wait_cursor():
+                # Force a fresh read from DB
+                self.customer_service.clear_cache()
+                customers = self.customer_service.get_all_customers(
+                    active_only=not self.show_archived_checkbox.isChecked()
+                )
+                logger.debug(
+                    f"(load_customers) Fetched {len(customers)} customers from DB"
+                )
 
-            # Now populate the table
-            self.populate_customer_table(customers)
+                # Now populate the table
+                self.populate_customer_table(customers)
 
         except Exception as e:
             logger.error(f"(load_customers) Error loading customers: {str(e)}")
             show_error_message("Error", f"Error al cargar clientes: {str(e)}")
-
-        finally:
-            QApplication.restoreOverrideCursor()
 
     @ui_operation(show_dialog=True)
     @handle_exceptions(UIException, show_dialog=True)

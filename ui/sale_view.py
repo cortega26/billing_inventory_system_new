@@ -3,7 +3,6 @@ from typing import Any
 from PySide6.QtCore import QDate, QEvent, QPoint, QSettings, Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
-    QApplication,
     QCheckBox,
     QComboBox,
     QDateEdit,
@@ -57,6 +56,7 @@ from utils.helpers import (
     format_price,
     show_error_message,
     show_info_message,
+    wait_cursor,
 )
 from utils.math.financial_calculator import FinancialCalculator
 from utils.system.logger import logger
@@ -1033,15 +1033,13 @@ class SaleView(QWidget):
     def load_sales(self, sale_id=None):
         """Load all sales."""
         try:
-            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-            sales = self.sale_service.get_all_sales()
-            QTimer.singleShot(0, lambda: self.update_sale_table(sales))
-            logger.info(f"Loaded {len(sales)} sales")
+            with wait_cursor():
+                sales = self.sale_service.get_all_sales()
+                QTimer.singleShot(0, lambda: self.update_sale_table(sales))
+                logger.info(f"Loaded {len(sales)} sales")
         except Exception as e:
             logger.error(f"Error loading sales: {str(e)}")
             raise DatabaseException(f"Error al cargar las ventas: {str(e)}") from e
-        finally:
-            QApplication.restoreOverrideCursor()
 
     def update_sale_table(self, sales: list[Sale]):
         """Update the sales history table with proper formatting."""

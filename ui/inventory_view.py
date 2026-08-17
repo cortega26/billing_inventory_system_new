@@ -4,7 +4,6 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QApplication,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -195,8 +194,7 @@ class InventoryView(QWidget):
     @ui_operation(show_dialog=True)
     @handle_exceptions(DatabaseException, UIException, show_dialog=True)
     def load_inventory(self):
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-        try:
+        with wait_cursor():
             category_id = self.category_filter.currentData()
             # If category is selected, we filter by it. Otherwise all.
             # Inventory service might need get_inventory_by_category or we filter locally.
@@ -233,9 +231,6 @@ class InventoryView(QWidget):
 
             self.current_inventory = filtered_items
             self.update_table(filtered_items)
-
-        finally:
-            QApplication.restoreOverrideCursor()
 
     def update_table(self, items: list[dict[str, Any]]):
         self.inventory_table.setRowCount(len(items))

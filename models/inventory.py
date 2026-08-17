@@ -6,7 +6,9 @@ import sqlalchemy as sa
 from pydantic import model_validator
 from sqlmodel import Field, SQLModel
 
+from models.enums import QUANTITY_PRECISION
 from utils.exceptions import ValidationException
+from utils.validation.validators import validate_float_non_negative
 
 
 class StockStatus(Enum):
@@ -50,7 +52,6 @@ class Inventory(SQLModel, table=True):
     )
 
     # Class constants
-    QUANTITY_PRECISION: ClassVar[int] = 3
     MAX_QUANTITY: ClassVar[float] = 9999999.999
 
     @model_validator(mode="after")
@@ -73,21 +74,16 @@ class Inventory(SQLModel, table=True):
     @classmethod
     def _round_quantity(cls, value: float) -> float:
         """Round float to specified precision."""
-        return round(float(value), cls.QUANTITY_PRECISION)
+        return round(float(value), QUANTITY_PRECISION)
 
     @staticmethod
     def _validate_float_field(value: float, field_name: str) -> None:
         """
         Validate a float field.
         """
-        if not isinstance(value, (int, float)):
-            raise ValidationException(f"{field_name} must be a numeric value")
+        validate_float_non_negative(value)
 
-        float_value = float(value)
-        if float_value < 0:
-            raise ValidationException(f"{field_name} cannot be negative")
-
-        if float_value > Inventory.MAX_QUANTITY:
+        if float(value) > Inventory.MAX_QUANTITY:
             raise ValidationException(f"{field_name} exceeds maximum allowed value")
 
     @classmethod

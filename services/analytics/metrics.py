@@ -1,3 +1,4 @@
+from models.enums import SaleStatus
 from services.analytics.contracts import Metric
 from utils.validation.validators import (
     validate_date,
@@ -30,13 +31,17 @@ class SalesDailyMetric(Metric):
                 SUM(total_amount) as total_sales,
                 COUNT(*) as sale_count
             FROM sales
-            WHERE date >= ? AND date < date(?, '+1 day') AND status = 'confirmed'
+            WHERE date >= ? AND date < date(?, '+1 day') AND status = ?
             GROUP BY strftime('%Y-%m-%d', date)
             ORDER BY date ASC
         """
 
     def get_parameters(self, **kwargs) -> tuple:
-        return (kwargs["start_date"], kwargs["end_date"])
+        return (
+            kwargs["start_date"],
+            kwargs["end_date"],
+            SaleStatus.CONFIRMED.value,
+        )
 
 
 class WeekdaySalesMetric(Metric):
@@ -71,13 +76,17 @@ class WeekdaySalesMetric(Metric):
                 SUM(total_amount) as total_sales,
                 COUNT(*) as sale_count
             FROM sales
-            WHERE date >= ? AND date < date(?, '+1 day') AND status = 'confirmed'
+            WHERE date >= ? AND date < date(?, '+1 day') AND status = ?
             GROUP BY CAST(strftime('%w', date) AS INTEGER)
             ORDER BY CAST(strftime('%w', date) AS INTEGER)
         """
 
     def get_parameters(self, **kwargs) -> tuple:
-        return (kwargs["start_date"], kwargs["end_date"])
+        return (
+            kwargs["start_date"],
+            kwargs["end_date"],
+            SaleStatus.CONFIRMED.value,
+        )
 
 
 class TopProductsMetric(Metric):
@@ -115,14 +124,19 @@ class TopProductsMetric(Metric):
             FROM products p
             JOIN sale_items si ON p.id = si.product_id
             JOIN sales s ON si.sale_id = s.id
-            WHERE s.date >= ? AND s.date < date(?, '+1 day') AND s.status = 'confirmed'
+            WHERE s.date >= ? AND s.date < date(?, '+1 day') AND s.status = ?
             GROUP BY p.id
             ORDER BY total_quantity DESC
             LIMIT ?
         """
 
     def get_parameters(self, **kwargs) -> tuple:
-        return (kwargs["start_date"], kwargs["end_date"], kwargs.get("limit", 10))
+        return (
+            kwargs["start_date"],
+            kwargs["end_date"],
+            SaleStatus.CONFIRMED.value,
+            kwargs.get("limit", 10),
+        )
 
 
 class LowStockMetric(Metric):
@@ -190,7 +204,7 @@ class InventoryAgingMetric(Metric):
             FROM products p
             JOIN inventory i ON p.id = i.product_id
             LEFT JOIN sale_items si ON p.id = si.product_id
-            LEFT JOIN sales s ON si.sale_id = s.id AND s.status = 'confirmed'
+            LEFT JOIN sales s ON si.sale_id = s.id AND s.status = ?
             WHERE i.quantity > 0
             GROUP BY p.id
             HAVING last_sold_date IS NULL
@@ -199,7 +213,10 @@ class InventoryAgingMetric(Metric):
         """
 
     def get_parameters(self, **kwargs) -> tuple:
-        return (str(kwargs.get("days", 30)),)
+        return (
+            SaleStatus.CONFIRMED.value,
+            str(kwargs.get("days", 30)),
+        )
 
 
 class DepartmentSalesMetric(Metric):
@@ -235,13 +252,17 @@ class DepartmentSalesMetric(Metric):
             LEFT JOIN categories c ON p.category_id = c.id
             JOIN sale_items si ON p.id = si.product_id
             JOIN sales s ON si.sale_id = s.id
-            WHERE s.date >= ? AND s.date < date(?, '+1 day') AND s.status = 'confirmed'
+            WHERE s.date >= ? AND s.date < date(?, '+1 day') AND s.status = ?
             GROUP BY c.id
             ORDER BY total_sales DESC
         """
 
     def get_parameters(self, **kwargs) -> tuple:
-        return (kwargs["start_date"], kwargs["end_date"])
+        return (
+            kwargs["start_date"],
+            kwargs["end_date"],
+            SaleStatus.CONFIRMED.value,
+        )
 
 
 class ProfitTrendMetric(Metric):
@@ -274,13 +295,17 @@ class ProfitTrendMetric(Metric):
                 SUM(total_profit) as daily_profit,
                 COUNT(*) as sale_count
             FROM sales
-            WHERE date >= ? AND date < date(?, '+1 day') AND status = 'confirmed'
+            WHERE date >= ? AND date < date(?, '+1 day') AND status = ?
             GROUP BY strftime('%Y-%m-%d', date)
             ORDER BY strftime('%Y-%m-%d', date)
         """
 
     def get_parameters(self, **kwargs) -> tuple:
-        return (kwargs["start_date"], kwargs["end_date"])
+        return (
+            kwargs["start_date"],
+            kwargs["end_date"],
+            SaleStatus.CONFIRMED.value,
+        )
 
 
 class WeeklyProfitTrendMetric(Metric):
@@ -307,13 +332,17 @@ class WeeklyProfitTrendMetric(Metric):
                 MIN(date(date)) as week_start,
                 SUM(total_profit) as weekly_profit
             FROM sales
-            WHERE date >= ? AND date < date(?, '+1 day') AND status = 'confirmed'
+            WHERE date >= ? AND date < date(?, '+1 day') AND status = ?
             GROUP BY week
             ORDER BY week
         """
 
     def get_parameters(self, **kwargs) -> tuple:
-        return (kwargs["start_date"], kwargs["end_date"])
+        return (
+            kwargs["start_date"],
+            kwargs["end_date"],
+            SaleStatus.CONFIRMED.value,
+        )
 
 
 class ProductProfitMetric(Metric):
@@ -355,14 +384,19 @@ class ProductProfitMetric(Metric):
             FROM products p
             JOIN sale_items si ON p.id = si.product_id
             JOIN sales s ON si.sale_id = s.id
-            WHERE s.date >= ? AND s.date < date(?, '+1 day') AND s.status = 'confirmed'
+            WHERE s.date >= ? AND s.date < date(?, '+1 day') AND s.status = ?
             GROUP BY p.id
             ORDER BY total_profit DESC
             LIMIT ?
         """
 
     def get_parameters(self, **kwargs) -> tuple:
-        return (kwargs["start_date"], kwargs["end_date"], kwargs.get("limit", 10))
+        return (
+            kwargs["start_date"],
+            kwargs["end_date"],
+            SaleStatus.CONFIRMED.value,
+            kwargs.get("limit", 10),
+        )
 
 
 class ProfitMarginDistributionMetric(Metric):
@@ -416,7 +450,7 @@ class ProfitMarginDistributionMetric(Metric):
                 FROM products p
                 JOIN sale_items si ON p.id = si.product_id
                 JOIN sales s ON si.sale_id = s.id
-                WHERE s.date >= ? AND s.date < date(?, '+1 day') AND s.status = 'confirmed'
+                WHERE s.date >= ? AND s.date < date(?, '+1 day') AND s.status = ?
                 GROUP BY p.id
             ) as product_margins
             GROUP BY margin_range
@@ -432,7 +466,11 @@ class ProfitMarginDistributionMetric(Metric):
         """
 
     def get_parameters(self, **kwargs) -> tuple:
-        return (kwargs["start_date"], kwargs["end_date"])
+        return (
+            kwargs["start_date"],
+            kwargs["end_date"],
+            SaleStatus.CONFIRMED.value,
+        )
 
 
 class SalesSummaryMetric(Metric):
@@ -467,8 +505,12 @@ class SalesSummaryMetric(Metric):
                 COALESCE(ROUND(AVG(total_amount)), 0) as average_sale_value,
                 COUNT(DISTINCT customer_id) as unique_customers
             FROM sales
-            WHERE date >= ? AND date < date(?, '+1 day') AND status = 'confirmed'
+            WHERE date >= ? AND date < date(?, '+1 day') AND status = ?
         """
 
     def get_parameters(self, **kwargs) -> tuple:
-        return (kwargs["start_date"], kwargs["end_date"])
+        return (
+            kwargs["start_date"],
+            kwargs["end_date"],
+            SaleStatus.CONFIRMED.value,
+        )

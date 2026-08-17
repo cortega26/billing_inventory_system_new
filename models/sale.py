@@ -5,6 +5,7 @@ import sqlalchemy as sa
 from pydantic import PrivateAttr, model_validator
 from sqlmodel import Column, Field, Integer, Relationship, SQLModel
 
+from models.enums import SaleStatus
 from utils.exceptions import ValidationException
 from utils.system.logger import logger
 from utils.validation.validators import validate_money, validate_money_multiplication
@@ -135,7 +136,7 @@ class SaleItem(SQLModel, table=True):
         }
 
 
-VALID_STATUSES = frozenset({"confirmed", "cancelled"})
+VALID_STATUSES = frozenset(status.value for status in SaleStatus)
 
 
 class Sale(SQLModel, table=True):
@@ -145,7 +146,8 @@ class Sale(SQLModel, table=True):
 
     __table_args__ = (
         sa.CheckConstraint(
-            "status IN ('confirmed', 'cancelled')", name="check_sale_status"
+            f"status IN ({', '.join(repr(s.value) for s in SaleStatus)})",
+            name="check_sale_status",
         ),
     )
 
@@ -172,9 +174,11 @@ class Sale(SQLModel, table=True):
     )
     receipt_id: str | None = Field(default=None, unique=True)
     status: str = Field(
-        default="confirmed",
+        default=SaleStatus.CONFIRMED.value,
         sa_column=sa.Column(
-            sa.String, nullable=False, server_default=sa.text("'confirmed'")
+            sa.String,
+            nullable=False,
+            server_default=sa.text(f"'{SaleStatus.CONFIRMED.value}'"),
         ),
     )
     created_at: datetime | None = Field(

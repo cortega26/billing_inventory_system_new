@@ -1,20 +1,20 @@
+from datetime import datetime
+
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
+from database.database_manager import DatabaseManager
 from models.sale import Sale
+from utils.exceptions import NotFoundException, ValidationException
 from utils.system.logger import logger
 from utils.validation.validators import (
     validate_filepath,
+    validate_integer,
+    validate_string,
 )
 
 
 class ReceiptService:
-    def __init__(self):
-        # We might need customer service if we want to fetch customer details inside receipt generation,
-        # but Sale object passed usually has what we need or we pass the data.
-        # For now, let's keep it simple.
-        pass
-
     def generate_pdf(self, sale: Sale, items: list, filepath: str) -> None:
         """
         Generate a PDF receipt for a sale.
@@ -80,3 +80,36 @@ class ReceiptService:
         logger.info(
             "Receipt saved as PDF", extra={"sale_id": sale.id, "filepath": filepath}
         )
+
+    def generate_receipt_id(self, sale_date: datetime) -> str:
+        """Generate the next receipt ID for the provided sale date."""
+        return self._build_receipt_id(sale_date.strftime("%Y-%m-%d"))
+
+    def _build_receipt_id(self, sale_date_str: str) -> str:
+        sale_date = datetime.strptime(sale_date_str, "%Y-%m-%d")
+        date_part = sale_date.strftime("%y%m%d")
+        query = """
+            SELECT MAX(CAST(SUBSTR(receipt_id, 7) AS INTEGER)) as last_number
+            FROM sales
+            WHERE receipt_id LIKE ?
+        """
+        result = DatabaseManager.fetch_one(query, (f"{date_part}%",))
+        last_number = (
+            int(result["last_number"]) if result and result["last_number"] else 0
+        )
+        next_number = last_number + 1
+        if next_number > 999:
+            raise ValidationException(
+                f"Daily receipt limit reached for {sale_date_str} (max 999 per day)"
+            )
+        return f"{date_part}{next_number:03d}"
+
+    def update_sale_receipt_id(self, sale_id: int, receipt_id: str) -> None:
+        sale_id = validate_integer(sale_id, min_value=1)
+        receipt_id = validate_string(receipt_id, max_length=20)
+        query = "UPDATE sales SET receipt_id = ? WHERE id = ?"
+        cursor = DatabaseManager.execute_query(query, (receipt_id, sale_id))
+        if cursor.rowcount == 0:
+            raise NotFoundException(f"Sale with ID {sale_id} not found")
+
+

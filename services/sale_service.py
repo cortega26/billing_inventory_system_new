@@ -23,7 +23,6 @@ from utils.validation.validators import (
     validate_filepath,
     validate_float,
     validate_integer,
-    validate_string,
 )
 
 
@@ -114,7 +113,7 @@ class SaleService:
             ]
             DatabaseManager.executemany(items_query, batch_params)
 
-            receipt_id = self._build_receipt_id(sale_date_str)
+            receipt_id = self.receipt_service.generate_receipt_id(datetime.strptime(sale_date_str, "%Y-%m-%d"))
             update_query = """
                 UPDATE sales
                 SET total_amount = ?, total_profit = ?, receipt_id = ?
@@ -122,6 +121,7 @@ class SaleService:
             """
             DatabaseManager.execute_query(
                 update_query, (total_amount, total_profit, receipt_id, sale_id)
+
             )
 
             InventoryService.apply_batch_updates(
@@ -396,11 +396,6 @@ class SaleService:
         )
         return total_profits
 
-    @staticmethod
-    def generate_receipt_id(sale_date: datetime) -> str:
-        """Generate the next receipt ID for the provided sale date."""
-        return SaleService._build_receipt_id(sale_date.strftime("%Y-%m-%d"))
-
     @db_operation(show_dialog=True)
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def generate_receipt(self, sale_id: int) -> str:
@@ -410,8 +405,8 @@ class SaleService:
         if not sale.receipt_id:
             if sale.date is None:
                 raise ValidationException("Sale date is required to generate receipt")
-            receipt_id = self.generate_receipt_id(sale.date)
-            self._update_sale_receipt_id(sale_id, receipt_id)
+            receipt_id = self.receipt_service.generate_receipt_id(sale.date)
+            self.receipt_service.update_sale_receipt_id(sale_id, receipt_id)
             sale.receipt_id = receipt_id
         else:
             receipt_id = sale.receipt_id
@@ -420,15 +415,6 @@ class SaleService:
             "Receipt generated", extra={"sale_id": sale_id, "receipt_id": receipt_id}
         )
         return receipt_id
-
-    @db_operation(show_dialog=True)
-    def _update_sale_receipt_id(self, sale_id: int, receipt_id: str) -> None:
-        sale_id = validate_integer(sale_id, min_value=1)
-        receipt_id = validate_string(receipt_id, max_length=20)
-        query = "UPDATE sales SET receipt_id = ? WHERE id = ?"
-        cursor = DatabaseManager.execute_query(query, (receipt_id, sale_id))
-        if cursor.rowcount == 0:
-            raise NotFoundException(f"Sale with ID {sale_id} not found")
 
     @handle_exceptions(ValidationException, DatabaseException, show_dialog=True)
     def save_receipt_as_pdf(self, sale_id: int, filepath: str) -> None:
@@ -448,28 +434,9 @@ class SaleService:
         SaleService.get_all_sales.cache_clear()
         logger.debug("Sale cache cleared")
 
-    @staticmethod
-    def _build_receipt_id(sale_date_str: str) -> str:
-        sale_date = datetime.strptime(sale_date_str, "%Y-%m-%d")
-        date_part = sale_date.strftime("%y%m%d")
-        query = """
-            SELECT MAX(CAST(SUBSTR(receipt_id, 7) AS INTEGER)) as last_number
-            FROM sales
-            WHERE receipt_id LIKE ?
-        """
-        result = DatabaseManager.fetch_one(query, (f"{date_part}%",))
-        last_number = (
-            int(result["last_number"]) if result and result["last_number"] else 0
-        )
-        next_number = last_number + 1
-        if next_number > 999:
-            raise ValidationException(
-                f"Daily receipt limit reached for {sale_date_str} (max 999 per day)"
-            )
-        return f"{date_part}{next_number:03d}"
-
     def validate_sale_items(self, items: list[dict[str, Any]]) -> None:
         """Validate a list of sale item dicts and compute each item's profit in place. Part of the update-sale workflow contract."""
+
         if not items:
             raise ValidationException("Sale must have at least one item")
         if len(items) > MAX_SALE_ITEMS:

@@ -25,7 +25,15 @@ Consult before every change. Check off as work completes.
 - [x] Plan 020 merged (c815fd4), pushed, cleaned, index updated
 - [x] Midpoint gap review done 2026-08-15 (fresh agent): nothing blocks 017/018/020; found InventoryAgingMetric status gap -> follow-up micro-plan
 - [x] Final full-suite integration run on main (349 passed, 1 skipped)
-- [ ] All plans archived; todo.md complete; `git push origin main` final
+- [x] All plans archived; todo.md complete; `git push origin main` final
+
+## Round 3 (SOLID/DRY/KISS/Zen audit, 2026-08-17) — plans 034-056
+
+- [x] 28 vetted findings, all net-positive per maintainer decision; plans 034-056 written
+- [x] All 23 plans executed + reviewed (APPROVED) + merged into main (HEAD 1074c69, 442 passed)
+- [x] Merge conflicts resolved (7 merges: 038+048, 045+042, 055+051, 035+044/049, others), quality gate green (ruff/black/pyright/bandit/drift)
+- [x] Plan files 034-056 archived per ARCHIVE RULE; 23 merged advisor branches deleted
+- [x] Final push of round-3 work to origin (90 commits) 2026-08-18
 
 ## Plan 015 — cancelled sales excluded from reports
 

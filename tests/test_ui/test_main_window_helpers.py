@@ -22,20 +22,25 @@ from ui.main_window import (
 from utils.system.event_system import event_system
 
 
-@pytest.fixture(autouse=True)
-def seed_default_database(tmp_path, mocker):
-    """Give AnalyticsEngine a private, schema-populated sqlite file.
+@pytest.fixture(scope="session", autouse=True)
+def seed_default_database(tmp_path_factory):
+    """Give AnalyticsEngine a durable, schema-populated sqlite file.
 
     create_tabs() builds DashboardView first, which queries through
     AnalyticsEngine — a real, read-only sqlite connection to the module's
     DATABASE_PATH, independent of the in-memory DatabaseManager the
-    db_manager fixture sets up. Patching
-    services.analytics.engine.DATABASE_PATH to a tmp_path-scoped file
-    (rather than seeding the real shared repo-root DATABASE_PATH, as
-    test_dashboard_view.py's pattern does) keeps every test's database
-    private, so parallel pytest-xdist workers can't race each other over
-    who creates the schema first.
+    db_manager fixture sets up. AnalyticsView (also built by create_tabs)
+    schedules its default chart via QTimer.singleShot(0, ...); that timer
+    routinely doesn't fire until *after* the test that scheduled it has
+    already torn down, sometimes while an unrelated test in the same
+    pytest-xdist worker is running. A function-scoped tmp_path patch gets
+    deleted and reverted before that fires, so the late callback hits the
+    (nonexistent) real DATABASE_PATH and fails in whatever test happened
+    to be running. Scoping the fake database and the patch to the whole
+    worker session means a late callback just queries an empty schema
+    harmlessly, no matter when or where it fires.
     """
+    import services.analytics.engine as analytics_engine
     from models.audit_log import AuditLog  # noqa: F401
     from models.category import Category  # noqa: F401
     from models.customer import Customer  # noqa: F401
@@ -44,12 +49,15 @@ def seed_default_database(tmp_path, mocker):
     from models.purchase import Purchase, PurchaseItem  # noqa: F401
     from models.sale import Sale, SaleItem  # noqa: F401
 
-    db_path = tmp_path / "main_window_test.db"
+    db_path = tmp_path_factory.mktemp("main_window") / "main_window_test.db"
     engine = create_engine(f"sqlite:///{db_path}")
     SQLModel.metadata.create_all(engine)
     engine.dispose()
 
-    mocker.patch("services.analytics.engine.DATABASE_PATH", db_path)
+    original_path = analytics_engine.DATABASE_PATH
+    analytics_engine.DATABASE_PATH = db_path
+    yield
+    analytics_engine.DATABASE_PATH = original_path
 
 
 @pytest.fixture

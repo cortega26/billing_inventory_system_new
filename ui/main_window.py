@@ -2,7 +2,7 @@ import contextlib
 from typing import Protocol, cast
 
 import shiboken6
-from PySide6.QtCore import QPoint, QSettings, QSize, QTimer
+from PySide6.QtCore import QPoint, QSettings, QSize, Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QDialog,
@@ -97,6 +97,11 @@ INVENTORY_REFRESH_TARGETS = (
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        # Without this, close() only hides the window rather than actually
+        # destroying it. Needed for the shortcut-action disconnect below to
+        # matter -- see closeEvent for why that disconnect is the one that
+        # actually breaks the leak.
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.setWindowTitle(f"{APP_NAME} - v{APP_VERSION}")
         self.settings = QSettings(COMPANY_NAME, APP_NAME)
         self.views_by_name: dict[str, QWidget] = {}
@@ -104,6 +109,7 @@ class MainWindow(QMainWindow):
         self._refresh_flush_scheduled = False
         self._refresh_flush_timer: QTimer | None = None
         self._events_connected = False
+        self._shortcut_actions: list[QAction] = []
         self.setup_ui()
 
     @ui_operation(show_dialog=True)
@@ -202,6 +208,7 @@ class MainWindow(QMainWindow):
                 lambda checked=False, idx=index: self.switch_to_tab(idx)
             )
             self.addAction(action)
+            self._shortcut_actions.append(action)
 
     @ui_operation()
     def switch_to_tab(self, index: int):
@@ -322,9 +329,31 @@ class MainWindow(QMainWindow):
         self.settings.setValue("WindowPosition", self.pos())
 
         self.disconnect_from_events()
+        self.disconnect_shortcut_actions()
 
         logger.info("Application closed by user")
         event.accept()
+
+    def disconnect_shortcut_actions(self):
+        """Break the reference cycle setup_global_shortcuts() creates.
+
+        Each QAction is parented to self (owned via Qt's C++ object tree,
+        invisible to Python's garbage collector) and its triggered signal
+        is connected to a lambda that closes over self. That combination
+        keeps self reachable from Python's perspective even after every
+        external reference (including WA_DeleteOnClose's own deleteLater)
+        is gone: PySide won't free a Qt-parented object that Python still
+        appears to hold, and Python's cyclic GC can't complete the other
+        half of the cycle because the ownership edge is C++-only. Verified
+        empirically -- a closed MainWindow stayed alive under gc.collect()
+        purely because of this, in isolation from every other subsystem.
+        Disconnecting explicitly breaks the cycle deterministically instead
+        of relying on collection to figure it out.
+        """
+        for action in self._shortcut_actions:
+            with contextlib.suppress(RuntimeError, TypeError):
+                action.triggered.disconnect()
+        self._shortcut_actions = []
 
     def show_status_message(self, message: str, timeout: int = 5000):
         self.status_bar.showMessage(message, timeout)

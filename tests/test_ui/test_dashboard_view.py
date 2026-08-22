@@ -1,3 +1,5 @@
+import uuid
+
 import pytest
 
 pytest.importorskip("PySide6", reason="PySide6 not installed")
@@ -10,16 +12,19 @@ from ui.dashboard_view import DashboardView
 
 # DashboardView builds charts through the analytics engine, which opens a
 # read-only connection to the active business's database FILE (not the
-# in-memory DatabaseManager). Seed that file with the full schema so chart
-# queries succeed; the profile assertions never depend on query results.
-RESELLER_DB = "dashboard_reseller_test.db"
-PRODUCTION_DB = "dashboard_production_test.db"
+# in-memory DatabaseManager). get_safe_db_path() always resolves db_filename
+# relative to the repo root, so per-test isolation has to come from a unique
+# filename rather than a tmp_path redirect. Seed that file with the full
+# schema so chart queries succeed; the profile assertions never depend on
+# query results.
 
 
 @pytest.fixture
 def set_dashboard_profile(db_manager):
+    created_paths: list = []
+
     def _set(profile):
-        db_filename = RESELLER_DB if profile == "reseller" else PRODUCTION_DB
+        db_filename = f"dashboard_{profile}_test_{uuid.uuid4().hex}.db"
         config.set(
             "businesses",
             [
@@ -33,11 +38,15 @@ def set_dashboard_profile(db_manager):
         )
         config.set("active_business", "default")
         db_path = config.get_active_database_path()
-        if not db_path.exists():
-            engine = create_engine(f"sqlite:///{db_path}")
-            SQLModel.metadata.create_all(engine)
+        engine = create_engine(f"sqlite:///{db_path}")
+        SQLModel.metadata.create_all(engine)
+        engine.dispose()
+        created_paths.append(db_path)
 
-    return _set
+    yield _set
+
+    for path in created_paths:
+        path.unlink(missing_ok=True)
 
 
 def _metric_labels(view: DashboardView) -> list[str]:

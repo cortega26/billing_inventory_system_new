@@ -51,7 +51,10 @@ def test_create_backup_success_updates_config_and_emits_event(
     event_system.backup_completed.connect(completed_handler)
 
     try:
-        with patch("services.backup_service.DATABASE_PATH", source_db):
+        with patch(
+            "services.backup_service.config.get_active_database_path",
+            return_value=source_db,
+        ):
             backup_path = backup_service_test.create_backup()
             assert backup_path is not None
             assert Path(backup_path).exists()
@@ -81,7 +84,10 @@ def test_create_backup_skipped_updates_config_and_emits_event(
 
     try:
         with (
-            patch("services.backup_service.DATABASE_PATH", source_db),
+            patch(
+                "services.backup_service.config.get_active_database_path",
+                return_value=source_db,
+            ),
             patch(
                 "services.backup_service.shutil.disk_usage",
                 return_value=SimpleNamespace(total=100, used=100, free=0),
@@ -110,7 +116,10 @@ def test_create_backup_exception_updates_config_and_emits_event(
 ):
     # Force exception during sqlite3.connect
     with (
-        patch("services.backup_service.DATABASE_PATH", source_db),
+        patch(
+            "services.backup_service.config.get_active_database_path",
+            return_value=source_db,
+        ),
         patch(
             "services.backup_service.sqlite3.connect",
             side_effect=Exception("Failed to open connection"),

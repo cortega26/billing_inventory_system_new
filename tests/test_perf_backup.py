@@ -23,12 +23,16 @@ class TestPerfBackup:
 
         # Patch backup dir to tmp_path
         mocker.patch.object(BackupService, "get_backup_dir", return_value=tmp_path)
-        # Patch DATABASE_PATH to a dummy path for naming
-        # Patch DATABASE_PATH to a dummy path that claims to exist
+        # Patch the active database path to a dummy path that claims to exist.
+        # create_backup() resolves this via config.get_active_database_path(),
+        # not the (unused) module-level DATABASE_PATH constant.
         mock_db_path = mocker.MagicMock(spec=Path)
         mock_db_path.exists.return_value = True
         mock_db_path.name = "test.db"
-        mocker.patch("services.backup_service.DATABASE_PATH", mock_db_path)
+        mocker.patch(
+            "services.backup_service.config.get_active_database_path",
+            return_value=mock_db_path,
+        )
 
         # Clean Logger mock
         self.mock_logger = mocker.patch("database.database_manager.logger")

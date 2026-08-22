@@ -8,11 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from config import (  # noqa: F401 -- import-time default kept so tests patching services.backup_service.DATABASE_PATH still bind
-    DATABASE_PATH,
-    DEFAULT_ACTIVE_BUSINESS,
-    config,
-)
+from config import DEFAULT_ACTIVE_BUSINESS, config
 from database.database_manager import DatabaseManager
 from utils.system.event_system import event_system
 from utils.system.logger import logger

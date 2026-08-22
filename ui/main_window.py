@@ -1,3 +1,4 @@
+import contextlib
 from typing import Protocol, cast
 
 import shiboken6
@@ -101,6 +102,8 @@ class MainWindow(QMainWindow):
         self.views_by_name: dict[str, QWidget] = {}
         self._pending_refresh_tabs: set[str] = set()
         self._refresh_flush_scheduled = False
+        self._refresh_flush_timer: QTimer | None = None
+        self._events_connected = False
         self.setup_ui()
 
     @ui_operation(show_dialog=True)
@@ -260,6 +263,38 @@ class MainWindow(QMainWindow):
         event_system.purchase_deleted.connect(self.on_purchase_changed)
         event_system.inventory_changed.connect(self.on_inventory_changed)
         event_system.backup_skipped.connect(self.on_backup_skipped)
+        self._events_connected = True
+
+    def disconnect_from_events(self):
+        """Undo connect_to_events so a closed window stops reacting to events.
+
+        event_system is a process-wide singleton, so without this a closed
+        MainWindow's bound methods stay connected forever: the global bus
+        holds a strong reference to the (supposedly dead) window, keeping it
+        and every child widget/timer alive indefinitely, still queuing
+        refreshes and analytics queries for a window nobody can see anymore.
+        """
+        if not getattr(self, "_events_connected", False):
+            return
+        self._events_connected = False
+        for signal, slot in (
+            (event_system.product_added, self.on_product_added),
+            (event_system.product_updated, self.on_product_updated),
+            (event_system.product_deleted, self.on_product_deleted),
+            (event_system.customer_added, self.on_customer_changed),
+            (event_system.customer_updated, self.on_customer_changed),
+            (event_system.customer_deleted, self.on_customer_changed),
+            (event_system.sale_added, self.on_sale_added),
+            (event_system.sale_updated, self.on_sale_changed),
+            (event_system.sale_deleted, self.on_sale_changed),
+            (event_system.purchase_added, self.on_purchase_added),
+            (event_system.purchase_updated, self.on_purchase_changed),
+            (event_system.purchase_deleted, self.on_purchase_changed),
+            (event_system.inventory_changed, self.on_inventory_changed),
+            (event_system.backup_skipped, self.on_backup_skipped),
+        ):
+            with contextlib.suppress(RuntimeError, TypeError):
+                signal.disconnect(slot)
 
     @ui_operation(show_dialog=True)
     def on_tab_changed(self, index):
@@ -285,6 +320,8 @@ class MainWindow(QMainWindow):
 
         self.settings.setValue("WindowSize", self.size())
         self.settings.setValue("WindowPosition", self.pos())
+
+        self.disconnect_from_events()
 
         logger.info("Application closed by user")
         event.accept()
@@ -350,7 +387,15 @@ class MainWindow(QMainWindow):
         self._pending_refresh_tabs.update(target_tab_names)
         if not self._refresh_flush_scheduled:
             self._refresh_flush_scheduled = True
-            QTimer.singleShot(0, self._flush_pending_refreshes)
+            # Parented to self (not the static QTimer.singleShot, which has
+            # no owner) so Qt stops and destroys this timer as part of
+            # tearing down the window, instead of leaving it to fire later
+            # against a window that's being closed.
+            timer = QTimer(self)
+            timer.setSingleShot(True)
+            timer.timeout.connect(self._flush_pending_refreshes)
+            self._refresh_flush_timer = timer
+            timer.start(0)
 
     def _flush_pending_refreshes(self) -> None:
         self._refresh_flush_scheduled = False

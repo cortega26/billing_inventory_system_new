@@ -50,6 +50,7 @@ class AnalyticsView(QWidget):
     def __init__(self):
         super().__init__()
         self.analytics_service = AnalyticsService()
+        self._pending_analytics_timer: QTimer | None = None
         self.setup_ui()
         self.setup_update_timer()
 
@@ -175,7 +176,21 @@ class AnalyticsView(QWidget):
                 }
 
                 if analytics_type in analytics_functions:
-                    QTimer.singleShot(0, analytics_functions[analytics_type])
+                    # Deferred (not called directly) so the wait cursor and
+                    # progress bar paint before the query runs. Parented to
+                    # self and tracked on the instance -- rather than the
+                    # static QTimer.singleShot, which fires from an
+                    # anonymous timer with no owner -- so Qt cancels and
+                    # destroys it automatically if this view is closed
+                    # before the callback fires, instead of leaving a
+                    # dangling call against a torn-down widget/connection.
+                    if self._pending_analytics_timer is not None:
+                        self._pending_analytics_timer.stop()
+                    timer = QTimer(self)
+                    timer.setSingleShot(True)
+                    timer.timeout.connect(analytics_functions[analytics_type])
+                    self._pending_analytics_timer = timer
+                    timer.start(0)
                 else:
                     raise ValidationException(
                         f"Tipo analítico desconocido: {analytics_type}"

@@ -5,6 +5,7 @@ pytest.importorskip("PySide6", reason="PySide6 not installed")
 from types import SimpleNamespace
 
 from PySide6.QtWidgets import QApplication, QDialog
+from sqlmodel import SQLModel, create_engine
 
 from config import config
 from ui.business_selector_dialog import BusinessSelectorDialog
@@ -19,6 +20,36 @@ from ui.main_window import (
     build_backup_skipped_status_message,
 )
 from utils.system.event_system import event_system
+
+
+@pytest.fixture(autouse=True)
+def seed_default_database(tmp_path, mocker):
+    """Give AnalyticsEngine a private, schema-populated sqlite file.
+
+    create_tabs() builds DashboardView first, which queries through
+    AnalyticsEngine — a real, read-only sqlite connection to the module's
+    DATABASE_PATH, independent of the in-memory DatabaseManager the
+    db_manager fixture sets up. Patching
+    services.analytics.engine.DATABASE_PATH to a tmp_path-scoped file
+    (rather than seeding the real shared repo-root DATABASE_PATH, as
+    test_dashboard_view.py's pattern does) keeps every test's database
+    private, so parallel pytest-xdist workers can't race each other over
+    who creates the schema first.
+    """
+    from models.audit_log import AuditLog  # noqa: F401
+    from models.category import Category  # noqa: F401
+    from models.customer import Customer  # noqa: F401
+    from models.inventory import Inventory, InventoryAdjustment  # noqa: F401
+    from models.product import Product  # noqa: F401
+    from models.purchase import Purchase, PurchaseItem  # noqa: F401
+    from models.sale import Sale, SaleItem  # noqa: F401
+
+    db_path = tmp_path / "main_window_test.db"
+    engine = create_engine(f"sqlite:///{db_path}")
+    SQLModel.metadata.create_all(engine)
+    engine.dispose()
+
+    mocker.patch("services.analytics.engine.DATABASE_PATH", db_path)
 
 
 @pytest.fixture

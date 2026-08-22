@@ -51,5 +51,12 @@ jobs:
     - name: Check legacy database upgrade
       run: python scripts/check_legacy_upgrade.py
 
-    - name: Run tests with pytest (parallel under xvfb)
-      run: xvfb-run -a python -m pytest -n auto
+    - name: Run tests with pytest (parallel, offscreen Qt platform)
+      # Real Xvfb makes every xdist worker's QApplication race for the same
+      # shared X display; on this runner's actual core count that race
+      # aborts several workers at once (Fatal Python error: Aborted in the
+      # qapp fixture). The offscreen platform plugin needs no display
+      # server, so each worker gets its own isolated Qt instance.
+      env:
+        QT_QPA_PLATFORM: offscreen
+      run: python -m pytest -n auto

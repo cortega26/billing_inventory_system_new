@@ -10,6 +10,11 @@ them to the repo's migration chain. The inspector guard makes the revision a
 no-op on databases that already have the columns (the live DB) and additive on
 fresh/pre-024 databases.
 
+2026-08-18 fix: the SQLite batch recreate used to DROP the old `customers`
+table while the connection had `PRAGMA foreign_keys = ON`, which cascade-
+deleted every `customer_identifiers` row (ON DELETE CASCADE). FK enforcement
+is now disabled around the recreation (regression test:
+test_pre_024_migration_preserves_customer_identifiers).
 """
 
 from collections.abc import Sequence
@@ -31,28 +36,40 @@ def upgrade() -> None:
     inspector = sa.inspect(bind)
     existing = {c["name"] for c in inspector.get_columns("customers")}
 
-    with op.batch_alter_table("customers") as batch_op:
-        if "current_balance" not in existing:
-            batch_op.add_column(
-                sa.Column(
-                    "current_balance",
-                    sa.Integer(),
-                    nullable=False,
-                    server_default=sa.text("0"),
+    if "current_balance" in existing and "credit_limit" in existing:
+        return
+
+    # SQLite batch mode recreates the table via DROP + CREATE. With
+    # PRAGMA foreign_keys = ON (DatabaseManager startup pragma), the DROP
+    # fires ON DELETE CASCADE on child tables (customer_identifiers),
+    # silently wiping their rows. Disable FK enforcement around the
+    # recreation — the standard Alembic recipe for SQLite batch mode.
+    bind.exec_driver_sql("PRAGMA foreign_keys = OFF")
+    try:
+        with op.batch_alter_table("customers") as batch_op:
+            if "current_balance" not in existing:
+                batch_op.add_column(
+                    sa.Column(
+                        "current_balance",
+                        sa.Integer(),
+                        nullable=False,
+                        server_default=sa.text("0"),
+                    )
                 )
-            )
-        if "credit_limit" not in existing:
-            batch_op.add_column(
-                sa.Column(
-                    "credit_limit",
-                    sa.Integer(),
-                    nullable=False,
-                    server_default=sa.text("50000"),
+            if "credit_limit" not in existing:
+                batch_op.add_column(
+                    sa.Column(
+                        "credit_limit",
+                        sa.Integer(),
+                        nullable=False,
+                        server_default=sa.text("50000"),
+                    )
                 )
-            )
-            batch_op.create_check_constraint(
-                "check_customer_credit_limit", "credit_limit >= 0"
-            )
+                batch_op.create_check_constraint(
+                    "check_customer_credit_limit", "credit_limit >= 0"
+                )
+    finally:
+        bind.exec_driver_sql("PRAGMA foreign_keys = ON")
 
 
 def downgrade() -> None:
@@ -60,9 +77,17 @@ def downgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     existing = {c["name"] for c in inspector.get_columns("customers")}
-    with op.batch_alter_table("customers") as batch_op:
-        if "credit_limit" in existing:
-            batch_op.drop_constraint("check_customer_credit_limit", type_="check")
-            batch_op.drop_column("credit_limit")
-        if "current_balance" in existing:
-            batch_op.drop_column("current_balance")
+
+    if "credit_limit" not in existing and "current_balance" not in existing:
+        return
+
+    bind.exec_driver_sql("PRAGMA foreign_keys = OFF")
+    try:
+        with op.batch_alter_table("customers") as batch_op:
+            if "credit_limit" in existing:
+                batch_op.drop_constraint("check_customer_credit_limit", type_="check")
+                batch_op.drop_column("credit_limit")
+            if "current_balance" in existing:
+                batch_op.drop_column("current_balance")
+    finally:
+        bind.exec_driver_sql("PRAGMA foreign_keys = ON")

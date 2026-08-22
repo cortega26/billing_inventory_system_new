@@ -43,6 +43,15 @@ CREATE TABLE customers (
 )
 """
 
+PRE_024_CUSTOMER_IDENTIFIERS_DDL = """
+CREATE TABLE customer_identifiers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER NOT NULL,
+    identifier_3or4 TEXT NOT NULL,
+    FOREIGN KEY (customer_id) REFERENCES customers (id) ON DELETE CASCADE
+)
+"""
+
 
 def _close_db_connection():
     if DatabaseManager._connection:
@@ -177,6 +186,52 @@ class TestCustomerCreditColumns:
                 ).fetchone()
                 assert row == (0, 50000)
                 conn.commit()
+            finally:
+                conn.close()
+        finally:
+            _close_db_connection()
+
+    def test_pre_024_migration_preserves_customer_identifiers(self, tmp_path):
+        """Regression: the batch recreate of `customers` must not cascade-wipe
+        `customer_identifiers` rows when the connection has
+        PRAGMA foreign_keys = ON (DatabaseManager startup pragma). This bug
+        silently deleted every identifier of the seeded casabea DB."""
+        db_path = tmp_path / "pre_024_with_identifiers.db"
+        conn = sqlite3.connect(str(db_path))
+        conn.execute(PRE_024_CUSTOMERS_DDL)
+        conn.execute(PRE_024_CUSTOMER_IDENTIFIERS_DDL)
+        conn.execute(
+            "CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL"
+            " PRIMARY KEY)"
+        )
+        conn.execute(
+            "INSERT INTO alembic_version (version_num) VALUES (?)",
+            (PRE_024_REVISION,),
+        )
+        conn.execute(
+            "INSERT INTO customers (identifier_9, name) VALUES (?, ?)",
+            ("912345678", "Cliente"),
+        )
+        conn.execute(
+            "INSERT INTO customer_identifiers (customer_id, identifier_3or4)"
+            " VALUES (?, ?)",
+            (1, "408"),
+        )
+        conn.commit()
+        conn.close()
+
+        try:
+            _migrate(db_path)
+
+            conn = sqlite3.connect(str(db_path))
+            try:
+                rows = conn.execute(
+                    "SELECT ci.identifier_3or4 FROM customer_identifiers ci"
+                    " JOIN customers c ON c.id = ci.customer_id"
+                    " WHERE c.identifier_9 = ?",
+                    ("912345678",),
+                ).fetchall()
+                assert rows == [("408",)]
             finally:
                 conn.close()
         finally:

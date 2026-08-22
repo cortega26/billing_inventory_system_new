@@ -86,6 +86,11 @@ Be very careful with transactional assumptions in this repo.
 - Emit domain/UI refresh events only after the transaction succeeds.
   Do not emit signals from the middle of a workflow that may still roll back.
 - Any fix for partial-failure risk should come with focused regression coverage.
+- Never let a SQLite `batch_alter_table` migration recreate a table while the
+  connection has `PRAGMA foreign_keys = ON`: the DROP of the old table fires
+  `ON DELETE CASCADE` on child tables and silently wipes their rows (plan-024
+  bug wiped all `customer_identifiers`). Disable FK enforcement around the
+  recreation and re-enable it in a `finally` (see `652b05c0c11e`).
 
 Before changing persistence behavior:
 

@@ -207,6 +207,15 @@ if the maintainer asks.
 ## Follow-up backlog (found during execution of plans 015-023)
 
 - **RESOLVED by plan 024**: `customers.current_balance`/`credit_limit` live-vs-repo drift — columns now in `models/customer.py`, `schema.sql`, migration `652b05c0c11e`; no-op verified on a copy of the live DB.
+- **RESOLVED 2026-08-18 (data-loss fix)**: migration `652b05c0c11e` silently
+  wiped every `customer_identifiers` row of pre-024 databases — the SQLite
+  batch recreate DROPs the old `customers` table and, with the app connection
+  at `PRAGMA foreign_keys = ON` (`database/database_manager.py:18`), the
+  `ON DELETE CASCADE` FK deleted all identifier rows. It hit the freshly
+  seeded casabea.db (all 127 identifiers lost, customers intact). Fix: FK
+  enforcement is now disabled around the recreation in `upgrade()`/`downgrade()`
+  + regression test `test_pre_024_migration_preserves_customer_identifiers`;
+  casabea identifiers restored from `billing_inventory.db` by `identifier_9`.
 - **RESOLVED 2026-08-16 (plan 031)**: name-length CHECK added to schema.sql.
   `identifier_9 COLLATE NOCASE` — REJECTED by decision: identifiers are
   digits, case semantics are moot; no table rebuild for it.
